@@ -78,32 +78,3 @@ func (c *Chunk) Bounds() (minQ, maxQ, minR, maxR int) {
 	return c.Coord.Bounds()
 }
 
-// SuperChunkSize is the edge length of a super-chunk measured in chunks. A super-chunk is a
-// 4×4 group of chunks used as the granularity for road network generation: computing roads
-// per-chunk would be too fine-grained (adjacent chunks see inconsistent POI graphs), while
-// a per-super-chunk graph is large enough to span meaningful distances and still be generated
-// on demand.
-const SuperChunkSize = 4
-
-// SuperChunkCoord identifies a super-chunk in super-chunk-space. Multiplying by
-// SuperChunkSize × ChunkSize gives the axial origin of the super-chunk's (0,0) corner.
-type SuperChunkCoord struct{ X, Y int }
-
-// ChunkToSuperChunk returns the super-chunk that contains chunk cc. Floor division is
-// required for the same reason as WorldToChunk: Go's / truncates toward zero, which would
-// place chunk -1 into super-chunk 0 instead of super-chunk -1.
-func ChunkToSuperChunk(cc ChunkCoord) SuperChunkCoord {
-	return SuperChunkCoord{
-		X: floorDiv(cc.X, SuperChunkSize),
-		Y: floorDiv(cc.Y, SuperChunkSize),
-	}
-}
-
-// ChunkBounds returns the [min, max) chunk-coordinate range covered by sc in both axes.
-// The range is inclusive on the low side and exclusive on the high side, matching the
-// convention used by ChunkCoord.Bounds.
-func (sc SuperChunkCoord) ChunkBounds() (minCX, maxCX, minCY, maxCY int) {
-	minCX = sc.X * SuperChunkSize
-	minCY = sc.Y * SuperChunkSize
-	return minCX, minCX + SuperChunkSize, minCY, minCY + SuperChunkSize
-}

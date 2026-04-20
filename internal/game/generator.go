@@ -15,7 +15,7 @@ var temperatureOpts = OctaveOpts{
 	Octaves:     2,
 	Lacunarity:  2.0,
 	Persistence: 0.5,
-	Scale:       512.0,
+	Scale:       80.0,
 }
 
 // moistureOpts adds a touch more detail than temperature — rain shadows feel local — but
@@ -24,7 +24,7 @@ var moistureOpts = OctaveOpts{
 	Octaves:     3,
 	Lacunarity:  2.0,
 	Persistence: 0.5,
-	Scale:       384.0,
+	Scale:       64.0,
 }
 
 // WorldGenerator is the deterministic pure function layer: given a (q, r) coordinate (or a
@@ -36,7 +36,6 @@ type WorldGenerator struct {
 	elevation   OctaveNoise
 	temperature OctaveNoise
 	moisture    OctaveNoise
-	roadCache   *superChunkRoadCache
 }
 
 // NewWorldGenerator builds the three noise fields off the supplied base seed. The per-layer
@@ -48,7 +47,6 @@ func NewWorldGenerator(seed int64) *WorldGenerator {
 		elevation:   NewOctaveNoise(seed, DefaultOctaveOpts),
 		temperature: NewOctaveNoise(seed^seedSaltTemperature, temperatureOpts),
 		moisture:    NewOctaveNoise(seed^seedSaltMoisture, moistureOpts),
-		roadCache:   newSuperChunkRoadCache(roadSuperChunkCacheCapacity),
 	}
 }
 
@@ -96,19 +94,6 @@ func (g *WorldGenerator) Chunk(cc ChunkCoord) Chunk {
 	objects := g.ObjectsInChunk(cc)
 	for key, kind := range objects {
 		chunk.Tiles[key[1]][key[0]].Object = kind
-	}
-
-	// Overlay road tiles. RoadTilesInSuperChunk is memoised per super-chunk so the
-	// expensive A* computation runs at most once per super-chunk regardless of how many
-	// of its constituent chunks are requested. Road tiles coexist with rivers and objects
-	// — all three flags may be true on the same tile.
-	roadTiles := g.RoadTilesInSuperChunk(ChunkToSuperChunk(cc))
-	for dr := 0; dr < ChunkSize; dr++ {
-		for dq := 0; dq < ChunkSize; dq++ {
-			if _, ok := roadTiles[[2]int{minQ + dq, minR + dr}]; ok {
-				chunk.Tiles[dr][dq].Road = true
-			}
-		}
 	}
 
 	return chunk

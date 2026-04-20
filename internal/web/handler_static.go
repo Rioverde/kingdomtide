@@ -20,11 +20,21 @@ func (staticOnlyFS) Open(name string) (fs.File, error) {
 // staticFileServer returns an http.Handler that serves embedded static assets,
 // filtering out .tmpl files.
 func staticFileServer() http.Handler {
-	return http.FileServer(http.FS(staticOnlyFS{}))
+	return noStore(http.FileServer(http.FS(staticOnlyFS{})))
 }
 
 // tilesFileServer returns an http.Handler that serves terrain PNG sprites from dir,
 // stripping the /tiles/ prefix before looking up files on disk.
 func tilesFileServer(dir string) http.Handler {
 	return http.StripPrefix("/tiles/", http.FileServer(http.Dir(dir)))
+}
+
+// noStore wraps h so its responses carry Cache-Control: no-store. During development
+// this guarantees browsers never serve a stale copy of the embedded JS or CSS, which is
+// otherwise the most common source of "I changed the code but nothing changed" reports.
+func noStore(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
+		h.ServeHTTP(w, r)
+	})
 }

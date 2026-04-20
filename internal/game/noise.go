@@ -24,7 +24,7 @@ var DefaultOctaveOpts = OctaveOpts{
 	Octaves:     4,
 	Lacunarity:  2.0,
 	Persistence: 0.5,
-	Scale:       256.0,
+	Scale:       48.0,
 }
 
 // OctaveNoise samples multi-octave OpenSimplex noise in 2D.

@@ -5,24 +5,25 @@ package game
 // generator normalises the noise output before calling us. Edge values collapse into the
 // nearest band via the `<` comparisons.
 const (
-	// Elevation bands.
+	// Elevation bands. Tuned to the empirical fBm output range (~[0.28, 0.72]) so all
+	// biome cells are reachable with the multi-octave Simplex noise used by the generator.
 
-	elevationDeepOcean = 0.28
-	elevationOcean     = 0.38
-	elevationBeach     = 0.42
-	elevationHills     = 0.72
-	elevationMountain  = 0.84
-	elevationSnowyPeak = 0.94
+	elevationDeepOcean = 0.38
+	elevationOcean     = 0.44
+	elevationBeach     = 0.46
+	elevationHills     = 0.58
+	elevationMountain  = 0.63
+	elevationSnowyPeak = 0.68
 
 	// Temperature bands: cold / temperate / hot.
 
-	temperatureCold = 0.33
-	temperatureHot  = 0.66
+	temperatureCold = 0.44
+	temperatureHot  = 0.56
 
 	// Moisture bands: dry / mid / wet.
 
-	moistureDry = 0.33
-	moistureWet = 0.66
+	moistureDry = 0.44
+	moistureWet = 0.56
 )
 
 // Biome returns the Terrain for a tile given normalised elevation, temperature and moisture
@@ -104,7 +105,7 @@ func lowlandBiome(temperature, moisture float64) Terrain {
 		if moisture < moistureWet {
 			return TerrainGrassland
 		}
-		if moisture < 0.85 {
+		if moisture < 0.60 { // compressed from 0.85 to fit the new moistureWet=0.56 band
 			return TerrainMeadow
 		}
 		return TerrainForest

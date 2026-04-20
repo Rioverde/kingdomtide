@@ -126,55 +126,6 @@ func TestHandleAPIChunk_InvalidCX(t *testing.T) {
 	}
 }
 
-// TestHandleAPIChunk_RoadFieldPresent verifies that the chunk JSON payload includes the
-// "road" field on tiles where it is true, and that it is absent (omitempty) on tiles
-// where it is false. We scan a broad range of chunks until we find one with at least one
-// road tile, then assert the field is present and boolean.
-func TestHandleAPIChunk_RoadFieldPresent(t *testing.T) {
-	h := newTestServer(t)
-
-	// Scan up to a 5×5 grid of chunks around the origin to find one containing a road.
-	type rawTile struct {
-		Q       int    `json:"q"`
-		R       int    `json:"r"`
-		Terrain string `json:"terrain"`
-		Road    *bool  `json:"road"`
-	}
-	type rawChunk struct {
-		Tiles []rawTile `json:"tiles"`
-	}
-
-	found := false
-	for cy := -2; cy <= 2 && !found; cy++ {
-		for cx := -2; cx <= 2 && !found; cx++ {
-			url := "/api/chunk?cx=" + itoa(cx) + "&cy=" + itoa(cy)
-			req := httptest.NewRequest("GET", url, nil)
-			rr := httptest.NewRecorder()
-			h.ServeHTTP(rr, req)
-			if rr.Code != 200 {
-				continue
-			}
-			var chunk rawChunk
-			if err := json.NewDecoder(rr.Body).Decode(&chunk); err != nil {
-				continue
-			}
-			for _, tile := range chunk.Tiles {
-				if tile.Road != nil && *tile.Road {
-					found = true
-					break
-				}
-			}
-		}
-	}
-	if !found {
-		t.Log("no road tiles found in 5×5 chunk grid around origin with seed 42; skipping field check")
-	}
-	// The field being parseable (no JSON error above) is itself a correctness signal —
-	// if apiTile lacked the Road field the JSON decode into rawTile would silently ignore
-	// it, but the generator would still set it. We treat absence of parse errors as a
-	// passing state; the found check above is a bonus assertion.
-}
-
 // itoa is a local helper to avoid importing strconv in the test file.
 func itoa(n int) string {
 	if n == 0 {

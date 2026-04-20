@@ -12,8 +12,11 @@
   // These are the raw sprite dimensions; axial→pixel uses them directly.
   const TILE_W = 256;
   const TILE_H = 384;
-  const HEX_BASE = 296;
-  const ROW_SPACING = Math.round(TILE_W / Math.sqrt(3) * 1.5); // ≈ 222
+  // Kenney-style pointy-top tiles: the hex base occupies roughly the bottom 256px of the
+  // 384px image; the top 128px is decoration (trees, peaks, structures). Column spacing is
+  // the full tile width, row spacing is 3/4 of the hex height (standard pointy-top packing).
+  const HEX_BASE = 256;
+  const ROW_SPACING = 192;
 
   function axialToPixel(q, r) {
     const px = TILE_W * (q + r / 2);
@@ -25,17 +28,8 @@
   let meta = null;       // fetched from /api/meta
   let objectSprites = {};  // kind → filename, populated from meta.objects
   let camera = { x: 0, y: 0, zoom: 0.4 };
-  // Each chunk entry: { cx, cy, tiles, imgs: Map<"q,r", img>, overlays: Map<"q,r", img>, roads: Map<"q,r", div> }
+  // Each chunk entry: { cx, cy, tiles, imgs: Map<"q,r", img>, overlays: Map<"q,r", img> }
   const chunks = new Map();
-
-  // Road dot: a small SVG circle rendered as a data-URL so no sprite file is needed.
-  // The dot is centred on the hex base, sits between the terrain sprite (z) and POI
-  // overlay (z+1) at z+0.5 — fractional z-index is valid in CSS.
-  const ROAD_SVG = 'data:image/svg+xml,' + encodeURIComponent(
-    '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10">' +
-    '<circle cx="5" cy="5" r="4" fill="#c8a96e" stroke="#7a5c2e" stroke-width="1.5"/>' +
-    '</svg>'
-  );
 
   // ── DOM ────────────────────────────────────────────────────────────────────
   const viewport = document.getElementById('viewport');
@@ -232,7 +226,7 @@
       for (let cx = cxMin; cx <= cxMax; cx++) {
         const key = chunkKey(cx, cy);
         if (!chunks.has(key)) {
-          chunks.set(key, { cx, cy, tiles: null, imgs: new Map(), overlays: new Map(), roads: new Map(), loading: true });
+          chunks.set(key, { cx, cy, tiles: null, imgs: new Map(), overlays: new Map(), loading: true });
           fetchChunk(cx, cy, key);
         }
       }
@@ -247,6 +241,7 @@
         if (!chunk) return; // evicted while in flight
         chunk.tiles = data.tiles;
         chunk.loading = false;
+        renderChunkContents(chunk);
         scheduleRender();
       })
       .catch(err => {
@@ -264,11 +259,54 @@
     for (const img of chunk.overlays.values()) {
       img.parentNode && img.parentNode.removeChild(img);
     }
-    // Remove all road marker div elements this chunk owns.
-    for (const el of chunk.roads.values()) {
-      el.parentNode && el.parentNode.removeChild(el);
-    }
     chunks.delete(key);
+  }
+
+  // renderChunkContents builds the DOM for every tile + overlay inside chunk. Called ONCE
+  // when a chunk's tile data arrives. Positions are fixed in world-pixel space and never
+  // change — pan/zoom only retransforms the parent worldEl.
+  function renderChunkContents(chunk) {
+    if (!chunk.tiles || !meta) return;
+    for (const tile of chunk.tiles) {
+      const { q, r, terrain, object } = tile;
+      const tileKey = q + ',' + r;
+      const file = meta.terrains[terrain];
+      if (!file) continue;
+
+      const { px, py } = axialToPixel(q, r);
+      const zidx = py + 10000;
+
+      if (!chunk.imgs.has(tileKey)) {
+        const img = document.createElement('img');
+        img.src = '/tiles/' + file;
+        img.style.width  = TILE_W + 'px';
+        img.style.height = TILE_H + 'px';
+        img.style.left   = px + 'px';
+        img.style.top    = py + 'px';
+        img.style.zIndex = zidx;
+        img.alt = '';
+        img.dataset.q = q;
+        img.dataset.r = r;
+        worldEl.appendChild(img);
+        chunk.imgs.set(tileKey, img);
+      }
+
+      if (object && objectSprites[object] && !chunk.overlays.has(tileKey)) {
+        const ov = document.createElement('img');
+        ov.className = 'overlay';
+        ov.src = '/tiles/' + objectSprites[object];
+        ov.style.width  = TILE_W + 'px';
+        ov.style.height = TILE_H + 'px';
+        ov.style.left   = px + 'px';
+        ov.style.top    = py + 'px';
+        ov.style.zIndex = zidx + 1;
+        ov.alt = '';
+        ov.dataset.q = q;
+        ov.dataset.r = r;
+        worldEl.appendChild(ov);
+        chunk.overlays.set(tileKey, ov);
+      }
+    }
   }
 
   // ── Rendering ─────────────────────────────────────────────────────────────
@@ -282,101 +320,9 @@
     rafId = null;
     if (!meta) return;
 
-    // Update world transform
+    // Pan + zoom is a single cheap CSS transform; tile DOM is static.
     worldEl.style.transform =
       'translate(' + camera.x + 'px, ' + camera.y + 'px) scale(' + camera.zoom + ')';
-
-    let totalImgs = 0;
-
-    for (const chunk of chunks.values()) {
-      if (!chunk.tiles) continue;
-
-      for (const tile of chunk.tiles) {
-        const { q, r, terrain, object, road } = tile;
-        const tileKey = q + ',' + r;
-        const file = meta.terrains[terrain];
-        if (!file) continue;
-
-        const { px, py } = axialToPixel(q, r);
-        const zidx = py + 10000; // large offset so no negatives
-
-        let img = chunk.imgs.get(tileKey);
-        if (!img) {
-          img = document.createElement('img');
-          img.style.width  = TILE_W + 'px';
-          img.style.height = TILE_H + 'px';
-          img.alt = '';
-          img.dataset.q = q;
-          img.dataset.r = r;
-          worldEl.appendChild(img);
-          chunk.imgs.set(tileKey, img);
-        }
-
-        // Only update src if changed.
-        const src = '/tiles/' + file;
-        if (img.src !== src && !img.src.endsWith('/' + file)) {
-          img.src = src;
-        }
-        img.style.left   = px + 'px';
-        img.style.top    = py + 'px';
-        img.style.zIndex = zidx;
-
-        totalImgs++;
-
-        // Road marker: a small SVG dot centred on the hex base. It sits above the
-        // terrain sprite (zidx + 0.5) and below the POI overlay (zidx + 1) so roads
-        // are visible even when a village sits on top.
-        if (road) {
-          let rd = chunk.roads.get(tileKey);
-          if (!rd) {
-            rd = document.createElement('img');
-            rd.className = 'road-marker';
-            rd.src = ROAD_SVG;
-            rd.alt = '';
-            rd.style.width    = '10px';
-            rd.style.height   = '10px';
-            rd.style.position = 'absolute';
-            rd.style.pointerEvents = 'none';
-            worldEl.appendChild(rd);
-            chunk.roads.set(tileKey, rd);
-          }
-          // Centre the 10×10 dot on the hex base mid-point.
-          rd.style.left   = (px + TILE_W / 2 - 5) + 'px';
-          rd.style.top    = (py + HEX_BASE / 2 - 5) + 'px';
-          rd.style.zIndex = zidx + 0.5;
-          totalImgs++;
-        }
-
-        // Render POI overlay on top of the base tile at the same pixel position but
-        // with z-index one above so it always sits in front of the terrain sprite.
-        if (object && objectSprites[object]) {
-          let ov = chunk.overlays.get(tileKey);
-          if (!ov) {
-            ov = document.createElement('img');
-            ov.className = 'overlay';
-            ov.style.width  = TILE_W + 'px';
-            ov.style.height = TILE_H + 'px';
-            ov.alt = '';
-            ov.dataset.q = q;
-            ov.dataset.r = r;
-            worldEl.appendChild(ov);
-            chunk.overlays.set(tileKey, ov);
-          }
-          const ovSrc = '/tiles/' + objectSprites[object];
-          if (ov.src !== ovSrc && !ov.src.endsWith('/' + objectSprites[object])) {
-            ov.src = ovSrc;
-          }
-          ov.style.left   = px + 'px';
-          ov.style.top    = py + 'px';
-          ov.style.zIndex = zidx + 1;
-          totalImgs++;
-        }
-      }
-    }
-
-    if (totalImgs > MAX_IMGS) {
-      console.warn('[gongeons] img count', totalImgs, '> MAX_IMGS', MAX_IMGS, '— consider evicting more aggressively');
-    }
   }
 
   // ── Bootstrap ─────────────────────────────────────────────────────────────

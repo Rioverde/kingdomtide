@@ -17,7 +17,7 @@ const (
 	tileImageHeight = 384
 )
 
-// apiTile is the JSON shape for one hex sent to the client. River, Object, and Road are
+// apiTile is the JSON shape for one hex sent to the client. River and Object are
 // omitted from the payload when at their zero values so clients that do not yet know
 // about those fields continue to receive compact responses.
 type apiTile struct {
@@ -26,7 +26,6 @@ type apiTile struct {
 	Terrain string          `json:"terrain"`
 	River   bool            `json:"river,omitempty"`
 	Object  game.ObjectKind `json:"object,omitempty"`
-	Road    bool            `json:"road,omitempty"`
 }
 
 // apiChunk is the JSON shape for the /api/chunk response.
@@ -169,7 +168,6 @@ func (s *Server) handleAPIChunk(w http.ResponseWriter, r *http.Request) {
 				Terrain: string(t.Terrain),
 				River:   t.River,
 				Object:  t.Object,
-				Road:    t.Road,
 			})
 		}
 	}
