@@ -30,18 +30,15 @@ func run() error {
 	var (
 		addr     string
 		tilesDir string
-		radius   int
 		seed     int64
 	)
 	flag.StringVar(&addr, "addr", ":8080", "HTTP listen address")
 	flag.StringVar(&tilesDir, "tiles", "assets/tiles", "directory containing terrain tile PNGs")
-	flag.IntVar(&radius, "radius", 12, "hex radius of the generated map")
 	flag.Int64Var(&seed, "seed", time.Now().UnixNano(), "initial world generation seed")
 	flag.Parse()
 
 	srv, err := web.NewServer(web.Config{
 		TilesDir: tilesDir,
-		Radius:   radius,
 		Seed:     seed,
 	})
 	if err != nil {
@@ -62,7 +59,7 @@ func run() error {
 
 	errCh := make(chan error, 1)
 	go func() {
-		log.Printf("gongeons listening on http://localhost%s (seed=%d, radius=%d)", addr, seed, radius)
+		log.Printf("gongeons listening on http://localhost%s (seed=%d)", addr, seed)
 		if err := httpSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			errCh <- err
 		}

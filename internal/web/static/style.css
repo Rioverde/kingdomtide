@@ -13,10 +13,12 @@
 html, body {
   margin: 0;
   padding: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
   background: var(--bg);
   color: var(--text);
   font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-  min-height: 100vh;
 }
 
 header {
@@ -70,22 +72,35 @@ header button:hover {
   background: var(--accent-hover);
 }
 
+.coords {
+  font-size: 12px;
+  font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, monospace;
+  color: var(--muted);
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: 4px;
+  padding: 3px 8px;
+  min-width: 6ch;
+  text-align: center;
+}
+
 .viewport {
-  overflow: auto;
+  position: relative;
   width: 100vw;
   height: 100vh;
+  overflow: hidden;
+  cursor: grab;
+  user-select: none;
   box-sizing: border-box;
 }
 
-.stage {
-  width: max-content;
-  margin: 0 auto;
-  padding: 80px 40px 40px 40px;
+.viewport.dragging {
+  cursor: grabbing;
 }
 
 .world {
-  position: relative;
-  transform-origin: top left;
+  position: absolute;
+  transform-origin: 0 0;
 }
 
 .world img {
@@ -93,4 +108,8 @@ header button:hover {
   pointer-events: none;
   user-select: none;
   image-rendering: pixelated;
+}
+
+.world img.overlay {
+  pointer-events: none;
 }
