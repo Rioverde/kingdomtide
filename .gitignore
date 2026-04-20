@@ -33,3 +33,4 @@ Thumbs.db
 !.env.example
 CLAUDE.md
 .omc/*
+internal/.omc/*

@@ -9,9 +9,10 @@ type CoreStats struct {
 
 // DerivedStats represents the stats that are calculated based on the core stats.
 type DerivedStats struct {
-	Health    int
-	MaxHealth int
-	Mana      int
+	Health     int
+	MaxHealth  int
+	Mana       int
+	BaseDamage int
 }
 
 // Stats combines both core and derived stats for a player.
@@ -41,11 +42,14 @@ func (c *CoreStats) CalculateDerivedStats() DerivedStats {
 	health := calculateHealth(c.Strength, c.Dexterity)
 	// For simplicity, we assume that MaxHealth is the same as Health at the start. You can modify this logic as needed.
 	mana := calculateMana(c.Intelligence)
+	// BaseDamage can be calculated based on strength or other core stats as needed. For now, we'll set it to a default value.
+	baseDamage := calculateBaseDamage(c.Strength)
 	// Return the calculated derived stats.
 	return DerivedStats{
-		Health:    health,
-		MaxHealth: health,
-		Mana:      mana,
+		Health:     health,
+		MaxHealth:  health,
+		Mana:       mana,
+		BaseDamage: baseDamage,
 	}
 }
 
