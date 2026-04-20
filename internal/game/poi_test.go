@@ -1,0 +1,110 @@
+package game
+
+import (
+	"testing"
+)
+
+// TestObjectsInChunkDeterministic verifies that calling ObjectsInChunk twice with the same
+// seed and chunk coordinate produces identical results.
+func TestObjectsInChunkDeterministic(t *testing.T) {
+	g := NewWorldGenerator(12345)
+	cc := ChunkCoord{X: 3, Y: -2}
+
+	a := g.ObjectsInChunk(cc)
+	b := g.ObjectsInChunk(cc)
+
+	if len(a) != len(b) {
+		t.Fatalf("non-deterministic: first call returned %d POIs, second returned %d", len(a), len(b))
+	}
+	for key, kindA := range a {
+		kindB, ok := b[key]
+		if !ok {
+			t.Errorf("key %v present in first call but missing in second", key)
+			continue
+		}
+		if kindA != kindB {
+			t.Errorf("key %v: first call=%q second call=%q", key, kindA, kindB)
+		}
+	}
+}
+
+// TestPOIMinDistance collects all POIs from a 5x5 grid of chunks and checks that no two
+// POIs are closer than poiMinDistance hex tiles apart.
+func TestPOIMinDistance(t *testing.T) {
+	g := NewWorldGenerator(99999)
+
+	type worldPOI struct{ q, r int }
+	var all []worldPOI
+
+	for cy := -2; cy <= 2; cy++ {
+		for cx := -2; cx <= 2; cx++ {
+			cc := ChunkCoord{X: cx, Y: cy}
+			minQ, _, minR, _ := cc.Bounds()
+			for key := range g.ObjectsInChunk(cc) {
+				all = append(all, worldPOI{
+					q: minQ + key[0],
+					r: minR + key[1],
+				})
+			}
+		}
+	}
+
+	for i := 0; i < len(all); i++ {
+		for j := i + 1; j < len(all); j++ {
+			d := hexDistance(all[i].q, all[i].r, all[j].q, all[j].r)
+			if d < poiMinDistance {
+				t.Errorf("POI at (%d,%d) and (%d,%d) are only %d apart (min %d)",
+					all[i].q, all[i].r, all[j].q, all[j].r, d, poiMinDistance)
+			}
+		}
+	}
+}
+
+// TestPOIRespectsBiome checks that no village appears on ocean tiles and no castle
+// appears on snowy-peak tiles, across a broad sample of chunks.
+func TestPOIRespectsBiome(t *testing.T) {
+	g := NewWorldGenerator(777)
+
+	for cy := -5; cy <= 5; cy++ {
+		for cx := -5; cx <= 5; cx++ {
+			cc := ChunkCoord{X: cx, Y: cy}
+			minQ, _, minR, _ := cc.Bounds()
+			for key, kind := range g.ObjectsInChunk(cc) {
+				wq := minQ + key[0]
+				wr := minR + key[1]
+				tile := g.TileAt(wq, wr)
+
+				switch kind {
+				case ObjectVillage:
+					if tile.Terrain == TerrainOcean || tile.Terrain == TerrainDeepOcean {
+						t.Errorf("village at (%d,%d) on water terrain %q", wq, wr, tile.Terrain)
+					}
+				case ObjectCastle:
+					if tile.Terrain == TerrainSnowyPeak {
+						t.Errorf("castle at (%d,%d) on snowy_peak terrain", wq, wr)
+					}
+					if tile.Terrain == TerrainDeepOcean || tile.Terrain == TerrainOcean {
+						t.Errorf("castle at (%d,%d) on water terrain %q", wq, wr, tile.Terrain)
+					}
+				}
+			}
+		}
+	}
+}
+
+// TestChunkContainsSomePOIs is a loose sanity check: with enough chunks around the origin
+// at least one should have a POI, given that spawn chances are non-trivial.
+func TestChunkContainsSomePOIs(t *testing.T) {
+	g := NewWorldGenerator(42)
+	total := 0
+
+	for cy := -5; cy <= 5; cy++ {
+		for cx := -5; cx <= 5; cx++ {
+			total += len(g.ObjectsInChunk(ChunkCoord{X: cx, Y: cy}))
+		}
+	}
+
+	if total == 0 {
+		t.Error("expected at least one POI across a 10x10 chunk neighbourhood but got none")
+	}
+}

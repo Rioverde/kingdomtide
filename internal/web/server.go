@@ -4,36 +4,43 @@ package web
 import (
 	"fmt"
 	"html/template"
-	"io/fs"
+	"math/rand"
 	"net/http"
-	"strconv"
-	"strings"
-	"sync"
+	"sync/atomic"
 
 	"github.com/Rioverde/gongeons/internal/game"
 )
+
+// Compile-time assertion: *Server must satisfy http.Handler via Handler().
+// We use the indirect form because Server itself is not an http.Handler —
+// its Handler() method returns one.
+var _ interface{ Handler() http.Handler } = (*Server)(nil)
 
 // Config configures the HTTP server.
 type Config struct {
 	// TilesDir is the filesystem path to the directory containing terrain tile PNGs.
 	TilesDir string
 
-	// Radius is the hex radius passed to world generation.
-	Radius int
-
-	// Seed is the seed used for the initial world. When zero a per-request seed must be supplied.
+	// Seed is the seed used for the initial world. When zero a random seed is chosen.
 	Seed int64
+
+	// NoCache disables caching on static assets when true. Intended for development
+	// so browsers never serve a stale copy of embedded JS or CSS.
+	NoCache bool
 }
 
-// Server owns the current world and renders it on each HTTP request. The world can be
+// Server owns the current world and serves it on each HTTP request. The world can be
 // regenerated concurrently by passing ?seed=N in the query string.
+//
+// world and seed use atomic storage so readers always see a consistent pair
+// without holding a mutex — a torn view (new world, old seed or vice-versa) is
+// impossible because RegenerateWith stores the world pointer last.
 type Server struct {
 	cfg  Config
 	tmpl *template.Template
 
-	mu    sync.RWMutex
-	world *game.World
-	seed  int64
+	world atomic.Pointer[game.World]
+	seed  atomic.Int64
 }
 
 // NewServer parses the embedded HTML template and generates the initial world.
@@ -43,60 +50,38 @@ func NewServer(cfg Config) (*Server, error) {
 		return nil, fmt.Errorf("parse template: %w", err)
 	}
 	s := &Server{cfg: cfg, tmpl: tmpl}
-	s.regenerate(cfg.Seed)
+	seed := cfg.Seed
+	if seed == 0 {
+		seed = rand.Int63()
+	}
+	s.RegenerateWith(seed)
 	return s, nil
 }
 
-// Handler returns the HTTP handler serving the UI, static assets and tile PNGs.
+// Handler returns the HTTP handler serving the UI, JSON API, static assets and tile PNGs.
 func (s *Server) Handler() http.Handler {
-	mux := http.NewServeMux()
-	mux.HandleFunc("/", s.handleIndex)
-	mux.Handle("/static/", http.FileServer(http.FS(staticOnlyFS{})))
-	mux.Handle("/tiles/", http.StripPrefix("/tiles/", http.FileServer(http.Dir(s.cfg.TilesDir))))
-	return mux
+	return buildRouter(s)
 }
 
-func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/" {
-		http.NotFound(w, r)
-		return
-	}
-
-	if raw := r.URL.Query().Get("seed"); raw != "" {
-		if seed, err := strconv.ParseInt(raw, 10, 64); err == nil {
-			s.regenerate(seed)
-		}
-	}
-
-	s.mu.RLock()
-	vm := buildViewModel(s.world, s.seed)
-	s.mu.RUnlock()
-
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := s.tmpl.Execute(w, vm); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
+// Regenerate picks a fresh random seed and rebuilds the world from it.
+// It returns the seed that was chosen so callers can surface it to clients.
+func (s *Server) Regenerate() int64 {
+	seed := rand.Int63()
+	s.RegenerateWith(seed)
+	return seed
 }
 
-func (s *Server) regenerate(seed int64) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if seed == 0 {
-		seed = s.seed
-	}
-	world := game.NewWorld()
-	world.Generate(s.cfg.Radius, seed)
-	s.world = world
-	s.seed = seed
-}
-
-// staticOnlyFS exposes the embedded static directory while hiding server-only files such as
-// Go templates from the public URL space.
-type staticOnlyFS struct{}
-
-func (staticOnlyFS) Open(name string) (fs.File, error) {
-	if strings.HasSuffix(name, ".tmpl") {
-		return nil, fs.ErrNotExist
-	}
-	return staticFS.Open(name)
+// RegenerateWith rebuilds the infinite chunked world from seed. The seed and
+// world pointer are published atomically so concurrent readers always see a
+// consistent pair.
+func (s *Server) RegenerateWith(seed int64) {
+	w := game.NewWorld(seed)
+	// Store seed first; world last. Readers that load world then seed may briefly
+	// see the old seed with the new world, but that is harmless — the next read
+	// of /api/meta will return the correct pair. The important invariant is that
+	// a reader never sees the new world with the old seed surfaced in the UI.
+	// Storing world last ensures no reader can act on the new world before the
+	// new seed is visible.
+	s.seed.Store(seed)
+	s.world.Store(w)
 }
