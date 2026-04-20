@@ -99,39 +99,46 @@ func TestRiverTilesInChunkDeterministic(t *testing.T) {
 	}
 }
 
-// TestChunkHasRivers is a sanity check that at least one chunk in a broad area
-// contains at least one river tile for seed 42, which has abundant mountain
-// sources. The search covers a 21×21 chunk window centred on the region where
-// sources are known to exist for this seed. It does not assert exact counts —
-// only that the feature is not completely absent.
-func TestChunkHasRivers(t *testing.T) {
-	g := NewWorldGenerator(42)
-
-	// First find a river source so we know which chunk neighbourhood to probe.
-	sq, sr, found := findRiverSource(g, 500)
-	if !found {
-		t.Skip("no river source found — cannot determine probe region")
-	}
-	centerCC := WorldToChunk(sq, sr)
-
-	found = false
-outer:
+// chunkWindowHasRiver reports whether any tile within a 21×21 chunk window
+// centred on centerCC contains a river tile for the given generator.
+func chunkWindowHasRiver(gen *WorldGenerator, centerCC ChunkCoord) bool {
 	for dcx := -10; dcx <= 10; dcx++ {
 		for dcy := -10; dcy <= 10; dcy++ {
 			cc := ChunkCoord{X: centerCC.X + dcx, Y: centerCC.Y + dcy}
-			chunk := g.Chunk(cc)
+			chunk := gen.Chunk(cc)
 			for dr := 0; dr < ChunkSize; dr++ {
 				for dq := 0; dq < ChunkSize; dq++ {
 					if chunk.Tiles[dr][dq].River {
-						found = true
-						break outer
+						return true
 					}
 				}
 			}
 		}
 	}
+	return false
+}
 
-	if !found {
-		t.Error("no river tiles found in 21x21 chunk area around known source — rivers may be broken")
+// TestChunkHasRivers is a sanity check that river generation produces at least
+// one river tile somewhere across a broad sweep of seeds and chunks. It tries
+// seeds 1–20 and for each seed scans a 21×21 chunk window centred on the first
+// discovered river source. The test passes as soon as any chunk in any seed
+// contains a river tile, so it is not coupled to the topology of a single seed.
+func TestChunkHasRivers(t *testing.T) {
+	const seedCount = 20
+
+	for s := int64(1); s <= seedCount; s++ {
+		gen := NewWorldGenerator(s)
+
+		sq, sr, found := findRiverSource(gen, 500)
+		if !found {
+			// No source found in the search radius for this seed — try the next.
+			continue
+		}
+
+		if chunkWindowHasRiver(gen, WorldToChunk(sq, sr)) {
+			return // feature is present; test passes
+		}
 	}
+
+	t.Fatal("no river tiles found across 20 seeds in 21×21 chunk windows — river generation likely broken")
 }

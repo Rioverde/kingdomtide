@@ -1,6 +1,10 @@
 package game
 
-import "testing"
+import (
+	"math/rand"
+	"sync"
+	"testing"
+)
 
 // TestChunkCacheEvictsLRU puts three chunks into a capacity-2 cache and verifies the oldest
 // entry — which was neither Put nor Get most recently — was evicted.
@@ -78,4 +82,37 @@ func TestChunkCacheDefaultsToFallback(t *testing.T) {
 	if got := c.Capacity(); got != DefaultChunkCacheCapacity {
 		t.Fatalf("Capacity() = %d, want %d", got, DefaultChunkCacheCapacity)
 	}
+}
+
+// TestChunkCacheConcurrent hammers the cache from many goroutines simultaneously
+// to verify there are no data races. Run with -race to exercise the detector.
+// The test is skipped under -short because it spawns 32 goroutines doing 2 000
+// operations each — acceptable in a normal CI run but noisy in quick checks.
+func TestChunkCacheConcurrent(t *testing.T) {
+	if testing.Short() {
+		t.Skip("race test skipped under -short")
+	}
+
+	const goroutines = 32
+	const ops = 2000
+
+	cache := NewChunkCache(128)
+
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+	for g := 0; g < goroutines; g++ {
+		go func(g int) {
+			defer wg.Done()
+			rng := rand.New(rand.NewSource(int64(g)))
+			for i := 0; i < ops; i++ {
+				cc := ChunkCoord{X: rng.Intn(64) - 32, Y: rng.Intn(64) - 32}
+				if rng.Intn(2) == 0 {
+					_, _ = cache.Get(cc)
+				} else {
+					cache.Put(cc, &Chunk{Coord: cc})
+				}
+			}
+		}(g)
+	}
+	wg.Wait()
 }

@@ -61,9 +61,8 @@ func TestBiomeMatrix(t *testing.T) {
 	}
 }
 
-// TestBiomeDistributionCoverage verifies that all non-CursedForest terrains are reachable
-// when inputs are drawn from the realistic fBm output range (~[0.30, 0.70]). CursedForest
-// is excluded because it is sprinkled by the generator, not produced by Biome().
+// TestBiomeDistributionCoverage verifies that every terrain produced by Biome() is reachable
+// when inputs are drawn from the realistic fBm output range (~[0.30, 0.70]).
 func TestBiomeDistributionCoverage(t *testing.T) {
 	rng := rand.New(rand.NewSource(42))
 
@@ -81,19 +80,13 @@ func TestBiomeDistributionCoverage(t *testing.T) {
 
 	t.Logf("Biome distribution over %d iterations (inputs in [%.2f, %.2f]):", iterations, lo, hi)
 	for _, terrain := range AllTerrains() {
-		if terrain == TerrainCursedForest {
-			continue
-		}
 		count := histogram[terrain]
 		pct := float64(count) / float64(iterations) * 100
 		t.Logf("  %-14s %4d  (%.1f%%)", terrain, count, pct)
 	}
 
-	// Every terrain except CursedForest must appear at least once.
+	// Every terrain in AllTerrains must appear at least once across the sample.
 	for _, terrain := range AllTerrains() {
-		if terrain == TerrainCursedForest {
-			continue
-		}
 		if histogram[terrain] == 0 {
 			t.Errorf("terrain %q never appeared in %d iterations — thresholds may be miscalibrated", terrain, iterations)
 		}

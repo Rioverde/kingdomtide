@@ -8,10 +8,14 @@ import (
 )
 
 // newTestServer returns a Server wired with the chi router, suitable for httptest.
+// TilesDir is set to a temporary directory so the test does not depend on the
+// real assets path existing relative to the source tree. Handler code that
+// serves tile images will simply find an empty directory, which is fine for
+// the JSON API routes under test.
 func newTestServer(t *testing.T) http.Handler {
 	t.Helper()
 	srv, err := NewServer(Config{
-		TilesDir: "../../assets/tiles",
+		TilesDir: t.TempDir(),
 		Seed:     42,
 	})
 	if err != nil {
@@ -124,24 +128,4 @@ func TestHandleAPIChunk_InvalidCX(t *testing.T) {
 	if body.Error == "" {
 		t.Error("expected non-empty error field in response")
 	}
-}
-
-// itoa is a local helper to avoid importing strconv in the test file.
-func itoa(n int) string {
-	if n == 0 {
-		return "0"
-	}
-	neg := n < 0
-	if neg {
-		n = -n
-	}
-	buf := make([]byte, 0, 12)
-	for n > 0 {
-		buf = append([]byte{byte('0' + n%10)}, buf...)
-		n /= 10
-	}
-	if neg {
-		buf = append([]byte{'-'}, buf...)
-	}
-	return string(buf)
 }

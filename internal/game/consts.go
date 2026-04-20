@@ -23,8 +23,7 @@ const (
 
 	// Terrain values. The set is tuned for a Whittaker-style biome matrix: water at low
 	// elevation, mountain/snow at high elevation, and a climate grid in between that mixes
-	// temperature and moisture. CursedForest is kept as a rare special biome that the
-	// generator may sprinkle on top of the base matrix.
+	// temperature and moisture.
 
 	TerrainDeepOcean Terrain = "deep_ocean"
 	TerrainOcean     Terrain = "ocean"
@@ -42,8 +41,6 @@ const (
 	TerrainHills     Terrain = "hills"
 	TerrainMountain  Terrain = "mountain"
 	TerrainSnowyPeak Terrain = "snowy_peak"
-
-	TerrainCursedForest Terrain = "cursed_forest"
 
 	// Damage multipliers for different body parts.
 	HeadDamageMultiplier = 2.0
@@ -78,6 +75,5 @@ func AllTerrains() []Terrain {
 		TerrainHills,
 		TerrainMountain,
 		TerrainSnowyPeak,
-		TerrainCursedForest,
 	}
 }

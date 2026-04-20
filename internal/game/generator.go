@@ -4,9 +4,11 @@ package game
 // underlying noise fields, otherwise elevation and temperature would look visually
 // correlated across the map. XOR-ing the user seed with a fixed salt is cheap and keeps
 // determinism — two runs with the same base seed produce the same per-layer seeds.
+// The constants are the fractional digits of π and e in hex (Knuth-style nothing-up-my-sleeve
+// numbers), so small user seeds like 0, 1, 2 cannot accidentally cancel the salt.
 const (
-	seedSaltTemperature int64 = 0x1111
-	seedSaltMoisture    int64 = 0x2222
+	seedSaltTemperature int64 = 0x243f6a8885a308d3
+	seedSaltMoisture    int64 = 0x13198a2e03707344
 )
 
 // temperatureOpts is a lower-frequency two-octave fBm field. Temperature varies over large

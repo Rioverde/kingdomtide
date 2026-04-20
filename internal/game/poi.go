@@ -90,13 +90,15 @@ func castleAllowed(t Terrain) bool {
 // only if it is at least poiMinDistance hex tiles away from every previously accepted
 // POI. Only placements whose world coordinates fall inside cc.Bounds() are returned.
 func (g *WorldGenerator) ObjectsInChunk(cc ChunkCoord) map[[2]int]ObjectKind {
-	const (
-		// Threshold constants derived from spawn chances. The full uint64 range is
-		// [0, 2^64). We split it proportionally: bottom fraction → castle,
-		// next fraction → village, rest → none.
-		castleThreshold  = uint64(float64(^uint64(0)) * poiCastleSpawnChance)
-		villageThreshold = uint64(float64(^uint64(0)) * (poiCastleSpawnChance + poiVillageSpawnChance))
-	)
+	// poiThresholdResolution is the fixed-point denominator for spawn-chance comparisons.
+	// Using the top 16 bits of the hash (range [0, 65536)) avoids the float64 precision
+	// loss that arises when multiplying spawn chances by ^uint64(0). The resolution of
+	// 65536 steps is more than sufficient for the ~18% castle and ~35% village probabilities.
+	// res is a typed float64 variable (not a constant) so the compiler treats the product
+	// as a runtime expression and allows truncation to uint64.
+	res := float64(1 << 16) // 65536, matches the 16-bit topBits range
+	castleThreshold := uint64(res * poiCastleSpawnChance)
+	villageThreshold := uint64(res * (poiCastleSpawnChance + poiVillageSpawnChance))
 
 	// Gather all candidates from the 3x3 neighbourhood.
 	candidates := make([]poiCandidate, 0, 9*poiCandidatesPerChunk)
@@ -111,22 +113,26 @@ func (g *WorldGenerator) ObjectsInChunk(cc ChunkCoord) map[[2]int]ObjectKind {
 			for slot := 0; slot < poiCandidatesPerChunk; slot++ {
 				h := poiHash(ncx, ncy, slot, g.seed)
 
-				// Determine kind from upper bits of hash.
+				// Determine kind from the top 16 bits of the hash so the comparison
+				// aligns with the fixed-point thresholds computed above.
+				topBits := h >> 48
 				var kind ObjectKind
 				switch {
-				case h < castleThreshold:
+				case topBits < castleThreshold:
 					kind = ObjectCastle
-				case h < villageThreshold:
+				case topBits < villageThreshold:
 					kind = ObjectVillage
 				default:
 					continue // no POI for this slot
 				}
 
-				// Determine position within the chunk from lower bits.
-				// Use a second derived hash so position and kind are decorrelated.
+				// Determine position within the chunk from a second derived hash so
+				// position and kind are decorrelated. Unsigned modulo before int
+				// conversion avoids the signed-overflow corner cases that arise when
+				// the bit-split value is cast to int before reducing.
 				ph := poiHash(ncx, ncy, slot+1000, g.seed)
-				dq := int(ph>>32) % ChunkSize
-				dr := int(ph&0xffffffff) % ChunkSize
+				dq := int(ph % ChunkSize)
+				dr := int((ph / ChunkSize) % ChunkSize)
 				wq := minQ + dq
 				wr := minR + dr
 

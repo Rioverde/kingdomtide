@@ -61,6 +61,17 @@ func (c *Chunk) Set(q, r int, t Tile) {
 	c.Tiles[dr][dq] = t
 }
 
+// AtSafe returns the tile at global axial coord (q, r) and true if the coord belongs to
+// this chunk. Unlike At, it returns ok=false instead of panicking, so HTTP handlers can
+// accept user-supplied coords without crashing the server's recoverer middleware.
+func (c *Chunk) AtSafe(q, r int) (Tile, bool) {
+	minQ, maxQ, minR, maxR := c.Bounds()
+	if q < minQ || q >= maxQ || r < minR || r >= maxR {
+		return Tile{}, false
+	}
+	return c.Tiles[r-minR][q-minQ], true
+}
+
 // localOffset converts a global (q, r) into the chunk-local (dq, dr) pair and panics on
 // out-of-bounds — a panic here means a caller mis-routed a coord to the wrong chunk.
 func (c *Chunk) localOffset(q, r int) (int, int) {

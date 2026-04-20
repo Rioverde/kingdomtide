@@ -40,18 +40,21 @@ type OctaveNoise struct {
 // Pass distinct (seed, layerSalt) combinations to decorrelate independent layers such as
 // elevation, temperature, and moisture — computed by the caller as, for example,
 // seed ^ 0x1234 for temperature, seed ^ 0x5678 for moisture.
+//
+// Preconditions: Octaves >= 1, Lacunarity > 0, Persistence > 0, Scale > 0. Violating
+// any of these is a programming error and causes an immediate panic.
 func NewOctaveNoise(seed int64, opts OctaveOpts) OctaveNoise {
 	if opts.Octaves < 1 {
-		opts.Octaves = 1
+		panic("invalid OctaveOpts: Octaves must be >= 1")
 	}
-	if opts.Lacunarity == 0 {
-		opts.Lacunarity = 2.0
+	if opts.Lacunarity <= 0 {
+		panic("invalid OctaveOpts: Lacunarity must be > 0")
 	}
-	if opts.Persistence == 0 {
-		opts.Persistence = 0.5
+	if opts.Persistence <= 0 {
+		panic("invalid OctaveOpts: Persistence must be > 0")
 	}
-	if opts.Scale == 0 {
-		opts.Scale = 1.0
+	if opts.Scale <= 0 {
+		panic("invalid OctaveOpts: Scale must be > 0")
 	}
 
 	norm := 0.0

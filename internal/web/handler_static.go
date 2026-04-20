@@ -18,9 +18,15 @@ func (staticOnlyFS) Open(name string) (fs.File, error) {
 }
 
 // staticFileServer returns an http.Handler that serves embedded static assets,
-// filtering out .tmpl files.
-func staticFileServer() http.Handler {
-	return noStore(http.FileServer(http.FS(staticOnlyFS{})))
+// filtering out .tmpl files. When cfg.NoCache is true, responses carry
+// Cache-Control: no-store to prevent browsers from serving stale assets during
+// development. In production the default browser caching behaviour applies.
+func staticFileServer(cfg Config) http.Handler {
+	h := http.Handler(http.FileServer(http.FS(staticOnlyFS{})))
+	if cfg.NoCache {
+		h = noStore(h)
+	}
+	return h
 }
 
 // tilesFileServer returns an http.Handler that serves terrain PNG sprites from dir,

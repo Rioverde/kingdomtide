@@ -51,13 +51,10 @@ func TileAsset(t Terrain) string {
 		return "mountain.png"
 	case TerrainSnowyPeak:
 		return "snowy_peak.png"
-	case TerrainCursedForest:
-		// No dedicated cursed-forest sprite yet — reuse the regular forest art. When a
-		// distinct sprite ships, flip this case without touching callers.
-		return "forest.png"
 	default:
-		// Defensive fallback — no live Terrain value should reach here, but dirt.png is a
-		// safe placeholder if an unknown value somehow arrives.
-		return "dirt.png"
+		// Defensive fallback — no live Terrain value should reach here. hills.png is used
+		// because it exists in assets/tiles and is visually neutral enough to signal
+		// "something went wrong" without crashing the renderer.
+		return "hills.png"
 	}
 }

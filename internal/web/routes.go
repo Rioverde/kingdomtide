@@ -24,7 +24,7 @@ func buildRouter(s *Server) http.Handler {
 		r.Get("/chunk", s.handleAPIChunk)
 	})
 
-	r.Handle("/static/*", staticFileServer())
+	r.Handle("/static/*", staticFileServer(s.cfg))
 	r.Handle("/tiles/*", tilesFileServer(s.cfg.TilesDir))
 
 	return r
