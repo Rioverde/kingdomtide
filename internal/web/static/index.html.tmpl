@@ -7,31 +7,17 @@
 </head>
 <body>
   <header>
-    <form action="/" method="get">
-      <label>seed <input type="number" name="seed" value="{{.Seed}}" step="1"></label>
+    <form id="seedForm">
+      <label>seed <input id="seed" type="number" name="seed" value="{{.Seed}}" step="1"></label>
       <button type="submit">regenerate</button>
     </form>
     <div class="zoom">
-      <label>zoom <input id="zoom" type="range" min="10" max="150" step="5" value="40"></label>
+      <label>zoom <input id="zoom" type="range" min="10" max="200" step="5" value="40"></label>
       <span id="zoomLabel">40%</span>
     </div>
+    <div class="coords" id="coords">0, 0</div>
   </header>
-
-  <main class="viewport" id="viewport">
-    <div class="stage">
-      <div class="world"
-           id="world"
-           data-width="{{.Width}}"
-           data-height="{{.Height}}"
-           data-tile-w="{{.TileImgW}}"
-           data-tile-h="{{.TileImgH}}">
-        {{range .Tiles -}}
-        <img src="/tiles/{{.File}}" style="left:{{.Left}}px;top:{{.Top}}px;z-index:{{.Depth}}" alt="">
-        {{end -}}
-      </div>
-    </div>
-  </main>
-
+  <main id="viewport" class="viewport"></main>
   <script src="/static/app.js"></script>
 </body>
 </html>

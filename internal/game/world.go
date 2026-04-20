@@ -1,39 +1,48 @@
 package game
 
-import (
-	"github.com/legendary-code/hexe/pkg/hexe"
-	"github.com/legendary-code/hexe/pkg/hexe/coord"
-)
-
-// World is a wrapper around hexe.AxialGrid that exposes a game-level API
-// (plain ints as coordinates) and keeps hexe types from leaking to callers.
+// World is the façade the rest of the program talks to. It owns the infinite procedural
+// pipeline — a WorldGenerator that produces tiles on demand and a ChunkCache that memoises
+// recently visited chunks so repeated reads are cheap.
 type World struct {
-	grid hexe.AxialGrid[Tile]
+	gen   *WorldGenerator
+	cache *ChunkCache
 }
 
-// NewWorld creates an empty game world backed by an axial hex grid.
-func NewWorld() *World {
+// NewWorld wires a deterministic infinite world: a generator seeded from seed and a bounded
+// LRU cache sized for a reasonable camera buffer.
+func NewWorld(seed int64) *World {
 	return &World{
-		grid: hexe.NewAxialGrid[Tile](),
+		gen:   NewWorldGenerator(seed),
+		cache: NewChunkCache(DefaultChunkCacheCapacity),
 	}
 }
 
-// GetTile returns the tile at (q, r) and whether it exists.
-// Uses hexe's Index method (Get returns only the value, no existence flag).
-func (w *World) GetTile(q, r int) (Tile, bool) {
-	return w.grid.Index(coord.NewAxial(q, r))
+// Generator exposes the underlying WorldGenerator.
+func (w *World) Generator() *WorldGenerator {
+	return w.gen
 }
 
-// SetTile places a tile at (q, r), replacing any existing tile there.
-func (w *World) SetTile(q, r int, tile Tile) {
-	w.grid.Set(coord.NewAxial(q, r), tile)
+// Cache exposes the chunk cache.
+func (w *World) Cache() *ChunkCache {
+	return w.cache
 }
 
-// ForEach walks every tile in the world and calls fn with the tile's axial coordinates and value.
-// Iteration order is not guaranteed — callers that need a specific order should collect and sort.
-func (w *World) ForEach(fn func(q, r int, t Tile)) {
-	for it := w.grid.Iterator(); it.Next(); {
-		c := it.Index()
-		fn(c.Q(), c.R(), it.Item())
+// TileAt returns the tile at global axial coord (q, r). It routes through the cache: a hit
+// serves instantly, a miss generates the owning chunk, stores it, and reads the tile back.
+func (w *World) TileAt(q, r int) Tile {
+	cc := WorldToChunk(q, r)
+	chunk := w.ChunkAt(cc)
+	return chunk.At(q, r)
+}
+
+// ChunkAt returns the chunk that owns cc. Cache hit → returned directly. Cache miss → the
+// generator fills a fresh chunk, stores it, and returns a pointer to the stored chunk.
+// The returned *Chunk aliases cache storage; callers should treat it as read-only.
+func (w *World) ChunkAt(cc ChunkCoord) *Chunk {
+	if cached, ok := w.cache.Get(cc); ok {
+		return cached
 	}
+	chunk := w.gen.Chunk(cc)
+	w.cache.Put(cc, &chunk)
+	return &chunk
 }
