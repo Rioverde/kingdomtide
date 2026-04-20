@@ -384,8 +384,16 @@
     .then(r => r.json())
     .then(data => {
       meta = data;
-      // Build a quick kind→filename lookup from the objects manifest so the render loop
-      // does not have to scan an array on every tile.
+      // Flatten the terrains array [{terrain, asset}] into a terrain→asset lookup so
+      // the render loop can do meta.terrains[name] as an O(1) map access.
+      if (Array.isArray(data.terrains)) {
+        const map = {};
+        for (const entry of data.terrains) {
+          map[entry.terrain] = entry.asset;
+        }
+        meta.terrains = map;
+      }
+      // Same treatment for the objects manifest.
       if (Array.isArray(data.objects)) {
         for (const entry of data.objects) {
           objectSprites[entry.kind] = entry.asset;
