@@ -120,17 +120,17 @@ func TestSnapshotOfShape(t *testing.T) {
 	}
 	spawn := events[0].(game.PlayerJoinedEvent).Position
 
-	snap := snapshotOf(w, spawn)
-	if snap.GetWidth() != int32(ViewportWidth) || snap.GetHeight() != int32(ViewportHeight) {
+	snap := snapshotOf(w, spawn, DefaultViewportWidth, DefaultViewportHeight)
+	if snap.GetWidth() != int32(DefaultViewportWidth) || snap.GetHeight() != int32(DefaultViewportHeight) {
 		t.Fatalf("snapshot size: %dx%d, want %dx%d",
-			snap.GetWidth(), snap.GetHeight(), ViewportWidth, ViewportHeight)
+			snap.GetWidth(), snap.GetHeight(), DefaultViewportWidth, DefaultViewportHeight)
 	}
-	if len(snap.GetTiles()) != ViewportWidth*ViewportHeight {
+	if len(snap.GetTiles()) != DefaultViewportWidth*DefaultViewportHeight {
 		t.Fatalf("snapshot tile count: got %d, want %d",
-			len(snap.GetTiles()), ViewportWidth*ViewportHeight)
+			len(snap.GetTiles()), DefaultViewportWidth*DefaultViewportHeight)
 	}
-	if snap.GetOrigin().GetX() != int32(spawn.X-ViewportWidth/2) ||
-		snap.GetOrigin().GetY() != int32(spawn.Y-ViewportHeight/2) {
+	if snap.GetOrigin().GetX() != int32(spawn.X-DefaultViewportWidth/2) ||
+		snap.GetOrigin().GetY() != int32(spawn.Y-DefaultViewportHeight/2) {
 		t.Fatalf("origin: %+v, want centred on spawn %+v", snap.GetOrigin(), spawn)
 	}
 	if len(snap.GetEntities()) != 1 || snap.GetEntities()[0].GetId() != "p1" {

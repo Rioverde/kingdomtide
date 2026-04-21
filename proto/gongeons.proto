@@ -73,15 +73,28 @@ message Entity {
 
 message ClientMessage {
   oneof payload {
-    JoinRequest join = 1;
-    MoveCmd     move = 2;
+    JoinRequest join     = 1;
+    MoveCmd     move     = 2;
+    ViewportCmd viewport = 3;
   }
 }
 
 // JoinRequest is the first message a client sends. The server assigns a
 // PlayerID in JoinAccepted and begins broadcasting events to this stream.
+// viewport_width and viewport_height are the desired Snapshot dimensions
+// for this client; zero means "use server defaults".
 message JoinRequest {
-  string name = 1;
+  string name            = 1;
+  int32  viewport_width  = 2;
+  int32  viewport_height = 3;
+}
+
+// ViewportCmd updates the Snapshot dimensions the server should use for
+// this client — the terminal resized, we want a bigger / smaller view.
+// The server replies with a fresh Snapshot at the new size.
+message ViewportCmd {
+  int32 width  = 1;
+  int32 height = 2;
 }
 
 // MoveCmd asks to move one step. dx/dy are in {-1, 0, 1}; exactly one is

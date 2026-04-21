@@ -154,15 +154,19 @@ func listenCmd(stream pb.GameService_PlayClient) tea.Cmd {
 	}
 }
 
-// sendJoinCmd queues a Join message on the outbox. It never blocks: if
-// the channel is full, the send is dropped and netErrorMsg is returned.
-// Channel cap covers every realistic typing speed; a full channel means
-// the writer goroutine is dead and the session is doomed anyway.
-func sendJoinCmd(outbox chan<- *pb.ClientMessage, name string) tea.Cmd {
+// sendJoinCmd queues a Join message on the outbox, tagged with the
+// client's requested viewport size. The server uses that size when
+// building Snapshot responses for this client. Non-blocking; a full
+// outbox means the writer goroutine is dead and the session is doomed.
+func sendJoinCmd(outbox chan<- *pb.ClientMessage, name string, viewW, viewH int) tea.Cmd {
 	return func() tea.Msg {
 		msg := &pb.ClientMessage{
 			Payload: &pb.ClientMessage_Join{
-				Join: &pb.JoinRequest{Name: name},
+				Join: &pb.JoinRequest{
+					Name:           name,
+					ViewportWidth:  int32(viewW),
+					ViewportHeight: int32(viewH),
+				},
 			},
 		}
 		select {
@@ -170,6 +174,28 @@ func sendJoinCmd(outbox chan<- *pb.ClientMessage, name string) tea.Cmd {
 			return nil
 		default:
 			return netErrorMsg{Err: fmt.Errorf("outbox full on join")}
+		}
+	}
+}
+
+// sendViewportCmd tells the server this client wants a differently-sized
+// Snapshot from now on. Triggered by tea.WindowSizeMsg after the terminal
+// resizes. Same non-blocking backpressure contract as sendJoinCmd.
+func sendViewportCmd(outbox chan<- *pb.ClientMessage, viewW, viewH int) tea.Cmd {
+	return func() tea.Msg {
+		msg := &pb.ClientMessage{
+			Payload: &pb.ClientMessage_Viewport{
+				Viewport: &pb.ViewportCmd{
+					Width:  int32(viewW),
+					Height: int32(viewH),
+				},
+			},
+		}
+		select {
+		case outbox <- msg:
+			return nil
+		default:
+			return netErrorMsg{Err: fmt.Errorf("outbox full on viewport")}
 		}
 	}
 }

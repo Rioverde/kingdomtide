@@ -20,9 +20,7 @@ func (m *Model) Init() tea.Cmd {
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch v := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.termWidth = v.Width
-		m.termHeight = v.Height
-		return m, nil
+		return m.handleResize(v)
 
 	case tea.KeyMsg:
 		return m.handleKey(v)
@@ -141,6 +139,19 @@ func (m *Model) handleKeyPlaying(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, sendMoveCmd(m.outbox, dx, dy)
 }
 
+// handleResize stores the new terminal dimensions and, if we are already
+// playing, pushes the fresh viewport size to the server so the next
+// snapshot is rendered at the new terminal area.
+func (m *Model) handleResize(v tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
+	m.termWidth = v.Width
+	m.termHeight = v.Height
+	if m.phase == phasePlaying && m.outbox != nil {
+		w, h := viewportForTerm(v.Width, v.Height)
+		return m, sendViewportCmd(m.outbox, w, h)
+	}
+	return m, nil
+}
+
 // handleConnected stores the live stream handles on the Model and
 // immediately sends Join + installs the first Recv.
 func (m *Model) handleConnected(v connectedMsg) (tea.Model, tea.Cmd) {
@@ -150,8 +161,9 @@ func (m *Model) handleConnected(v connectedMsg) (tea.Model, tea.Cmd) {
 	m.outbox = v.outbox
 	m.status = "connected, joining..."
 	name := m.nameInput.Value()
+	viewW, viewH := viewportForTerm(m.termWidth, m.termHeight)
 	return m, tea.Batch(
-		sendJoinCmd(v.outbox, name),
+		sendJoinCmd(v.outbox, name, viewW, viewH),
 		listenCmd(v.stream),
 	)
 }

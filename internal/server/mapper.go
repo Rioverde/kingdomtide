@@ -11,13 +11,18 @@ import (
 // errEmptyPayload is returned when a ClientMessage carries no recognised oneof.
 var errEmptyPayload = errors.New("empty payload")
 
-// ViewportWidth and ViewportHeight bound the initial Snapshot a client
-// receives on Join. The server only ships the tiles inside this window; the
-// rest of the infinite world stays on the server until the player walks into
-// it. Dimensions are odd so the spawn tile sits in the exact centre.
+// DefaultViewportWidth/Height are the Snapshot dimensions the server uses
+// when the client hasn't reported its own. Odd on both axes so the spawn
+// tile sits in the exact centre.
 const (
-	ViewportWidth  = 41
-	ViewportHeight = 21
+	DefaultViewportWidth  = 41
+	DefaultViewportHeight = 21
+
+	// Minimum viewport size the server will honour. Below this the UI has
+	// no room for an interior; forcing a floor prevents a broken client
+	// from making the server render 1×1 snapshots.
+	MinViewportWidth  = 11
+	MinViewportHeight = 7
 )
 
 // clientMessageToCommand converts a wire message from the given player into a
@@ -107,8 +112,7 @@ var terrainPBMapping = map[game.Terrain]pb.Terrain{
 }
 
 // terrainToPB looks up t in terrainPBMapping. Unknown terrains fall back
-// to UNSPECIFIED so the client can render a clear "what is this" glyph
-// instead of silently showing a default biome.
+// to UNSPECIFIED so the client can render a clear "what is this" glyph.
 func terrainToPB(t game.Terrain) pb.Terrain {
 	if v, ok := terrainPBMapping[t]; ok {
 		return v
@@ -116,18 +120,36 @@ func terrainToPB(t game.Terrain) pb.Terrain {
 	return pb.Terrain_TERRAIN_UNSPECIFIED
 }
 
-// snapshotOf builds a viewport Snapshot centred at the given world position.
-// The viewport window is ViewportWidth × ViewportHeight tiles. Origin is the
-// world coordinate of the top-left tile; tiles are row-major of length
-// ViewportWidth*ViewportHeight.
-func snapshotOf(w *game.World, center game.Position) *pb.Snapshot {
-	halfW := ViewportWidth / 2
-	halfH := ViewportHeight / 2
+// clampViewport enforces the minimum size rule and defaults zero values to
+// the server defaults. Unused here — see dispatch in service.go.
+func clampViewport(w, h int) (int, int) {
+	if w <= 0 {
+		w = DefaultViewportWidth
+	}
+	if h <= 0 {
+		h = DefaultViewportHeight
+	}
+	if w < MinViewportWidth {
+		w = MinViewportWidth
+	}
+	if h < MinViewportHeight {
+		h = MinViewportHeight
+	}
+	return w, h
+}
+
+// snapshotOf builds a viewport Snapshot of viewW × viewH tiles centred on
+// the given world position. Zero or too-small dimensions are replaced by
+// the server defaults via clampViewport.
+func snapshotOf(w *game.World, center game.Position, viewW, viewH int) *pb.Snapshot {
+	viewW, viewH = clampViewport(viewW, viewH)
+	halfW := viewW / 2
+	halfH := viewH / 2
 	originX := center.X - halfW
 	originY := center.Y - halfH
-	tiles := make([]*pb.Tile, 0, ViewportWidth*ViewportHeight)
-	for dy := range ViewportHeight {
-		for dx := range ViewportWidth {
+	tiles := make([]*pb.Tile, 0, viewW*viewH)
+	for dy := range viewH {
+		for dx := range viewW {
 			p := game.Position{X: originX + dx, Y: originY + dy}
 			t, _ := w.TileAt(p)
 			out := &pb.Tile{
@@ -142,16 +164,16 @@ func snapshotOf(w *game.World, center game.Position) *pb.Snapshot {
 		}
 	}
 	return &pb.Snapshot{
-		Width:    int32(ViewportWidth),
-		Height:   int32(ViewportHeight),
+		Width:    int32(viewW),
+		Height:   int32(viewH),
 		Origin:   positionPB(game.Position{X: originX, Y: originY}),
 		Tiles:    tiles,
 		Entities: entitiesOf(w),
 	}
 }
 
-// entitiesOf returns one Entity per player currently in the world, sorted by
-// ID for stability (World.Players guarantees that).
+// entitiesOf returns one Entity per player currently in the world, sorted
+// by ID for stability (World.Players guarantees that).
 func entitiesOf(w *game.World) []*pb.Entity {
 	players := w.Players()
 	out := make([]*pb.Entity, 0, len(players))

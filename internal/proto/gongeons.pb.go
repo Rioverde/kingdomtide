@@ -366,6 +366,7 @@ type ClientMessage struct {
 	//
 	//	*ClientMessage_Join
 	//	*ClientMessage_Move
+	//	*ClientMessage_Viewport
 	Payload       isClientMessage_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -426,6 +427,15 @@ func (x *ClientMessage) GetMove() *MoveCmd {
 	return nil
 }
 
+func (x *ClientMessage) GetViewport() *ViewportCmd {
+	if x != nil {
+		if x, ok := x.Payload.(*ClientMessage_Viewport); ok {
+			return x.Viewport
+		}
+	}
+	return nil
+}
+
 type isClientMessage_Payload interface {
 	isClientMessage_Payload()
 }
@@ -438,17 +448,27 @@ type ClientMessage_Move struct {
 	Move *MoveCmd `protobuf:"bytes,2,opt,name=move,proto3,oneof"`
 }
 
+type ClientMessage_Viewport struct {
+	Viewport *ViewportCmd `protobuf:"bytes,3,opt,name=viewport,proto3,oneof"`
+}
+
 func (*ClientMessage_Join) isClientMessage_Payload() {}
 
 func (*ClientMessage_Move) isClientMessage_Payload() {}
 
+func (*ClientMessage_Viewport) isClientMessage_Payload() {}
+
 // JoinRequest is the first message a client sends. The server assigns a
 // PlayerID in JoinAccepted and begins broadcasting events to this stream.
+// viewport_width and viewport_height are the desired Snapshot dimensions
+// for this client; zero means "use server defaults".
 type JoinRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Name           string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	ViewportWidth  int32                  `protobuf:"varint,2,opt,name=viewport_width,json=viewportWidth,proto3" json:"viewport_width,omitempty"`
+	ViewportHeight int32                  `protobuf:"varint,3,opt,name=viewport_height,json=viewportHeight,proto3" json:"viewport_height,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *JoinRequest) Reset() {
@@ -488,6 +508,75 @@ func (x *JoinRequest) GetName() string {
 	return ""
 }
 
+func (x *JoinRequest) GetViewportWidth() int32 {
+	if x != nil {
+		return x.ViewportWidth
+	}
+	return 0
+}
+
+func (x *JoinRequest) GetViewportHeight() int32 {
+	if x != nil {
+		return x.ViewportHeight
+	}
+	return 0
+}
+
+// ViewportCmd updates the Snapshot dimensions the server should use for
+// this client — the terminal resized, we want a bigger / smaller view.
+// The server replies with a fresh Snapshot at the new size.
+type ViewportCmd struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Width         int32                  `protobuf:"varint,1,opt,name=width,proto3" json:"width,omitempty"`
+	Height        int32                  `protobuf:"varint,2,opt,name=height,proto3" json:"height,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ViewportCmd) Reset() {
+	*x = ViewportCmd{}
+	mi := &file_gongeons_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ViewportCmd) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ViewportCmd) ProtoMessage() {}
+
+func (x *ViewportCmd) ProtoReflect() protoreflect.Message {
+	mi := &file_gongeons_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ViewportCmd.ProtoReflect.Descriptor instead.
+func (*ViewportCmd) Descriptor() ([]byte, []int) {
+	return file_gongeons_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *ViewportCmd) GetWidth() int32 {
+	if x != nil {
+		return x.Width
+	}
+	return 0
+}
+
+func (x *ViewportCmd) GetHeight() int32 {
+	if x != nil {
+		return x.Height
+	}
+	return 0
+}
+
 // MoveCmd asks to move one step. dx/dy are in {-1, 0, 1}; exactly one is
 // non-zero (four-directional movement via WASD).
 type MoveCmd struct {
@@ -500,7 +589,7 @@ type MoveCmd struct {
 
 func (x *MoveCmd) Reset() {
 	*x = MoveCmd{}
-	mi := &file_gongeons_proto_msgTypes[5]
+	mi := &file_gongeons_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -512,7 +601,7 @@ func (x *MoveCmd) String() string {
 func (*MoveCmd) ProtoMessage() {}
 
 func (x *MoveCmd) ProtoReflect() protoreflect.Message {
-	mi := &file_gongeons_proto_msgTypes[5]
+	mi := &file_gongeons_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -525,7 +614,7 @@ func (x *MoveCmd) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MoveCmd.ProtoReflect.Descriptor instead.
 func (*MoveCmd) Descriptor() ([]byte, []int) {
-	return file_gongeons_proto_rawDescGZIP(), []int{5}
+	return file_gongeons_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *MoveCmd) GetDx() int32 {
@@ -557,7 +646,7 @@ type ServerMessage struct {
 
 func (x *ServerMessage) Reset() {
 	*x = ServerMessage{}
-	mi := &file_gongeons_proto_msgTypes[6]
+	mi := &file_gongeons_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -569,7 +658,7 @@ func (x *ServerMessage) String() string {
 func (*ServerMessage) ProtoMessage() {}
 
 func (x *ServerMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_gongeons_proto_msgTypes[6]
+	mi := &file_gongeons_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -582,7 +671,7 @@ func (x *ServerMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerMessage.ProtoReflect.Descriptor instead.
 func (*ServerMessage) Descriptor() ([]byte, []int) {
-	return file_gongeons_proto_rawDescGZIP(), []int{6}
+	return file_gongeons_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ServerMessage) GetPayload() isServerMessage_Payload {
@@ -669,7 +758,7 @@ type JoinAccepted struct {
 
 func (x *JoinAccepted) Reset() {
 	*x = JoinAccepted{}
-	mi := &file_gongeons_proto_msgTypes[7]
+	mi := &file_gongeons_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -681,7 +770,7 @@ func (x *JoinAccepted) String() string {
 func (*JoinAccepted) ProtoMessage() {}
 
 func (x *JoinAccepted) ProtoReflect() protoreflect.Message {
-	mi := &file_gongeons_proto_msgTypes[7]
+	mi := &file_gongeons_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -694,7 +783,7 @@ func (x *JoinAccepted) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JoinAccepted.ProtoReflect.Descriptor instead.
 func (*JoinAccepted) Descriptor() ([]byte, []int) {
-	return file_gongeons_proto_rawDescGZIP(), []int{7}
+	return file_gongeons_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *JoinAccepted) GetPlayerId() string {
@@ -727,7 +816,7 @@ type Snapshot struct {
 
 func (x *Snapshot) Reset() {
 	*x = Snapshot{}
-	mi := &file_gongeons_proto_msgTypes[8]
+	mi := &file_gongeons_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -739,7 +828,7 @@ func (x *Snapshot) String() string {
 func (*Snapshot) ProtoMessage() {}
 
 func (x *Snapshot) ProtoReflect() protoreflect.Message {
-	mi := &file_gongeons_proto_msgTypes[8]
+	mi := &file_gongeons_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -752,7 +841,7 @@ func (x *Snapshot) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Snapshot.ProtoReflect.Descriptor instead.
 func (*Snapshot) Descriptor() ([]byte, []int) {
-	return file_gongeons_proto_rawDescGZIP(), []int{8}
+	return file_gongeons_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *Snapshot) GetWidth() int32 {
@@ -806,7 +895,7 @@ type Event struct {
 
 func (x *Event) Reset() {
 	*x = Event{}
-	mi := &file_gongeons_proto_msgTypes[9]
+	mi := &file_gongeons_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -818,7 +907,7 @@ func (x *Event) String() string {
 func (*Event) ProtoMessage() {}
 
 func (x *Event) ProtoReflect() protoreflect.Message {
-	mi := &file_gongeons_proto_msgTypes[9]
+	mi := &file_gongeons_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -831,7 +920,7 @@ func (x *Event) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Event.ProtoReflect.Descriptor instead.
 func (*Event) Descriptor() ([]byte, []int) {
-	return file_gongeons_proto_rawDescGZIP(), []int{9}
+	return file_gongeons_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *Event) GetPayload() isEvent_Payload {
@@ -899,7 +988,7 @@ type PlayerJoined struct {
 
 func (x *PlayerJoined) Reset() {
 	*x = PlayerJoined{}
-	mi := &file_gongeons_proto_msgTypes[10]
+	mi := &file_gongeons_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -911,7 +1000,7 @@ func (x *PlayerJoined) String() string {
 func (*PlayerJoined) ProtoMessage() {}
 
 func (x *PlayerJoined) ProtoReflect() protoreflect.Message {
-	mi := &file_gongeons_proto_msgTypes[10]
+	mi := &file_gongeons_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -924,7 +1013,7 @@ func (x *PlayerJoined) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PlayerJoined.ProtoReflect.Descriptor instead.
 func (*PlayerJoined) Descriptor() ([]byte, []int) {
-	return file_gongeons_proto_rawDescGZIP(), []int{10}
+	return file_gongeons_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *PlayerJoined) GetEntity() *Entity {
@@ -943,7 +1032,7 @@ type PlayerLeft struct {
 
 func (x *PlayerLeft) Reset() {
 	*x = PlayerLeft{}
-	mi := &file_gongeons_proto_msgTypes[11]
+	mi := &file_gongeons_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -955,7 +1044,7 @@ func (x *PlayerLeft) String() string {
 func (*PlayerLeft) ProtoMessage() {}
 
 func (x *PlayerLeft) ProtoReflect() protoreflect.Message {
-	mi := &file_gongeons_proto_msgTypes[11]
+	mi := &file_gongeons_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -968,7 +1057,7 @@ func (x *PlayerLeft) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PlayerLeft.ProtoReflect.Descriptor instead.
 func (*PlayerLeft) Descriptor() ([]byte, []int) {
-	return file_gongeons_proto_rawDescGZIP(), []int{11}
+	return file_gongeons_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *PlayerLeft) GetPlayerId() string {
@@ -989,7 +1078,7 @@ type EntityMoved struct {
 
 func (x *EntityMoved) Reset() {
 	*x = EntityMoved{}
-	mi := &file_gongeons_proto_msgTypes[12]
+	mi := &file_gongeons_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1001,7 +1090,7 @@ func (x *EntityMoved) String() string {
 func (*EntityMoved) ProtoMessage() {}
 
 func (x *EntityMoved) ProtoReflect() protoreflect.Message {
-	mi := &file_gongeons_proto_msgTypes[12]
+	mi := &file_gongeons_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1014,7 +1103,7 @@ func (x *EntityMoved) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EntityMoved.ProtoReflect.Descriptor instead.
 func (*EntityMoved) Descriptor() ([]byte, []int) {
-	return file_gongeons_proto_rawDescGZIP(), []int{12}
+	return file_gongeons_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *EntityMoved) GetEntityId() string {
@@ -1048,7 +1137,7 @@ type ErrorResponse struct {
 
 func (x *ErrorResponse) Reset() {
 	*x = ErrorResponse{}
-	mi := &file_gongeons_proto_msgTypes[13]
+	mi := &file_gongeons_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1060,7 +1149,7 @@ func (x *ErrorResponse) String() string {
 func (*ErrorResponse) ProtoMessage() {}
 
 func (x *ErrorResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gongeons_proto_msgTypes[13]
+	mi := &file_gongeons_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1073,7 +1162,7 @@ func (x *ErrorResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ErrorResponse.ProtoReflect.Descriptor instead.
 func (*ErrorResponse) Descriptor() ([]byte, []int) {
-	return file_gongeons_proto_rawDescGZIP(), []int{13}
+	return file_gongeons_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *ErrorResponse) GetMessage() string {
@@ -1107,13 +1196,19 @@ const file_gongeons_proto_rawDesc = "" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12-\n" +
 	"\x04kind\x18\x03 \x01(\x0e2\x19.gongeons.v1.OccupantKindR\x04kind\x121\n" +
-	"\bposition\x18\x04 \x01(\v2\x15.gongeons.v1.PositionR\bposition\"v\n" +
+	"\bposition\x18\x04 \x01(\v2\x15.gongeons.v1.PositionR\bposition\"\xae\x01\n" +
 	"\rClientMessage\x12.\n" +
 	"\x04join\x18\x01 \x01(\v2\x18.gongeons.v1.JoinRequestH\x00R\x04join\x12*\n" +
-	"\x04move\x18\x02 \x01(\v2\x14.gongeons.v1.MoveCmdH\x00R\x04moveB\t\n" +
-	"\apayload\"!\n" +
+	"\x04move\x18\x02 \x01(\v2\x14.gongeons.v1.MoveCmdH\x00R\x04move\x126\n" +
+	"\bviewport\x18\x03 \x01(\v2\x18.gongeons.v1.ViewportCmdH\x00R\bviewportB\t\n" +
+	"\apayload\"q\n" +
 	"\vJoinRequest\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\")\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12%\n" +
+	"\x0eviewport_width\x18\x02 \x01(\x05R\rviewportWidth\x12'\n" +
+	"\x0fviewport_height\x18\x03 \x01(\x05R\x0eviewportHeight\";\n" +
+	"\vViewportCmd\x12\x14\n" +
+	"\x05width\x18\x01 \x01(\x05R\x05width\x12\x16\n" +
+	"\x06height\x18\x02 \x01(\x05R\x06height\")\n" +
 	"\aMoveCmd\x12\x0e\n" +
 	"\x02dx\x18\x01 \x01(\x05R\x02dx\x12\x0e\n" +
 	"\x02dy\x18\x02 \x01(\x05R\x02dy\"\xe8\x01\n" +
@@ -1189,7 +1284,7 @@ func file_gongeons_proto_rawDescGZIP() []byte {
 }
 
 var file_gongeons_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_gongeons_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
+var file_gongeons_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
 var file_gongeons_proto_goTypes = []any{
 	(Terrain)(0),          // 0: gongeons.v1.Terrain
 	(OccupantKind)(0),     // 1: gongeons.v1.OccupantKind
@@ -1198,15 +1293,16 @@ var file_gongeons_proto_goTypes = []any{
 	(*Entity)(nil),        // 4: gongeons.v1.Entity
 	(*ClientMessage)(nil), // 5: gongeons.v1.ClientMessage
 	(*JoinRequest)(nil),   // 6: gongeons.v1.JoinRequest
-	(*MoveCmd)(nil),       // 7: gongeons.v1.MoveCmd
-	(*ServerMessage)(nil), // 8: gongeons.v1.ServerMessage
-	(*JoinAccepted)(nil),  // 9: gongeons.v1.JoinAccepted
-	(*Snapshot)(nil),      // 10: gongeons.v1.Snapshot
-	(*Event)(nil),         // 11: gongeons.v1.Event
-	(*PlayerJoined)(nil),  // 12: gongeons.v1.PlayerJoined
-	(*PlayerLeft)(nil),    // 13: gongeons.v1.PlayerLeft
-	(*EntityMoved)(nil),   // 14: gongeons.v1.EntityMoved
-	(*ErrorResponse)(nil), // 15: gongeons.v1.ErrorResponse
+	(*ViewportCmd)(nil),   // 7: gongeons.v1.ViewportCmd
+	(*MoveCmd)(nil),       // 8: gongeons.v1.MoveCmd
+	(*ServerMessage)(nil), // 9: gongeons.v1.ServerMessage
+	(*JoinAccepted)(nil),  // 10: gongeons.v1.JoinAccepted
+	(*Snapshot)(nil),      // 11: gongeons.v1.Snapshot
+	(*Event)(nil),         // 12: gongeons.v1.Event
+	(*PlayerJoined)(nil),  // 13: gongeons.v1.PlayerJoined
+	(*PlayerLeft)(nil),    // 14: gongeons.v1.PlayerLeft
+	(*EntityMoved)(nil),   // 15: gongeons.v1.EntityMoved
+	(*ErrorResponse)(nil), // 16: gongeons.v1.ErrorResponse
 }
 var file_gongeons_proto_depIdxs = []int32{
 	0,  // 0: gongeons.v1.Tile.terrain:type_name -> gongeons.v1.Terrain
@@ -1214,28 +1310,29 @@ var file_gongeons_proto_depIdxs = []int32{
 	1,  // 2: gongeons.v1.Entity.kind:type_name -> gongeons.v1.OccupantKind
 	2,  // 3: gongeons.v1.Entity.position:type_name -> gongeons.v1.Position
 	6,  // 4: gongeons.v1.ClientMessage.join:type_name -> gongeons.v1.JoinRequest
-	7,  // 5: gongeons.v1.ClientMessage.move:type_name -> gongeons.v1.MoveCmd
-	9,  // 6: gongeons.v1.ServerMessage.accepted:type_name -> gongeons.v1.JoinAccepted
-	10, // 7: gongeons.v1.ServerMessage.snapshot:type_name -> gongeons.v1.Snapshot
-	11, // 8: gongeons.v1.ServerMessage.event:type_name -> gongeons.v1.Event
-	15, // 9: gongeons.v1.ServerMessage.error:type_name -> gongeons.v1.ErrorResponse
-	2,  // 10: gongeons.v1.JoinAccepted.spawn:type_name -> gongeons.v1.Position
-	2,  // 11: gongeons.v1.Snapshot.origin:type_name -> gongeons.v1.Position
-	3,  // 12: gongeons.v1.Snapshot.tiles:type_name -> gongeons.v1.Tile
-	4,  // 13: gongeons.v1.Snapshot.entities:type_name -> gongeons.v1.Entity
-	12, // 14: gongeons.v1.Event.player_joined:type_name -> gongeons.v1.PlayerJoined
-	13, // 15: gongeons.v1.Event.player_left:type_name -> gongeons.v1.PlayerLeft
-	14, // 16: gongeons.v1.Event.entity_moved:type_name -> gongeons.v1.EntityMoved
-	4,  // 17: gongeons.v1.PlayerJoined.entity:type_name -> gongeons.v1.Entity
-	2,  // 18: gongeons.v1.EntityMoved.from:type_name -> gongeons.v1.Position
-	2,  // 19: gongeons.v1.EntityMoved.to:type_name -> gongeons.v1.Position
-	5,  // 20: gongeons.v1.GameService.Play:input_type -> gongeons.v1.ClientMessage
-	8,  // 21: gongeons.v1.GameService.Play:output_type -> gongeons.v1.ServerMessage
-	21, // [21:22] is the sub-list for method output_type
-	20, // [20:21] is the sub-list for method input_type
-	20, // [20:20] is the sub-list for extension type_name
-	20, // [20:20] is the sub-list for extension extendee
-	0,  // [0:20] is the sub-list for field type_name
+	8,  // 5: gongeons.v1.ClientMessage.move:type_name -> gongeons.v1.MoveCmd
+	7,  // 6: gongeons.v1.ClientMessage.viewport:type_name -> gongeons.v1.ViewportCmd
+	10, // 7: gongeons.v1.ServerMessage.accepted:type_name -> gongeons.v1.JoinAccepted
+	11, // 8: gongeons.v1.ServerMessage.snapshot:type_name -> gongeons.v1.Snapshot
+	12, // 9: gongeons.v1.ServerMessage.event:type_name -> gongeons.v1.Event
+	16, // 10: gongeons.v1.ServerMessage.error:type_name -> gongeons.v1.ErrorResponse
+	2,  // 11: gongeons.v1.JoinAccepted.spawn:type_name -> gongeons.v1.Position
+	2,  // 12: gongeons.v1.Snapshot.origin:type_name -> gongeons.v1.Position
+	3,  // 13: gongeons.v1.Snapshot.tiles:type_name -> gongeons.v1.Tile
+	4,  // 14: gongeons.v1.Snapshot.entities:type_name -> gongeons.v1.Entity
+	13, // 15: gongeons.v1.Event.player_joined:type_name -> gongeons.v1.PlayerJoined
+	14, // 16: gongeons.v1.Event.player_left:type_name -> gongeons.v1.PlayerLeft
+	15, // 17: gongeons.v1.Event.entity_moved:type_name -> gongeons.v1.EntityMoved
+	4,  // 18: gongeons.v1.PlayerJoined.entity:type_name -> gongeons.v1.Entity
+	2,  // 19: gongeons.v1.EntityMoved.from:type_name -> gongeons.v1.Position
+	2,  // 20: gongeons.v1.EntityMoved.to:type_name -> gongeons.v1.Position
+	5,  // 21: gongeons.v1.GameService.Play:input_type -> gongeons.v1.ClientMessage
+	9,  // 22: gongeons.v1.GameService.Play:output_type -> gongeons.v1.ServerMessage
+	22, // [22:23] is the sub-list for method output_type
+	21, // [21:22] is the sub-list for method input_type
+	21, // [21:21] is the sub-list for extension type_name
+	21, // [21:21] is the sub-list for extension extendee
+	0,  // [0:21] is the sub-list for field type_name
 }
 
 func init() { file_gongeons_proto_init() }
@@ -1246,14 +1343,15 @@ func file_gongeons_proto_init() {
 	file_gongeons_proto_msgTypes[3].OneofWrappers = []any{
 		(*ClientMessage_Join)(nil),
 		(*ClientMessage_Move)(nil),
+		(*ClientMessage_Viewport)(nil),
 	}
-	file_gongeons_proto_msgTypes[6].OneofWrappers = []any{
+	file_gongeons_proto_msgTypes[7].OneofWrappers = []any{
 		(*ServerMessage_Accepted)(nil),
 		(*ServerMessage_Snapshot)(nil),
 		(*ServerMessage_Event)(nil),
 		(*ServerMessage_Error)(nil),
 	}
-	file_gongeons_proto_msgTypes[9].OneofWrappers = []any{
+	file_gongeons_proto_msgTypes[10].OneofWrappers = []any{
 		(*Event_PlayerJoined)(nil),
 		(*Event_PlayerLeft)(nil),
 		(*Event_EntityMoved)(nil),
@@ -1264,7 +1362,7 @@ func file_gongeons_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_gongeons_proto_rawDesc), len(file_gongeons_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   14,
+			NumMessages:   15,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

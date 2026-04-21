@@ -119,9 +119,9 @@ func TestIntegrationSingleJoin(t *testing.T) {
 		return m.GetSnapshot() != nil
 	})
 	snap := second.GetSnapshot()
-	if snap.GetWidth() != int32(ViewportWidth) || snap.GetHeight() != int32(ViewportHeight) {
+	if snap.GetWidth() != int32(DefaultViewportWidth) || snap.GetHeight() != int32(DefaultViewportHeight) {
 		t.Fatalf("snapshot size: %dx%d, want %dx%d",
-			snap.GetWidth(), snap.GetHeight(), ViewportWidth, ViewportHeight)
+			snap.GetWidth(), snap.GetHeight(), DefaultViewportWidth, DefaultViewportHeight)
 	}
 	var found bool
 	for _, e := range snap.GetEntities() {
