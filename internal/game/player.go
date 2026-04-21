@@ -47,13 +47,13 @@ func (a *Armor) Reduce(damage int) int {
 	return max(0, damage-a.Defense)
 }
 
+// IsAlive reports whether the player's Health is above zero.
 func (p *Player) IsAlive() bool {
-	// A player is considered alive if their health is greater than zero.
 	return p.Stats.Health > 0
 }
 
+// GetStats returns a copy of the player's current Stats.
 func (p *Player) GetStats() Stats {
-	// Return the current stats of the player, including health and mana.
 	return *p.Stats
 }
 
@@ -62,22 +62,18 @@ func (p *Player) Equip(slot Slot, armor *Armor) {
 	p.Equipment[slot] = armor
 }
 
-// NewPlayer creates a new player with the given parameters and returns a pointer to the Player struct.
+// NewPlayer creates a Player with the given id, name, and core stats.
+// Returns an error when id or name is empty, or any core stat is negative.
 func NewPlayer(id, name string, strength, dexterity, intelligence int) (*Player, error) {
-	// In a real application, you might want to add validation for the input parameters here.
 	if id == "" {
 		return nil, errors.New("invalid player ID")
 	}
-	// For simplicity, we just check if the name is empty. You can add more complex validation as needed.
 	if name == "" {
 		return nil, errors.New("invalid player name")
 	}
-	// Ensure that core stats are not negative. You can adjust this logic based on your game's requirements.
 	if strength < 0 || dexterity < 0 || intelligence < 0 {
 		return nil, errors.New("core stats cannot be negative")
 	}
-
-	// Create and return the new player with the calculated stats.
 	return &Player{
 		ID:        id,
 		Name:      name,

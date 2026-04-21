@@ -84,15 +84,20 @@ func run() error {
 	return nil
 }
 
-// buildWorld constructs the production world: a procedural tile source
-// keyed on seed, a matching NoiseRegionSource for Voronoi regions, and the
-// seed itself threaded through so AnchorAt stays deterministic. Split out
-// of run for testability and so the wiring is visible at a glance.
+// buildWorld constructs the production world: a procedural tile source keyed
+// on seed, a matching NoiseRegionSource for Voronoi regions, a
+// NoiseLandmarkSource for Layer 1.5 landmarks, and the seed itself threaded
+// through so AnchorAt stays deterministic. Split out of run for testability
+// and so the wiring is visible at a glance.
 func buildWorld(seed int64) *game.World {
+	wg := worldgen.NewChunkedSource(seed)
+	regionSrc := worldgen.NewNoiseRegionSource(seed)
+	landmarkSrc := worldgen.NewNoiseLandmarkSource(seed, regionSrc, wg.Generator())
 	return game.NewWorld(
-		worldgen.NewChunkedSource(seed),
+		wg,
 		game.WithSeed(seed),
-		game.WithRegionSource(worldgen.NewNoiseRegionSource(seed)),
+		game.WithRegionSource(regionSrc),
+		game.WithLandmarkSource(landmarkSrc),
 	)
 }
 

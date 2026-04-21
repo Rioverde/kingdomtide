@@ -132,7 +132,7 @@ func terrainToPB(t game.Terrain) pb.Terrain {
 
 // regionCharacterPBMapping is the 1:1 translation table from the domain
 // RegionCharacter enum to its wire counterpart. Kept as a map so adding a
-// seventh character (e.g. Phase 5 "Cultured") stays a one-line change.
+// seventh character (e.g. "Cultured") stays a one-line change.
 var regionCharacterPBMapping = map[game.RegionCharacter]pb.RegionCharacter{
 	game.RegionNormal:   pb.RegionCharacter_REGION_CHARACTER_NORMAL,
 	game.RegionBlighted: pb.RegionCharacter_REGION_CHARACTER_BLIGHTED,
@@ -178,7 +178,7 @@ func regionPB(r game.Region) *pb.Region {
 }
 
 // clampViewport enforces the minimum size rule and defaults zero values to
-// the server defaults. Unused here — see dispatch in service.go.
+// the server defaults. Called by snapshotOf and indirectly by updateViewport.
 func clampViewport(w, h int) (int, int) {
 	if w <= 0 {
 		w = DefaultViewportWidth
@@ -189,15 +189,40 @@ func clampViewport(w, h int) (int, int) {
 	return max(w, MinViewportWidth), max(h, MinViewportHeight)
 }
 
+// landmarkKindPBMapping is the 1:1 translation table from the domain
+// LandmarkKind enum to its wire counterpart. Kept as a map (not a switch)
+// so adding a new landmark kind stays a single-line change, matching the
+// convention used for terrain and region-character mappings above.
+var landmarkKindPBMapping = map[game.LandmarkKind]pb.LandmarkKind{
+	game.LandmarkNone:           pb.LandmarkKind_LANDMARK_KIND_NONE,
+	game.LandmarkTower:          pb.LandmarkKind_LANDMARK_KIND_TOWER,
+	game.LandmarkGiantTree:      pb.LandmarkKind_LANDMARK_KIND_GIANT_TREE,
+	game.LandmarkStandingStones: pb.LandmarkKind_LANDMARK_KIND_STANDING_STONES,
+	game.LandmarkObelisk:        pb.LandmarkKind_LANDMARK_KIND_OBELISK,
+	game.LandmarkChasm:          pb.LandmarkKind_LANDMARK_KIND_CHASM,
+	game.LandmarkShrine:         pb.LandmarkKind_LANDMARK_KIND_SHRINE,
+}
+
+// landmarkKindPB translates the domain LandmarkKind enum to its wire
+// counterpart. Unknown values fall back to NONE — the safe zero value
+// meaning "no landmark on this tile".
+func landmarkKindPB(k game.LandmarkKind) pb.LandmarkKind {
+	return lookupOr(landmarkKindPBMapping, k, pb.LandmarkKind_LANDMARK_KIND_NONE)
+}
+
 // tileFromDomain builds a wire Tile from a domain tile, overlaying the
-// player occupant when present. The terrain / overlays / structure
-// conversions all live in one spot. overlays is carried through as an
-// opaque bitmask — the domain and the client agree on flag values.
-func tileFromDomain(t game.Tile) *pb.Tile {
+// player occupant when present and stamping the landmark kind onto the
+// tile. The terrain / overlays / structure conversions all live in one
+// spot. overlays is carried through as an opaque bitmask — the domain
+// and the client agree on flag values. landmark is LandmarkNone when no
+// landmark occupies this tile, which maps to the proto zero value
+// LANDMARK_KIND_NONE and is therefore omitted from the wire encoding.
+func tileFromDomain(t game.Tile, landmark game.LandmarkKind) *pb.Tile {
 	out := &pb.Tile{
 		Terrain:   terrainToPB(t.Terrain),
 		Overlays:  uint32(t.Overlays),
 		Structure: structureToPB(t.Structure),
+		Landmark:  landmarkKindPB(landmark),
 	}
 	if p, ok := t.Occupant.(*game.Player); ok && p != nil {
 		out.Occupant = pb.OccupantKind_OCCUPANT_PLAYER
@@ -206,14 +231,38 @@ func tileFromDomain(t game.Tile) *pb.Tile {
 	return out
 }
 
+// landmarkAtTile looks up the landmark kind at the given world coordinate by
+// fetching the containing super-chunk's landmark slice from lc and scanning
+// for a matching Coord. Returns LandmarkNone when lc is nil, the super-chunk
+// has no landmarks, or no landmark occupies this exact tile.
+//
+// The scan is O(k) where k is the number of landmarks per super-chunk (always
+// 4 in the current implementation). A viewport covers at most 4 super-chunks,
+// so the total work per snapshot is viewW×viewH×4 = ~41×21×4 ≈ 3 444 simple
+// comparisons — well within the <500µs budget.
+func landmarkAtTile(lc *landmarkCache, worldX, worldY int) game.LandmarkKind {
+	if lc == nil {
+		return game.LandmarkNone
+	}
+	sc := game.WorldToSuperChunk(worldX, worldY)
+	landmarks := lc.LandmarksIn(sc)
+	for _, l := range landmarks {
+		if l.Coord.X == worldX && l.Coord.Y == worldY {
+			return l.Kind
+		}
+	}
+	return game.LandmarkNone
+}
+
 // snapshotOf builds a viewport Snapshot of viewW × viewH tiles centred on
 // the given world position. Zero or too-small dimensions are replaced by
 // the server defaults via clampViewport. The returned Snapshot also carries
 // the region covering center — resolved from region on the caller's side
 // so the cache is owned by the service, not re-entered per snapshot here.
 // Pass a nil region when no RegionSource is configured (tests, legacy paths)
-// and the Snapshot omits the region field.
-func snapshotOf(w *game.World, center game.Position, viewW, viewH int, region *pb.Region) *pb.Snapshot {
+// and the Snapshot omits the region field. Pass a nil lc when no
+// LandmarkSource is configured; tiles will carry LANDMARK_KIND_NONE.
+func snapshotOf(w *game.World, center game.Position, viewW, viewH int, region *pb.Region, lc *landmarkCache) *pb.Snapshot {
 	viewW, viewH = clampViewport(viewW, viewH)
 	halfW := viewW / 2
 	halfH := viewH / 2
@@ -224,7 +273,8 @@ func snapshotOf(w *game.World, center game.Position, viewW, viewH int, region *p
 		for dx := range viewW {
 			p := game.Position{X: originX + dx, Y: originY + dy}
 			t, _ := w.TileAt(p)
-			tiles = append(tiles, tileFromDomain(t))
+			lk := landmarkAtTile(lc, p.X, p.Y)
+			tiles = append(tiles, tileFromDomain(t, lk))
 		}
 	}
 	return &pb.Snapshot{

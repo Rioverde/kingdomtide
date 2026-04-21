@@ -83,7 +83,7 @@ func splitmix64(x uint64) uint64 {
 
 // anchorMix combines the world seed with a SuperChunkCoord into a single
 // 64-bit value. The XOR structure matches the "seed ^ (X*saltX) ^ (Y*saltY)"
-// recipe in the Phase 1 plan; splitmix64 then diffuses the bits so close
+// recipe; splitmix64 then diffuses the bits so close
 // coords produce visibly different outputs.
 func anchorMix(seed int64, sc SuperChunkCoord) uint64 {
 	h := uint64(seed) ^

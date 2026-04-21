@@ -300,7 +300,7 @@ func (m *Model) renderEventsBox() string {
 // without an outer border box. The border is applied by renderMapBox so
 // the status strip can share the same outer chrome. World coordinates are
 // reconstructed from the viewport origin plus the local (x, y) offset so
-// renderCell can feed the tint sampler the same coords the server used when
+// renderTile2w can feed the tint sampler the same coords the server used when
 // resolving the tile's region. Each tile is rendered as tileWidth terminal
 // cells wide via renderTile2w for correct aspect ratio.
 func (m *Model) renderGridContent() string {
@@ -342,6 +342,12 @@ func (m *Model) renderTile2w(t *pb.Tile, worldX, worldY int) string {
 			return styles.selfPlayer.Render(runeSelf + " ")
 		}
 		return styles.otherPlayer.Render(runeOther + " ")
+	}
+	if lk := t.GetLandmark(); lk != pb.LandmarkKind_LANDMARK_KIND_NONE {
+		if glyph, ok := landmarkRunes[lk]; ok {
+			style := landmarkStyles[lk]
+			return style.Render(glyph + " ")
+		}
 	}
 	if s := t.GetStructure(); s != pb.Structure_STRUCTURE_UNSPECIFIED {
 		glyph, gOK := structureRunes[s]
@@ -392,10 +398,9 @@ func (m *Model) renderCell(t *pb.Tile, worldX, worldY int) string {
 	}
 	overlays := game.TileOverlay(t.GetOverlays())
 	// Lake sits above river in the precedence order: a tile where both flags
-	// ended up set is visually a lake (the priority-flood pass raised it into
-	// a basin), even if flow accumulation also traced a tributary through it.
-	// The "this is standing water" reading is stronger than "a river runs
-	// through here" for basin tiles.
+	// ended up set is visually a lake (a river trace resolved a depression
+	// here and marked it as standing water). The "this is standing water"
+	// reading is stronger than "a river runs through here" for basin tiles.
 	// TODO(Rioverde): introduce styles.lake if the shared styles.river colour
 	// ends up reading same-y against the river glyph in live play.
 	if overlays.Has(game.OverlayLake) {

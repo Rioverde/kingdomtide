@@ -27,6 +27,10 @@ type World struct {
 	// regionSource produces canonical Region data per anchor. May be nil; if
 	// nil, RegionAt returns a placeholder RegionNormal region.
 	regionSource RegionSource
+	// landmarkSource produces the canonical landmark list per super-chunk.
+	// May be nil; if nil, LandmarksIn returns nil so callers need not
+	// special-case the missing source.
+	landmarkSource LandmarkSource
 }
 
 // WorldOption configures optional fields on a World during construction.
@@ -52,6 +56,19 @@ func WithRegionSource(source RegionSource) WorldOption {
 	return func(w *World) {
 		if source != nil {
 			w.regionSource = source
+		}
+	}
+}
+
+// WithLandmarkSource attaches a LandmarkSource. If nil is passed, the
+// option is a no-op and LandmarksIn keeps returning nil — callers that
+// genuinely want to clear an already-set source should build a new
+// World. Mirrors WithRegionSource so the two optional backends wire up
+// through the same functional-option shape.
+func WithLandmarkSource(source LandmarkSource) WorldOption {
+	return func(w *World) {
+		if source != nil {
+			w.landmarkSource = source
 		}
 	}
 }
@@ -97,6 +114,14 @@ func (w *World) RegionSource() RegionSource {
 	return w.regionSource
 }
 
+// LandmarkSource returns the configured landmark source, or nil when the
+// world was constructed without one. Callers (e.g. the server's landmark
+// cache) branch on the result to decide whether to wire a cache. Mirrors
+// RegionSource so the two optional backends follow the same accessor shape.
+func (w *World) LandmarkSource() LandmarkSource {
+	return w.landmarkSource
+}
+
 // RegionAt returns the region covering the given world position. It
 // resolves the nearest Voronoi anchor for (p.X, p.Y) and delegates to the
 // configured RegionSource keyed by that anchor's SuperChunkCoord. When no
@@ -108,6 +133,18 @@ func (w *World) RegionAt(p Position) Region {
 		return Region{Coord: sc, Anchor: anchor, Character: RegionNormal}
 	}
 	return w.regionSource.RegionAt(sc)
+}
+
+// LandmarksIn returns the landmarks inside the super-chunk sc. Delegates
+// to whatever LandmarkSource the World was constructed with. Returns
+// nil when no LandmarkSource is wired — the server's per-sc cache can
+// treat a nil result the same as "no landmarks here" without a separate
+// branch for the missing-source case.
+func (w *World) LandmarksIn(sc SuperChunkCoord) []Landmark {
+	if w.landmarkSource == nil {
+		return nil
+	}
+	return w.landmarkSource.LandmarksIn(sc)
 }
 
 // InBounds reports whether p is a valid tile coordinate. For the current

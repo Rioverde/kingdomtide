@@ -59,6 +59,23 @@ enum Structure {
   STRUCTURE_CASTLE      = 2;
 }
 
+// LandmarkKind identifies a natural or ancient landmark on a tile. Matches
+// internal/game/LandmarkKind bit-for-bit so landmarkKindPB in
+// internal/server/mapper.go is a pure cast. Landmarks are a separate layer
+// from Structure: a Structure is a civilization artifact (village, castle)
+// while a Landmark is a geographic or pre-civilization marker (tower on a
+// peak, shrine in a holy region) that exists independent of any faction.
+// Zero value LANDMARK_KIND_NONE = no landmark on this tile.
+enum LandmarkKind {
+  LANDMARK_KIND_NONE            = 0;
+  LANDMARK_KIND_TOWER           = 1;
+  LANDMARK_KIND_GIANT_TREE      = 2;
+  LANDMARK_KIND_STANDING_STONES = 3;
+  LANDMARK_KIND_OBELISK         = 4;
+  LANDMARK_KIND_CHASM           = 5;
+  LANDMARK_KIND_SHRINE          = 6;
+}
+
 // RegionCharacter is the dominant thematic identity of a Voronoi region
 // cell. Matches the internal/game/RegionCharacter enum bit-for-bit so
 // regionCharacterPB in internal/server/mapper.go is a pure cast.
@@ -131,6 +148,10 @@ message Tile {
   // comment in lockstep when adding a new flag.
   uint32       overlays  = 4;
   Structure    structure = 5; // village / castle overlay
+  // landmark is the natural or ancient landmark on this tile. Zero value
+  // LANDMARK_KIND_NONE means no landmark. Landmark is a separate layer from
+  // structure — see the LandmarkKind enum comment above.
+  LandmarkKind landmark  = 6;
 }
 
 // Entity is a positioned actor in the world. Combat stats / monsters are
@@ -157,8 +178,8 @@ message ClientMessage {
 // viewport_width and viewport_height are the desired Snapshot dimensions
 // for this client; zero means "use server defaults". language is the
 // client's preferred locale as a BCP 47 tag (e.g. "en", "ru"); empty
-// means the server picks "en" as default — see Sub-phase 1d for catalog
-// wiring.
+// means the server picks "en" as default — locale catalog wiring is handled
+// server-side.
 message JoinRequest {
   string name            = 1;
   int32  viewport_width  = 2;

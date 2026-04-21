@@ -127,6 +127,25 @@ other = "{{.Name}} покинул игру"
 [log.moved]
 other = "{{.Name}} сделал ход"
 
+# Landmark names — reserved for Phase 3 approach-detection UI.
+[landmark.tower]
+other = "Башня"
+
+[landmark.giant_tree]
+other = "Древний Дуб"
+
+[landmark.standing_stones]
+other = "Менгиры"
+
+[landmark.obelisk]
+other = "Обелиск"
+
+[landmark.chasm]
+other = "Бездна"
+
+[landmark.shrine]
+other = "Святилище"
+
 [character.normal]
 other = "Обычный"
 

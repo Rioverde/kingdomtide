@@ -23,8 +23,8 @@ type viewportDims struct {
 
 // defaultClientLanguage is the BCP 47 fallback tag used when a client joins
 // without a language preference. English keeps every server-generated
-// LocalizedMessage catalog lookup resolvable even before Sub-phase 1d
-// lands the Russian bundle.
+// LocalizedMessage catalog lookup resolvable even before
+// the Russian bundle lands.
 const defaultClientLanguage = "en"
 
 // Service is the authoritative gRPC server for a single shared world. All
@@ -35,6 +35,9 @@ const defaultClientLanguage = "en"
 // locale tag so future LocalizedMessage emissions reach the correct
 // catalog. regions caches region lookups keyed by SuperChunkCoord so a
 // tile-crossing snapshot does not re-sample six noise fields per hop.
+// landmarks caches landmark slices per SuperChunkCoord so repeated
+// snapshots over the same terrain area do not re-run the placement
+// algorithm.
 type Service struct {
 	pb.UnimplementedGameServiceServer
 
@@ -45,13 +48,17 @@ type Service struct {
 	viewports map[string]viewportDims
 	languages map[string]string
 	regions   *regionCache
+	landmarks *landmarkCache
 }
 
 // NewService constructs a Service around the given world. If log is nil,
 // slog.Default is used. If the world exposes a non-nil RegionSource
 // (configured via game.WithRegionSource), the service wires an LRU-backed
 // region cache around it so repeated snapshots on the same super-chunk do
-// not re-sample six noise fields per call.
+// not re-sample six noise fields per call. Similarly, if the world exposes
+// a non-nil LandmarkSource (configured via game.WithLandmarkSource), the
+// service wires an LRU-backed landmark cache so the placement algorithm
+// runs at most once per super-chunk per session.
 func NewService(w *game.World, log *slog.Logger) *Service {
 	if log == nil {
 		log = slog.Default()
@@ -65,6 +72,9 @@ func NewService(w *game.World, log *slog.Logger) *Service {
 	}
 	if src := w.RegionSource(); src != nil {
 		svc.regions = newRegionCache(src, DefaultRegionCacheCapacity)
+	}
+	if src := w.LandmarkSource(); src != nil {
+		svc.landmarks = newLandmarkCache(src, DefaultLandmarkCacheCapacity)
 	}
 	return svc
 }
@@ -150,7 +160,7 @@ func (s *Service) bootJoin(
 	s.viewports[playerID] = dims
 	s.languages[playerID] = lang
 	spawn := spawnFromEvents(events)
-	snap := snapshotOf(s.world, spawn, dims.width, dims.height, s.regionAt(spawn))
+	snap := snapshotOf(s.world, spawn, dims.width, dims.height, s.regionAt(spawn), s.landmarks)
 	return spawn, snap, events, nil
 }
 
@@ -256,12 +266,12 @@ func (s *Service) sendError(id, msg, code string) {
 // itself, so callers can compose it into a larger critical section.
 func (s *Service) snapshotFor(id string, pos game.Position) *pb.Snapshot {
 	dims := s.viewports[id]
-	return snapshotOf(s.world, pos, dims.width, dims.height, s.regionAt(pos))
+	return snapshotOf(s.world, pos, dims.width, dims.height, s.regionAt(pos), s.landmarks)
 }
 
-// applyCmd is the short critical section that every world mutation goes
-// through: take the mutex, apply, release. Returning outside the lock
-// lets callers broadcast events without re-entering it.
+// applyCmd is a convenience wrapper used by cleanup: take the mutex,
+// apply the command, release. Returning outside the lock lets the caller
+// broadcast events without re-entering it.
 func (s *Service) applyCmd(cmd game.Command) ([]game.Event, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

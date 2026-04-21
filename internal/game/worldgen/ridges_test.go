@@ -172,10 +172,11 @@ func (c component) elongationFactor() float64 {
 	return long / math.Sqrt(float64(c.area))
 }
 
-// meanElongation runs 4-connected flood fill over mask and returns the size-weighted
-// mean elongation factor across components of area ≥ minArea. Size-weighting gives
-// large chains authority — the Phase-2 signal we actually care about — instead of
-// letting hundreds of tiny fragments dominate the mean.
+// meanElongation runs 4-connected flood fill over mask and returns the
+// size-weighted mean elongation factor across components of area ≥ minArea.
+// Size-weighting gives large chains authority — the signal we actually care
+// about when measuring ridge shape — instead of letting hundreds of tiny
+// fragments dominate the mean.
 func meanElongation(mask []bool, side, minArea int) (meanScore float64, nComponents int) {
 	visited := make([]bool, len(mask))
 	var weightedSum float64
@@ -200,10 +201,10 @@ func meanElongation(mask []bool, side, minArea int) (meanScore float64, nCompone
 	return weightedSum / float64(totalArea), count
 }
 
-// ridgeAddedMask returns a mask of tiles that become mountain-band with ridge blending
-// enabled but would NOT be mountain under a ridge-free baseline. These are the tiles the
-// ridge term introduces — the Phase 2 "new mountain spines" — isolated from the baseline
-// blobs so their shape can be measured directly.
+// ridgeAddedMask returns a mask of tiles that become mountain-band with
+// ridge blending enabled but would NOT be mountain under a ridge-free
+// baseline. These are the new mountain spines the ridge term introduces,
+// isolated from the baseline blobs so their shape can be measured directly.
 func ridgeAddedMask(withMask, baselineMask []bool) []bool {
 	out := make([]bool, len(withMask))
 	for i := range withMask {
@@ -214,27 +215,31 @@ func ridgeAddedMask(withMask, baselineMask []bool) []bool {
 	return out
 }
 
-// TestRidgeIncreasesMountainElongation measures the headline Phase 2 claim: ridges add
-// thin, elongated spines — not more isotropic blobs. We compare the shape of the
-// ridge-added regions (tiles that gained mountain status from the ridge term) to the
-// shape of the baseline mountain regions. If ridges are doing their job, the
-// ridge-added regions are significantly more elongated.
+// TestRidgeIncreasesMountainElongation measures the headline claim of ridge
+// blending: ridges add thin, elongated spines — not more isotropic blobs. We
+// compare the shape of the ridge-added regions (tiles that gained mountain
+// status from the ridge term) to the shape of the baseline mountain regions.
+// If ridges are doing their job, the ridge-added regions are significantly
+// more elongated.
 //
-// Metric: size-weighted mean elongation factor = longDim / sqrt(area). A perfect square
-// blob scores 1.0; an N×1 line scores sqrt(N). We only consider components of area ≥
-// minArea — very small fragments have bboxes dominated by alignment noise.
+// Metric: size-weighted mean elongation factor = longDim / sqrt(area). A
+// perfect square blob scores 1.0; an N×1 line scores sqrt(N). We only
+// consider components of area ≥ minArea — very small fragments have bboxes
+// dominated by alignment noise.
 //
-// Rationale: a simpler "mean aspect ratio of all mountain components" is dominated by
-// the baseline component shapes — adding ridge tiles on top of existing blobs barely
-// moves their bounding boxes. Measuring the ridge-added regions in isolation surfaces
-// the actual Phase 2 effect. Empirically with (weight=0.18, band=[0.58, 0.85]), the
-// ridge-added elongation is ~2.2 and the baseline is ~1.6 → ratio ≈ 1.35×.
+// Rationale: a simpler "mean aspect ratio of all mountain components" is
+// dominated by the baseline component shapes — adding ridge tiles on top of
+// existing blobs barely moves their bounding boxes. Measuring the
+// ridge-added regions in isolation surfaces the real effect. Empirically
+// with (weight=0.18, band=[0.58, 0.85]), the ridge-added elongation is ~2.2
+// and the baseline is ~1.6 → ratio ≈ 1.35×.
 //
-// We therefore assert the ridge-added score is meaningfully above baseline (> 1.25×)
-// AND meets an absolute floor (> 1.8) that only thin/long shapes can reach. The two
-// conditions together are equivalent to the plan's "mountains look like spines, not
-// splats" criterion without the 1.5× relative threshold that the size-weighted mean
-// cannot reliably hit given how irregular the baseline already is.
+// We therefore assert the ridge-added score is meaningfully above baseline
+// (> 1.25×) AND meets an absolute floor (> 1.8) that only thin/long shapes
+// can reach. The two conditions together express the "mountains look like
+// spines, not splats" criterion without the 1.5× relative threshold that
+// the size-weighted mean cannot reliably hit given how irregular the
+// baseline already is.
 func TestRidgeIncreasesMountainElongation(t *testing.T) {
 	const side = 256
 	const seeds = 4
@@ -381,9 +386,10 @@ func TestSmoothstepShape(t *testing.T) {
 	}
 }
 
-// TestRidgeDoesNotBreakBiomeReachability re-asserts that every terrain is still reachable
-// after ridge blending. Analogous to biome_test.go's coverage test — duplicated here so
-// regressions surface inside the Phase 2 test file rather than a Phase 1 one.
+// TestRidgeDoesNotBreakBiomeReachability re-asserts that every terrain is
+// still reachable after ridge blending. Analogous to biome_test.go's coverage
+// test — duplicated here so ridge regressions surface inside this file
+// rather than in the general biome coverage suite.
 func TestRidgeDoesNotBreakBiomeReachability(t *testing.T) {
 	const seeds = 8
 	const side = 256

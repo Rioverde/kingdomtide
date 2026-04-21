@@ -62,13 +62,14 @@ func TestBiomeMatrix(t *testing.T) {
 	}
 }
 
-// TestBiomeDistributionCoverage verifies that every terrain produced by the full pipeline
-// (TileAt → Biome) is reachable across a broad sample of world coordinates. Phase 1's
-// continent blending shifted the elevation distribution, so driving Biome() with raw
-// noise samples in a fixed [0.30, 0.70] range no longer reflects what players see.
-// Instead we sample the live generator across multiple seeds — this is a stronger
-// guarantee: not just "biome thresholds cover the [0,1] interval" but "the generator
-// actually produces every biome on a real map".
+// TestBiomeDistributionCoverage verifies that every terrain produced by the
+// full pipeline (TileAt → Biome) is reachable across a broad sample of world
+// coordinates. Continent blending shifts the elevation distribution, so
+// driving Biome() with raw noise samples in a fixed [0.30, 0.70] range would
+// not reflect what players see. Instead we sample the live generator across
+// multiple seeds — this is a stronger guarantee: not just "biome thresholds
+// cover the [0, 1] interval" but "the generator actually produces every
+// biome on a real map".
 func TestBiomeDistributionCoverage(t *testing.T) {
 	const seeds = 8
 	const side = 256

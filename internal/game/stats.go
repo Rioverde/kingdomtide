@@ -21,30 +21,26 @@ type Stats struct {
 	DerivedStats
 }
 
-// NewStats creates a new Stats struct based on the provided core stats and calculates the derived stats.
+// NewStats creates a Stats value from the three core attributes, computing all
+// derived fields (Health, MaxHealth, Mana, BaseDamage) immediately.
 func NewStats(strength, dexterity, intelligence int) *Stats {
-	// Create the core stats struct with the provided values.
 	core := CoreStats{
 		Strength:     strength,
 		Dexterity:    dexterity,
 		Intelligence: intelligence,
 	}
-	// Calculate the derived stats based on the core stats and return the complete Stats struct.
 	return &Stats{
 		CoreStats:    core,
 		DerivedStats: core.CalculateDerivedStats(),
 	}
 }
 
-// CalculateDerivedStats calculates the derived stats (Health, MaxHealth, Mana) based on the core stats.
+// CalculateDerivedStats computes Health, MaxHealth, Mana, and BaseDamage from
+// the receiver's core attributes. MaxHealth equals Health at creation time.
 func (c *CoreStats) CalculateDerivedStats() DerivedStats {
-	// Calculate health and mana based on the core stats using the defined constants.
 	health := calculateHealth(c.Strength, c.Dexterity)
-	// For simplicity, we assume that MaxHealth is the same as Health at the start. You can modify this logic as needed.
 	mana := calculateMana(c.Intelligence)
-	// BaseDamage can be calculated based on strength or other core stats as needed. For now, we'll set it to a default value.
 	baseDamage := calculateBaseDamage(c.Strength)
-	// Return the calculated derived stats.
 	return DerivedStats{
 		Health:     health,
 		MaxHealth:  health,

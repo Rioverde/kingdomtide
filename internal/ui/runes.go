@@ -22,11 +22,24 @@ const (
 // a river. It sits over the underlying biome.
 const riverRune = "≈"
 
-// lakeRune is painted on tiles the worldgen hydrology pass marked as standing
-// water (OverlayLake). Triple tilde — the same glyph as deep ocean — signals
-// "still water" visually: no flow, no wavelets. The underlying biome is
-// preserved under the bit so a drained lakebed still reads correctly.
+// lakeRune is painted on tiles the worldgen river tracer marked as standing
+// water (OverlayLake) — depressions the trace filled as lake basins. Triple
+// tilde matches the deep-ocean glyph to signal "still water" visually: no
+// flow, no wavelets. The underlying biome is preserved under the bit so a
+// drained lakebed still reads correctly.
 const lakeRune = "≋"
+
+// landmarkRunes maps each LandmarkKind to its single-cell glyph. The zero
+// value LANDMARK_KIND_NONE is intentionally absent: a missing key means
+// "no landmark here" and the renderer skips the landmark branch entirely.
+var landmarkRunes = map[pb.LandmarkKind]string{
+	pb.LandmarkKind_LANDMARK_KIND_TOWER:           "▲",
+	pb.LandmarkKind_LANDMARK_KIND_GIANT_TREE:      "♣",
+	pb.LandmarkKind_LANDMARK_KIND_STANDING_STONES: "◊",
+	pb.LandmarkKind_LANDMARK_KIND_OBELISK:         "┃",
+	pb.LandmarkKind_LANDMARK_KIND_CHASM:           "╳",
+	pb.LandmarkKind_LANDMARK_KIND_SHRINE:          "✦",
+}
 
 // structureRunes maps village / castle / etc. to the glyph drawn in place
 // of the terrain rune. Rendered below players but above rivers and terrain.

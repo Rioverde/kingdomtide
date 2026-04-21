@@ -7,8 +7,8 @@ import "github.com/Rioverde/gongeons/internal/game"
 // code only needs a handful of buckets ("forest-ish", "water-ish") to pick
 // plausible geographical terms, so this family type collapses the matrix
 // down to seven buckets and keeps the name generation decoupled from any
-// single biome-table shape. Phase 1d will route these buckets through the
-// locale catalog.
+// single biome-table shape. These buckets will eventually be routed through
+// the locale catalog.
 type BiomeFamily int
 
 // Family constants. FamilyUnknown is the catch-all for terrain values the

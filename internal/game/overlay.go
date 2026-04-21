@@ -22,11 +22,11 @@ const (
 	OverlayRoad
 	OverlayBridge
 	OverlayPath
-	// OverlayLake marks tiles that the worldgen hydrology pass raised during
-	// priority-flood depression filling — i.e. standing water sitting on top
-	// of a land biome. The underlying Terrain is preserved (plains, forest,
-	// etc.) so a drained lakebed would still render correctly; rendering code
-	// paints the lake glyph over the biome when this bit is set.
+	// OverlayLake marks tiles the worldgen rivers pass flagged as standing
+	// water — a depression a river trace fell into and could not escape
+	// without filling first. The underlying Terrain is preserved (plains,
+	// forest, etc.) so a drained lakebed would still render correctly;
+	// rendering paints the lake glyph over the biome when this bit is set.
 	OverlayLake
 )
 

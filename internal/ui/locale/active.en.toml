@@ -127,6 +127,25 @@ other = "{{.Name}} left"
 [log.moved]
 other = "{{.Name}} moved"
 
+# Landmark names — reserved for Phase 3 approach-detection UI.
+[landmark.tower]
+other = "Tower"
+
+[landmark.giant_tree]
+other = "Giant Tree"
+
+[landmark.standing_stones]
+other = "Standing Stones"
+
+[landmark.obelisk]
+other = "Obelisk"
+
+[landmark.chasm]
+other = "Chasm"
+
+[landmark.shrine]
+other = "Shrine"
+
 [character.normal]
 other = "Normal"
 

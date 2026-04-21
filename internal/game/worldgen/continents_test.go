@@ -65,12 +65,13 @@ func TestContinentNoiseSeedIsolation(t *testing.T) {
 	}
 }
 
-// TestContinentReducesOceanFragmentation verifies the headline claim of Phase 1: with
-// the continent mask mixed in, ocean tiles cluster into larger connected components
-// instead of salt-and-peppering across the map. The test generates a 256×256 sample
-// both with the blend (the production TileAt) and without (a baseline that zeros the
-// continent contribution), runs a flood-fill connected-component pass on ocean cells,
-// and asserts that the mean component size at least doubles with blending enabled.
+// TestContinentReducesOceanFragmentation verifies the core effect of the
+// continent mask: with it mixed in, ocean tiles cluster into larger connected
+// components instead of salt-and-peppering across the map. The test generates
+// a 256×256 sample both with the blend (the production TileAt) and without (a
+// baseline that zeros the continent contribution), runs a flood-fill
+// connected-component pass on ocean cells, and asserts that the mean
+// component size at least doubles with blending enabled.
 func TestContinentReducesOceanFragmentation(t *testing.T) {
 	const side = 256
 	const seed int64 = 4646
@@ -156,10 +157,10 @@ func meanComponentSize(mask []bool, side int) (mean float64, count int) {
 	return float64(totalCells) / float64(count), count
 }
 
-// TestRiverDensityUnderContinents is a sanity floor for river spawning after the
-// Phase 1 threshold retune. On a 64×64 tile sample at seed 7 we require at least 5
-// river tiles — well under the pre-Phase-1 expected count but enough to catch a
-// regression where the new threshold over-dampens spawning.
+// TestRiverDensityUnderContinents is a sanity floor for river spawning
+// under the continent-blended elevation field. On a 64×64 tile sample at
+// seed 7 we require at least 5 river tiles — enough to catch a regression
+// where gating parameters suppress spawning across the board.
 func TestRiverDensityUnderContinents(t *testing.T) {
 	g := NewWorldGenerator(7)
 
@@ -178,12 +179,13 @@ func TestRiverDensityUnderContinents(t *testing.T) {
 	t.Logf("river tiles in 64x64 window: %d", riverTiles)
 }
 
-// TestRiverThresholdCalibration is a diagnostic (not an assertion) that prints the
-// probability mass of raw-vs-blended elevation above several candidate thresholds.
-// The logged values inform tuning of riverAccumThreshold (rivers.go): knowing what
-// fraction of tiles sit above a given elevation helps predict how many cells accumulate
-// enough upstream area to clear the threshold. Kept as a regular test so future tuners
-// can re-run it via `go test -run Calibration -v`.
+// TestRiverThresholdCalibration is a diagnostic (not an assertion) that
+// prints the probability mass of raw-vs-blended elevation above several
+// candidate thresholds. The logged values inform tuning of elevation gates
+// — elevationMountain / elevationHills in biome.go and the isValidHead
+// gate in rivers.go — by showing what fraction of tiles sit above each
+// threshold. Kept as a regular test so future tuners can re-run it via
+// `go test -run Calibration -v`.
 func TestRiverThresholdCalibration(t *testing.T) {
 	const seeds = 32
 	const side = 128

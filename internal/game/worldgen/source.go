@@ -30,6 +30,12 @@ func (s *ChunkedSource) TileAt(x, y int) game.Tile {
 	return c.At(x, y)
 }
 
+// Generator returns the underlying WorldGenerator. Callers that need to
+// share the same procedural pipeline (e.g. NoiseLandmarkSource for terrain
+// sampling) use this to avoid constructing a second generator for the same
+// seed, which would double noise-layer allocations at startup.
+func (s *ChunkedSource) Generator() *WorldGenerator { return s.gen }
+
 // Compile-time assertion that ChunkedSource satisfies game.TileSource —
 // any drift in the interface surfaces here at build time.
 var _ game.TileSource = (*ChunkedSource)(nil)

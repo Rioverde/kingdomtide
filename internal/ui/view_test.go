@@ -259,6 +259,76 @@ func TestRenderCellLayerPrecedence(t *testing.T) {
 	}
 }
 
+// TestRenderLandmarkPrecedence verifies the landmark layer sits between player
+// and structure in renderTile2w: player wins over landmark, landmark wins over
+// structure and river overlay.
+func TestRenderLandmarkPrecedence(t *testing.T) {
+	t.Parallel()
+
+	towerRune := landmarkRunes[pb.LandmarkKind_LANDMARK_KIND_TOWER]
+	shrineRune := landmarkRunes[pb.LandmarkKind_LANDMARK_KIND_SHRINE]
+	villageRune := structureRunes[pb.Structure_STRUCTURE_VILLAGE]
+
+	cases := []struct {
+		name        string
+		myID        string
+		tile        *pb.Tile
+		mustHave    []string
+		mustNotHave []string
+	}{
+		{
+			name: "landmark wins over structure",
+			tile: &pb.Tile{
+				Terrain:   pb.Terrain_TERRAIN_PLAINS,
+				Landmark:  pb.LandmarkKind_LANDMARK_KIND_TOWER,
+				Structure: pb.Structure_STRUCTURE_VILLAGE,
+			},
+			mustHave:    []string{towerRune},
+			mustNotHave: []string{villageRune},
+		},
+		{
+			name: "self player wins over landmark",
+			myID: "me",
+			tile: &pb.Tile{
+				Terrain:  pb.Terrain_TERRAIN_PLAINS,
+				Landmark: pb.LandmarkKind_LANDMARK_KIND_TOWER,
+				Occupant: pb.OccupantKind_OCCUPANT_PLAYER,
+				EntityId: "me",
+			},
+			mustHave:    []string{runeSelf},
+			mustNotHave: []string{towerRune},
+		},
+		{
+			name: "landmark wins over river overlay",
+			tile: &pb.Tile{
+				Terrain:  pb.Terrain_TERRAIN_PLAINS,
+				Landmark: pb.LandmarkKind_LANDMARK_KIND_SHRINE,
+				Overlays: uint32(game.OverlayRiver),
+			},
+			mustHave:    []string{shrineRune},
+			mustNotHave: []string{riverRune},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			m := &Model{myID: tc.myID}
+			out := m.renderTile2w(tc.tile, 0, 0)
+			for _, want := range tc.mustHave {
+				if !strings.Contains(out, want) {
+					t.Errorf("output %q missing expected glyph %q", out, want)
+				}
+			}
+			for _, bad := range tc.mustNotHave {
+				if strings.Contains(out, bad) {
+					t.Errorf("output %q unexpectedly contains glyph %q", out, bad)
+				}
+			}
+		})
+	}
+}
+
 // TestTileRenderIsTwoCells asserts that renderTile2w always returns a string
 // whose visible width (as measured by lipgloss, which strips ANSI escapes) is
 // exactly tileWidth (2) terminal cells. We check a plain terrain tile and a
@@ -307,6 +377,20 @@ func TestTileRenderIsTwoCells(t *testing.T) {
 		{
 			name: "nil tile",
 			tile: nil,
+		},
+		{
+			name: "landmark tower",
+			tile: &pb.Tile{
+				Terrain:  pb.Terrain_TERRAIN_PLAINS,
+				Landmark: pb.LandmarkKind_LANDMARK_KIND_TOWER,
+			},
+		},
+		{
+			name: "landmark shrine",
+			tile: &pb.Tile{
+				Terrain:  pb.Terrain_TERRAIN_PLAINS,
+				Landmark: pb.LandmarkKind_LANDMARK_KIND_SHRINE,
+			},
 		},
 	}
 

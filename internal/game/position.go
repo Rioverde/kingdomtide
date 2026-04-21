@@ -1,8 +1,8 @@
 package game
 
-// Position is a square-grid coordinate. Origin is the top-left of the world;
-// X grows to the right, Y grows downward. Value semantics: all methods return
-// new Positions and never mutate the receiver.
+// Position is a square-grid coordinate in an infinite world. X grows to the
+// right, Y grows downward, and the origin (0, 0) is the default spawn anchor.
+// Value semantics: all methods return new Positions and never mutate the receiver.
 type Position struct {
 	X, Y int
 }

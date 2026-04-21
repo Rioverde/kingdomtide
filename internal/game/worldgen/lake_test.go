@@ -7,8 +7,8 @@ import (
 )
 
 // TestLakeOverlayAppearsOnRaisedCells scans a broad region of seeds/chunks
-// looking for at least one tile whose priority-flood fill raised its
-// elevation — a lake. The test asserts:
+// looking for at least one tile a river trace flooded during depression
+// resolution — a lake. The test asserts:
 //  1. Such a tile exists within a reasonable search budget (several seeds).
 //  2. The tile's underlying terrain is a LAND biome (the plan's requirement:
 //     lakes are an overlay on top of whatever the land would have been,
@@ -60,7 +60,7 @@ func TestLakeOverlayAppearsOnRaisedCells(t *testing.T) {
 	t.Skip("no lake tiles found across 20 seeds × 8x8 chunks — depression topology is seed-dependent; acceptable skip")
 }
 
-// TestLakeOverlayPersistsThroughCache verifies the hydrology cache does not
+// TestLakeOverlayPersistsThroughCache verifies the rivers cache does not
 // drop lake bits between a fresh generation and a subsequent cached read.
 // Same (seed, coord) → same overlay bits, with or without cache in front.
 func TestLakeOverlayPersistsThroughCache(t *testing.T) {

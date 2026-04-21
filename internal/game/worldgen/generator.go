@@ -16,8 +16,9 @@ const (
 	// small user seeds cannot collapse two layers into the same noise field. Value is kept
 	// under 2^63 so it fits a non-negative int64 literal without an explicit conversion.
 	seedSaltContinent int64 = 0x5a308d313198a2e0
-	// seedSaltRidge decorrelates the ridge noise from every other layer. Distinct 64-bit
-	// pattern (Phase 2). Kept under 2^63 to fit a non-negative int64 literal.
+	// seedSaltRidge decorrelates the ridge noise from every other layer.
+	// Distinct 64-bit pattern kept under 2^63 to fit a non-negative int64
+	// literal.
 	seedSaltRidge int64 = 0x452821e638d01377
 )
 
@@ -27,31 +28,32 @@ const (
 // usually differ on ridge frequency.
 const seedSaltRidgeFreq uint64 = 0xbe5466cf34e90c6c
 
-// Continent-mask blending weights. The plan (Phase 1) specifies additive — not
-// multiplicative — mixing to keep the combined value in [0, 1] and preserve the biome
-// threshold meanings. Weights sum to 1.0 so the output stays in [0, 1] given two
-// normalised inputs. The 0.6 / 0.4 split keeps local elevation variation dominant
-// while giving the continent mask enough authority to cluster oceans into seas.
+// Continent-mask blending weights. Additive (not multiplicative) mixing
+// keeps the combined value in [0, 1] and preserves the biome threshold
+// meanings. Weights sum to 1.0 so the output stays in [0, 1] given two
+// normalised inputs. The 0.6 / 0.4 split keeps local elevation variation
+// dominant while giving the continent mask enough authority to cluster
+// oceans into seas.
 const (
 	continentBlendElev = 0.6
 	continentBlendCont = 0.4
 )
 
-// Phase 2 ridge-blend tuning constants. Ridges only lift elevation inside the mountain
-// band — valleys stay smooth. The band is a Hermite smoothstep over raw continent-blended
-// elevation. ridgeWeight caps the added elevation so peaks rise a fraction of one band,
-// keeping the mountain footprint inside the generator's [0,1] contract even before the
-// hard clamp in TileAt.
+// Ridge-blend tuning constants. Ridges only lift elevation inside the
+// mountain band — valleys stay smooth. The band is a Hermite smoothstep
+// over raw continent-blended elevation. ridgeWeight caps the added
+// elevation so peaks rise a fraction of one band, keeping the mountain
+// footprint inside the generator's [0, 1] contract even before the hard
+// clamp in TileAt.
 //
 //   - ridgeBandLow: elev at which ridge contribution begins to ramp in.
 //   - ridgeBandHigh: elev at which ridge contribution saturates.
 //   - ridgeWeight: maximum additive contribution (ridge ∈ [0,1] is multiplied by this).
 //
-// Values picked empirically by TestSweepRidgeParams (removed after tuning). The plan
-// suggested [0.55, 0.85] × 0.18 as a starting point; the sweep showed that band-low
-// = 0.55 pushes the MOUNTAIN tile count up by > 30% because it promotes high hills into
-// mountains far below the actual ridge spine. Shifting band-low to 0.58 keeps the
-// count drift at ~1.24× baseline (within the ±30% gate) while still lifting genuine
+// Values picked empirically. Band-low = 0.55 would push the MOUNTAIN tile
+// count up by > 30% because it promotes high hills into mountains far
+// below the actual ridge spine; shifting to 0.58 keeps the count drift at
+// ~1.24× baseline (within the ±30% gate) while still lifting genuine
 // mountain tiles.
 const (
 	ridgeBandLow  = 0.58
@@ -59,10 +61,11 @@ const (
 	ridgeWeight   = 0.18
 )
 
-// Phase 2 ridge-frequency jitter. The ridge noise scale is multiplied by a per-world
-// jitter in [ridgeScaleJitterMin, ridgeScaleJitterMin + ridgeScaleJitterRange) so every
-// seed grows mountain chains with a slightly different wavelength (Himalayan to
-// Appalachian). Named constants — not magic numbers — so the range is discoverable.
+// Ridge-frequency jitter. The ridge noise scale is multiplied by a
+// per-world jitter in [ridgeScaleJitterMin, ridgeScaleJitterMin +
+// ridgeScaleJitterRange) so every seed grows mountain chains with a
+// slightly different wavelength (Himalayan to Appalachian). Named
+// constants — not magic numbers — so the range is discoverable.
 const (
 	ridgeBaseScale        = 96.0
 	ridgeScaleJitterMin   = 0.7
@@ -166,10 +169,10 @@ func (g *WorldGenerator) Seed() int64 {
 	return g.seed
 }
 
-// elevationAt returns the final elevation at (fx, fy) — continent-blended (Phase 1) and
-// ridge-lifted inside the mountain band (Phase 2). Every downstream consumer (biome lookup,
-// river sources, river tracing) must use this helper so the whole pipeline sees the same
-// elevation field.
+// elevationAt returns the final elevation at (fx, fy) — continent-blended
+// base elevation lifted inside the mountain band by ridge noise. Every
+// downstream consumer (biome lookup, river sources, river tracing) must
+// use this helper so the whole pipeline sees the same elevation field.
 //
 // Stages:
 //  1. Continent blend: 0.6*elev + 0.4*cont — both inputs live in [0, 1] and the weights
@@ -190,6 +193,14 @@ func (g *WorldGenerator) elevationAt(fx, fy float64) float64 {
 	return max(0.0, min(final, 1.0))
 }
 
+// ElevationAt returns the normalised elevation at integer world coords.
+// Thin public wrapper over elevationAt for consumers that need the raw
+// elevation value without materialising a full Tile (landmark placement,
+// for instance).
+func (g *WorldGenerator) ElevationAt(x, y int) float64 {
+	return g.elevationAt(float64(x), float64(y))
+}
+
 // TileAt is the canonical per-coord lookup. It samples the noise fields at the given
 // global grid coordinate and hands them to the biome matrix. Same (seed, x, y) always
 // yields the same tile, with or without the chunk cache in front.
@@ -201,10 +212,11 @@ func (g *WorldGenerator) TileAt(x, y int) game.Tile {
 	return game.Tile{Terrain: Biome(elev, temp, moist)}
 }
 
-// smoothstep is the Hermite cubic smoothstep: 0 below edge0, 1 above edge1, and a
-// C1-continuous t*t*(3-2*t) in between. Package-private helper for ridge-band gating
-// (Phase 2). When edge1 <= edge0 the function falls through to a 0-or-1 step at edge0
-// rather than panicking — the degenerate-range case is benign and silent.
+// smoothstep is the Hermite cubic smoothstep: 0 below edge0, 1 above
+// edge1, and a C1-continuous t*t*(3-2*t) in between. Package-private
+// helper for ridge-band gating. When edge1 <= edge0 the function falls
+// through to a 0-or-1 step at edge0 rather than panicking — the
+// degenerate-range case is benign and silent.
 func smoothstep(x, edge0, edge1 float64) float64 {
 	if edge1 <= edge0 {
 		// Degenerate band — treat as a step function at edge0.
@@ -244,16 +256,13 @@ func splitMix64(a, b, c uint64) uint64 {
 }
 
 // Chunk fills an entire Chunk worth of tiles in a single pass: for each coord
-// it calls TileAt for the base biome and overlays the hydrology layer (rivers
-// + lakes). Biome is intentionally not altered here — river-adjacent biome
-// blending is a later tuning pass. Settlements (villages, castles) are NOT
-// placed at this layer — they are civilization artifacts and live on Layer 3,
-// generated by the history/simulation pipeline.
-//
-// Chunk fills the per-chunk river and lake overlays using the trace-based
-// algorithm in rivers.go. Rivers and lakes are pure functions of (seed, x, y),
-// so neighbouring chunks always agree on overlays at their shared edges — no
-// buffer-boundary seams.
+// it calls TileAt for the base biome and overlays rivers and lakes from the
+// trace-based algorithm in rivers.go. Rivers and lakes are pure functions of
+// (seed, x, y), so neighbouring chunks always agree on overlays at their
+// shared edges — no boundary seams. Biome is intentionally not altered here;
+// river-adjacent biome blending is a later tuning pass. Settlements are NOT
+// placed at this layer — they are civilization artifacts generated by the
+// history/simulation pipeline.
 func (g *WorldGenerator) Chunk(cc ChunkCoord) Chunk {
 	chunk := Chunk{Coord: cc}
 	minX, _, minY, _ := cc.Bounds()

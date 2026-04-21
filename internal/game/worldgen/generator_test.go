@@ -54,8 +54,8 @@ func TestGeneratorChunkMatchesTileAt(t *testing.T) {
 	for dy := range ChunkSize {
 		for dx := range ChunkSize {
 			x, y := minX+dx, minY+dy
-			// TileAt returns the raw biome tile without river or POI overlays. Chunk()
-			// enriches tiles with both layers, so only the Terrain field must agree.
+			// TileAt returns the raw biome tile without overlays. Chunk()
+			// adds river and lake overlays, so only the Terrain field must agree.
 			want := g.TileAt(x, y)
 			got := chunk.Tiles[dy][dx]
 			if got.Terrain != want.Terrain {

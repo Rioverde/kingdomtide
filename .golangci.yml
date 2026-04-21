@@ -61,9 +61,9 @@ linters:
       - path: internal/game/worldgen/region_source\.go$
         linters:
           - mnd
-      # L1 WIP test files are user's in-progress work — not part of Phase 1
-      # deliverables, excluded to keep lint output focused on shipped code.
-      - path: internal/game/worldgen/(rivers|ridges|continents|lake|bench|drainage).*_test\.go$
+      # WIP test files are user's in-progress work — excluded to keep lint
+      # output focused on shipped code.
+      - path: internal/game/worldgen/(rivers|ridges|continents|lake|bench).*_test\.go$
         linters:
           - gofmt
           - staticcheck
@@ -127,7 +127,7 @@ formatters:
     - goimports
   exclusions:
     paths:
-      # L1 WIP test files — user's in-progress work, not Phase 1 deliverables.
+      # WIP test files — user's in-progress work, not shipped yet.
       - internal/game/worldgen/rivers_test\.go
       - internal/game/worldgen/ridges_test\.go
       - internal/game/worldgen/continents_test\.go

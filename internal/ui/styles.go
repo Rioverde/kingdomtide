@@ -56,6 +56,18 @@ var styles = struct {
 	logDefault: lipgloss.NewStyle(),
 }
 
+// landmarkStyles pairs each LandmarkKind with its foreground style. Landmarks
+// are rendered without region tint — their distinctive colours are already
+// visually salient enough that tinting would muddy them.
+var landmarkStyles = map[pb.LandmarkKind]lipgloss.Style{
+	pb.LandmarkKind_LANDMARK_KIND_TOWER:           lipgloss.NewStyle().Foreground(lipgloss.Color("201")).Bold(true),
+	pb.LandmarkKind_LANDMARK_KIND_GIANT_TREE:      lipgloss.NewStyle().Foreground(lipgloss.Color("34")).Bold(true),
+	pb.LandmarkKind_LANDMARK_KIND_STANDING_STONES: lipgloss.NewStyle().Foreground(lipgloss.Color("245")).Bold(true),
+	pb.LandmarkKind_LANDMARK_KIND_OBELISK:         lipgloss.NewStyle().Foreground(lipgloss.Color("220")).Bold(true),
+	pb.LandmarkKind_LANDMARK_KIND_CHASM:           lipgloss.NewStyle().Foreground(lipgloss.Color("160")),
+	pb.LandmarkKind_LANDMARK_KIND_SHRINE:          lipgloss.NewStyle().Foreground(lipgloss.Color("229")).Bold(true),
+}
+
 // structureStyles pairs each wire Structure with its foreground style.
 // Edit alongside structureRunes to re-skin village/castle overlays.
 var structureStyles = map[pb.Structure]lipgloss.Style{

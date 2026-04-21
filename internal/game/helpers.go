@@ -2,7 +2,7 @@ package game
 
 import "math/rand"
 
-// This file defines the Stats struct and related functions for calculating derived stats based on core stats.
+// Scaling constants used when deriving Health and Mana from core stats.
 const (
 	BaseHealthPerStrength   = 10
 	BaseHealthPerDexterity  = 5

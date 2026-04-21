@@ -19,8 +19,8 @@ var (
 // Per-character seed salts. The top bit is set in most of these values, so
 // the Go constant system refuses them as untyped int64 literals — routing
 // through regionToInt64 turns the conversion into a runtime step that
-// preserves the full 64-bit pattern. This mirrors the Sub-phase 1a pattern
-// in superchunk.go.
+// preserves the full 64-bit pattern. This mirrors the splitmix64 seeding
+// pattern in superchunk.go.
 var (
 	seedSaltRegionBlight  = regionToInt64(0x7f4a7c15be5466cf)
 	seedSaltRegionFae     = regionToInt64(0x34e90c6c85a308d3)

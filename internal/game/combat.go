@@ -1,26 +1,25 @@
 package game
 
+// Combatant is the interface satisfied by any entity that can participate in
+// combat: it can take damage, report liveness, and expose its current stats.
 type Combatant interface {
-	// TakeDamage applies damage to the combatant, reducing their health accordingly.
 	TakeDamage(damage int)
-	// IsAlive checks if the combatant is still alive (i.e., has health greater than zero).
 	Occupant
-	// GetStats returns the current stats of the combatant, including health and mana.
 	GetStats() Stats
 }
 
+// Occupant is the minimal interface for anything that can stand on a tile and
+// be checked for liveness.
 type Occupant interface {
-	// IsAlive checks if the combatant is still alive (i.e., has health greater than zero).
 	IsAlive() bool
 }
 
+// Attack resolves one attack from attacker against defender. A random body-part
+// slot is selected, the attacker's BaseDamage is scaled by that slot's
+// multiplier, and the result is applied via TakeDamage.
 func Attack(attacker, defender Combatant) {
-	// Get the attacker's stats to determine the damage output.
 	attackerStats := attacker.GetStats()
-	// Check on which slot the attack is being made.
 	slot := attackedSlot()
-	// For simplicity, we'll use the attacker's strength as the damage output.
 	damage := calculateDamage(attackerStats.BaseDamage, slot)
-	// Apply damage to the defender using the TakeDamage method defined in the Combatant interface.
 	defender.TakeDamage(damage)
 }

@@ -99,6 +99,17 @@ const (
 	KeyLogMoved  = "log.moved"
 )
 
+// Landmark label keys — one per LandmarkKind variant (excluding NONE).
+// Reserved for Phase 3 approach-detection UI; not rendered anywhere yet.
+const (
+	KeyLandmarkTower          = "landmark.tower"
+	KeyLandmarkGiantTree      = "landmark.giant_tree"
+	KeyLandmarkStandingStones = "landmark.standing_stones"
+	KeyLandmarkObelisk        = "landmark.obelisk"
+	KeyLandmarkChasm          = "landmark.chasm"
+	KeyLandmarkShrine         = "landmark.shrine"
+)
+
 // Character label keys — one per RegionCharacter variant.
 const (
 	KeyCharacterNormal   = "character.normal"
@@ -201,6 +212,13 @@ func AllKeys() []string {
 		KeyLogJoined,
 		KeyLogLeft,
 		KeyLogMoved,
+
+		KeyLandmarkTower,
+		KeyLandmarkGiantTree,
+		KeyLandmarkStandingStones,
+		KeyLandmarkObelisk,
+		KeyLandmarkChasm,
+		KeyLandmarkShrine,
 
 		KeyCharacterNormal,
 		KeyCharacterBlighted,

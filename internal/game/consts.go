@@ -1,6 +1,10 @@
 package game
 
+// Slot identifies an equipment slot on a combatant's body (head, body, legs).
 type Slot string
+
+// Terrain is the biome identifier for a map tile, used to drive passability,
+// rendering, and world-generation classification.
 type Terrain string
 
 // StructureKind identifies a single built structure that can occupy a tile —

@@ -25,7 +25,7 @@ func positionFromPB(p *pb.Position) game.Position {
 // renderCell. Region identity — the name and character shown in the status
 // bar, and the SuperChunkCoord used for crossing detection — always arrives
 // via Snapshot.Region, never derived client-side. Keeping the two flows
-// separate means a Phase-5 history mutation of a region reaches the UI
+// separate means a history mutation of a region reaches the UI
 // without the client needing a new pipeline.
 func applyJoinAccepted(m *Model, v acceptedMsg) {
 	m.myID = v.PlayerID

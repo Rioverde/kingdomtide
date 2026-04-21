@@ -71,17 +71,17 @@ var (
 )
 
 // regionNameMinLen and regionNameMaxLen bound the Markov walk's target
-// length. Numbers match the Phase-1 plan; shorter than regionNameMinLen
-// tends to produce one-syllable noise, longer than regionNameMaxLen runs
-// past the UI allotment in the viewport status bar.
+// length. Shorter than regionNameMinLen tends to produce one-syllable noise,
+// longer than regionNameMaxLen runs past the UI allotment in the viewport
+// status bar.
 const (
 	regionNameMinLen = 5
 	regionNameMaxLen = 11
 )
 
 // defaultNamingLanguage is the hardcoded locale used by RegionName until
-// Sub-phase 1d threads language through from ClientHello. Keeping it as a
-// named constant makes the eventual swap a one-line change.
+// language is threaded through from ClientHello. Keeping it as a named
+// constant makes the eventual swap a one-line change.
 const defaultNamingLanguage = "en"
 
 // hashCoordPrimeX and hashCoordPrimeY are large odd primes used to mix the
@@ -112,7 +112,7 @@ func RegionName(
 	seed int64,
 	sc game.SuperChunkCoord,
 ) string {
-	// TODO(Rioverde): thread language through from ClientHello (Sub-phase 1d).
+	// TODO(Rioverde): thread language through from ClientHello.
 	lang := defaultNamingLanguage
 
 	namingChainsOnce.Do(loadNamingChains)

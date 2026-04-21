@@ -1,6 +1,55 @@
 package game
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
+
+// stubLandmarkSource is a minimal LandmarkSource used to verify the
+// World delegates LandmarksIn to its configured backend. It records
+// the queried coord so the test can assert the World forwarded the
+// argument unchanged.
+type stubLandmarkSource struct {
+	got  SuperChunkCoord
+	out  []Landmark
+	hits int
+}
+
+func (s *stubLandmarkSource) LandmarksIn(sc SuperChunkCoord) []Landmark {
+	s.got = sc
+	s.hits++
+	return s.out
+}
+
+func TestWorldLandmarksInNilSource(t *testing.T) {
+	w := newTestWorld(testTiles{})
+	got := w.LandmarksIn(SuperChunkCoord{X: 3, Y: -2})
+	if got != nil {
+		t.Fatalf("LandmarksIn with nil source = %v, want nil", got)
+	}
+}
+
+func TestWorldLandmarksInDelegation(t *testing.T) {
+	want := []Landmark{
+		{Coord: Position{X: 10, Y: 20}, Kind: LandmarkTower},
+		{Coord: Position{X: 30, Y: 40}, Kind: LandmarkShrine},
+	}
+	stub := &stubLandmarkSource{out: want}
+	w := NewWorldFromSource(testTiles{}, WithLandmarkSource(stub))
+
+	sc := SuperChunkCoord{X: 7, Y: 11}
+	got := w.LandmarksIn(sc)
+
+	if stub.hits != 1 {
+		t.Fatalf("source hits = %d, want 1", stub.hits)
+	}
+	if stub.got != sc {
+		t.Fatalf("source received sc = %+v, want %+v", stub.got, sc)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("LandmarksIn = %+v, want %+v", got, want)
+	}
+}
 
 func TestNewWorldInBoundsAlwaysTrue(t *testing.T) {
 	w := newTestWorld(testTiles{})

@@ -123,7 +123,7 @@ type Model struct {
 	// Region tracking. region is the latest anchor-resolved Region sent in
 	// the most recent Snapshot; lastRegionCoord is its SuperChunkCoord, used
 	// for crossing-detection comparisons without relying on the region name
-	// (which a Phase-5 history event could mutate without the player moving).
+	// (which a history event could mutate without the player moving).
 	// initialised guards the first snapshot so joining a world does not emit
 	// a spurious "you enter X" log line.
 	region          *pb.Region
