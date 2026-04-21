@@ -159,61 +159,34 @@ func listenCmd(stream pb.GameService_PlayClient) tea.Cmd {
 // building Snapshot responses for this client. Non-blocking; a full
 // outbox means the writer goroutine is dead and the session is doomed.
 func sendJoinCmd(outbox chan<- *pb.ClientMessage, name string, viewW, viewH int) tea.Cmd {
-	return func() tea.Msg {
-		msg := &pb.ClientMessage{
-			Payload: &pb.ClientMessage_Join{
-				Join: &pb.JoinRequest{
-					Name:           name,
-					ViewportWidth:  int32(viewW),
-					ViewportHeight: int32(viewH),
-				},
+	return sendNonBlocking(outbox, &pb.ClientMessage{
+		Payload: &pb.ClientMessage_Join{
+			Join: &pb.JoinRequest{
+				Name:           name,
+				ViewportWidth:  int32(viewW),
+				ViewportHeight: int32(viewH),
 			},
-		}
-		select {
-		case outbox <- msg:
-			return nil
-		default:
-			return netErrorMsg{Err: fmt.Errorf("outbox full on join")}
-		}
-	}
+		},
+	}, "join")
+}
+
+// sendMoveCmd queues a MoveCmd. Same backpressure contract as
+// sendJoinCmd.
+func sendMoveCmd(outbox chan<- *pb.ClientMessage, dx, dy int) tea.Cmd {
+	return sendNonBlocking(outbox, &pb.ClientMessage{
+		Payload: &pb.ClientMessage_Move{
+			Move: &pb.MoveCmd{Dx: int32(dx), Dy: int32(dy)},
+		},
+	}, "move")
 }
 
 // sendViewportCmd tells the server this client wants a differently-sized
 // Snapshot from now on. Triggered by tea.WindowSizeMsg after the terminal
 // resizes. Same non-blocking backpressure contract as sendJoinCmd.
 func sendViewportCmd(outbox chan<- *pb.ClientMessage, viewW, viewH int) tea.Cmd {
-	return func() tea.Msg {
-		msg := &pb.ClientMessage{
-			Payload: &pb.ClientMessage_Viewport{
-				Viewport: &pb.ViewportCmd{
-					Width:  int32(viewW),
-					Height: int32(viewH),
-				},
-			},
-		}
-		select {
-		case outbox <- msg:
-			return nil
-		default:
-			return netErrorMsg{Err: fmt.Errorf("outbox full on viewport")}
-		}
-	}
-}
-
-// sendMoveCmd queues a MoveCmd. Same backpressure contract as
-// sendJoinCmd.
-func sendMoveCmd(outbox chan<- *pb.ClientMessage, dx, dy int) tea.Cmd {
-	return func() tea.Msg {
-		msg := &pb.ClientMessage{
-			Payload: &pb.ClientMessage_Move{
-				Move: &pb.MoveCmd{Dx: int32(dx), Dy: int32(dy)},
-			},
-		}
-		select {
-		case outbox <- msg:
-			return nil
-		default:
-			return netErrorMsg{Err: fmt.Errorf("outbox full on move")}
-		}
-	}
+	return sendNonBlocking(outbox, &pb.ClientMessage{
+		Payload: &pb.ClientMessage_Viewport{
+			Viewport: &pb.ViewportCmd{Width: int32(viewW), Height: int32(viewH)},
+		},
+	}, "viewport")
 }
