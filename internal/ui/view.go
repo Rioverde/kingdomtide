@@ -32,8 +32,8 @@ func (m *Model) View() string {
 // viewEnterName draws a bordered prompt asking for a nickname.
 func (m *Model) viewEnterName() string {
 	title := styles.title.Render(TitleText)
-	prompt := styles.prompt.Render(m.nameInput.prompt)
-	input := renderInput(m.nameInput)
+	prompt := styles.prompt.Render(NameInputLabel)
+	input := renderInput(m)
 	hint := styles.status.Render(QuitLongHint)
 
 	inner := lipgloss.JoinVertical(lipgloss.Left,
@@ -185,26 +185,9 @@ func (m *Model) renderStatus() string {
 	return styles.status.Render(strings.Join(parts, StatusDivider))
 }
 
-// renderInput renders the name buffer with a block cursor.
-func renderInput(t textInput) string {
-	chars := []rune(t.Value())
-	var b strings.Builder
-	b.WriteString(styles.input.Render(InputPrompt))
-	for i := 0; i <= len(chars); i++ {
-		if i == t.cursor && t.focus {
-			cell := " "
-			if i < len(chars) {
-				cell = string(chars[i])
-			}
-			b.WriteString(styles.cursor.Render(cell))
-			if i < len(chars) {
-				continue
-			}
-			break
-		}
-		if i < len(chars) {
-			b.WriteString(styles.input.Render(string(chars[i])))
-		}
-	}
-	return b.String()
+// renderInput renders the name buffer. Bubbles' textinput.Model draws its
+// own cursor and echoes typed runes; we only prepend the styled InputPrompt
+// chevron so the visual affordance from the old hand-rolled widget survives.
+func renderInput(m *Model) string {
+	return styles.input.Render(InputPrompt) + m.nameInput.View()
 }

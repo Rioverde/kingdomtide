@@ -2,7 +2,6 @@ package ui
 
 import (
 	"strings"
-	"unicode"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -92,9 +91,10 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 // handleKeyEnterName edits the name buffer and, on Enter with a non-
 // empty value, transitions to phaseConnecting and fires the dial Cmd.
+// Non-Enter keys are delegated to the bubbles textinput.Model, which
+// handles typing, cursor motion, backspace, word jumps, etc.
 func (m *Model) handleKeyEnterName(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.Type {
-	case tea.KeyEnter:
+	if msg.Type == tea.KeyEnter {
 		name := strings.TrimSpace(m.nameInput.Value())
 		if name == "" {
 			return m, nil
@@ -103,28 +103,10 @@ func (m *Model) handleKeyEnterName(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.phase = phaseConnecting
 		m.status = "connecting to " + m.serverAddr + "..."
 		return m, connectCmd(m.ctx, m.serverAddr)
-	case tea.KeyBackspace:
-		m.nameInput.Backspace()
-		return m, nil
-	case tea.KeyLeft:
-		m.nameInput.MoveLeft()
-		return m, nil
-	case tea.KeyRight:
-		m.nameInput.MoveRight()
-		return m, nil
-	case tea.KeySpace:
-		m.nameInput.InsertRune(' ')
-		return m, nil
-	case tea.KeyRunes:
-		for _, r := range msg.Runes {
-			if !unicode.IsPrint(r) {
-				continue
-			}
-			m.nameInput.InsertRune(r)
-		}
-		return m, nil
 	}
-	return m, nil
+	var cmd tea.Cmd
+	m.nameInput, cmd = m.nameInput.Update(msg)
+	return m, cmd
 }
 
 // handleKeyPlaying turns WASD/hjkl/arrows into a MoveCmd on the outbox.

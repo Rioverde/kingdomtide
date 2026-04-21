@@ -4,6 +4,9 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"google.golang.org/protobuf/testing/protocmp"
+
 	"github.com/Rioverde/gongeons/internal/game"
 	pb "github.com/Rioverde/gongeons/internal/proto"
 )
@@ -51,25 +54,53 @@ func TestClientMessageToCommandEmpty(t *testing.T) {
 
 func TestEventToServerMessagePlayerJoined(t *testing.T) {
 	ev := game.PlayerJoinedEvent{PlayerID: "p1", Name: "alice", Position: game.Position{X: 3, Y: 4}}
-	msg := eventToServerMessage(ev)
-	pj := msg.GetEvent().GetPlayerJoined()
-	if pj == nil {
-		t.Fatalf("expected PlayerJoined payload, got %v", msg)
+	got := eventToServerMessage(ev)
+
+	want := &pb.ServerMessage{
+		Payload: &pb.ServerMessage_Event{
+			Event: &pb.Event{
+				Payload: &pb.Event_PlayerJoined{
+					PlayerJoined: &pb.PlayerJoined{
+						Entity: &pb.Entity{
+							Id:   "p1",
+							Name: "alice",
+							Kind: pb.OccupantKind_OCCUPANT_PLAYER,
+							Position: &pb.Position{
+								X: 3,
+								Y: 4,
+							},
+						},
+					},
+				},
+			},
+		},
 	}
-	if pj.GetEntity().GetId() != "p1" || pj.GetEntity().GetName() != "alice" {
-		t.Fatalf("entity fields wrong: %+v", pj.GetEntity())
-	}
-	if pj.GetEntity().GetPosition().GetX() != 3 || pj.GetEntity().GetPosition().GetY() != 4 {
-		t.Fatalf("position wrong: %+v", pj.GetEntity().GetPosition())
+
+	opts := []cmp.Option{protocmp.Transform()}
+	if diff := cmp.Diff(want, got, opts...); diff != "" {
+		t.Fatalf("eventToServerMessage(PlayerJoinedEvent) mismatch (-want +got):\n%s", diff)
 	}
 }
 
 func TestEventToServerMessagePlayerLeft(t *testing.T) {
 	ev := game.PlayerLeftEvent{PlayerID: "p1"}
-	msg := eventToServerMessage(ev)
-	pl := msg.GetEvent().GetPlayerLeft()
-	if pl == nil || pl.GetPlayerId() != "p1" {
-		t.Fatalf("bad mapping: %v", msg)
+	got := eventToServerMessage(ev)
+
+	want := &pb.ServerMessage{
+		Payload: &pb.ServerMessage_Event{
+			Event: &pb.Event{
+				Payload: &pb.Event_PlayerLeft{
+					PlayerLeft: &pb.PlayerLeft{
+						PlayerId: "p1",
+					},
+				},
+			},
+		},
+	}
+
+	opts := []cmp.Option{protocmp.Transform()}
+	if diff := cmp.Diff(want, got, opts...); diff != "" {
+		t.Fatalf("eventToServerMessage(PlayerLeftEvent) mismatch (-want +got):\n%s", diff)
 	}
 }
 
@@ -79,16 +110,25 @@ func TestEventToServerMessageEntityMoved(t *testing.T) {
 		From:     game.Position{X: 1, Y: 2},
 		To:       game.Position{X: 2, Y: 2},
 	}
-	msg := eventToServerMessage(ev)
-	em := msg.GetEvent().GetEntityMoved()
-	if em == nil {
-		t.Fatalf("expected EntityMoved, got %v", msg)
+	got := eventToServerMessage(ev)
+
+	want := &pb.ServerMessage{
+		Payload: &pb.ServerMessage_Event{
+			Event: &pb.Event{
+				Payload: &pb.Event_EntityMoved{
+					EntityMoved: &pb.EntityMoved{
+						EntityId: "p1",
+						From:     &pb.Position{X: 1, Y: 2},
+						To:       &pb.Position{X: 2, Y: 2},
+					},
+				},
+			},
+		},
 	}
-	if em.GetEntityId() != "p1" {
-		t.Fatalf("entity id: %v", em.GetEntityId())
-	}
-	if em.GetFrom().GetX() != 1 || em.GetTo().GetX() != 2 {
-		t.Fatalf("from/to: %v / %v", em.GetFrom(), em.GetTo())
+
+	opts := []cmp.Option{protocmp.Transform()}
+	if diff := cmp.Diff(want, got, opts...); diff != "" {
+		t.Fatalf("eventToServerMessage(EntityMovedEvent) mismatch (-want +got):\n%s", diff)
 	}
 }
 
@@ -156,9 +196,14 @@ func TestSnapshotOfIncludesObjects(t *testing.T) {
 	if idx >= len(tiles) {
 		t.Fatalf("target index %d out of range (%d tiles)", idx, len(tiles))
 	}
-	if got := tiles[idx].GetObject(); got != pb.WorldObject_WORLD_OBJECT_VILLAGE {
-		t.Fatalf("centre tile object = %v, want %v",
-			got, pb.WorldObject_WORLD_OBJECT_VILLAGE)
+
+	want := &pb.Tile{
+		Terrain: pb.Terrain_TERRAIN_PLAINS,
+		Object:  pb.WorldObject_WORLD_OBJECT_VILLAGE,
+	}
+	opts := []cmp.Option{protocmp.Transform()}
+	if diff := cmp.Diff(want, tiles[idx], opts...); diff != "" {
+		t.Fatalf("snapshotOf centre tile mismatch (-want +got):\n%s", diff)
 	}
 }
 
@@ -170,20 +215,31 @@ func TestSnapshotOfShape(t *testing.T) {
 	}
 	spawn := events[0].(game.PlayerJoinedEvent).Position
 
-	snap := snapshotOf(w, spawn, DefaultViewportWidth, DefaultViewportHeight)
-	if snap.GetWidth() != int32(DefaultViewportWidth) || snap.GetHeight() != int32(DefaultViewportHeight) {
+	got := snapshotOf(w, spawn, DefaultViewportWidth, DefaultViewportHeight)
+
+	// Verify structural fields via cmp.Diff; tiles are verified by count only
+	// since their content is world-seed-dependent.
+	wantOrigin := &pb.Position{
+		X: int32(spawn.X - DefaultViewportWidth/2),
+		Y: int32(spawn.Y - DefaultViewportHeight/2),
+	}
+	wantEntities := []*pb.Entity{
+		{Id: "p1", Name: "alice", Kind: pb.OccupantKind_OCCUPANT_PLAYER, Position: got.GetEntities()[0].GetPosition()},
+	}
+
+	opts := []cmp.Option{protocmp.Transform()}
+	if diff := cmp.Diff(wantOrigin, got.GetOrigin(), opts...); diff != "" {
+		t.Fatalf("snapshotOf origin mismatch (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(wantEntities, got.GetEntities(), opts...); diff != "" {
+		t.Fatalf("snapshotOf entities mismatch (-want +got):\n%s", diff)
+	}
+	if got.GetWidth() != int32(DefaultViewportWidth) || got.GetHeight() != int32(DefaultViewportHeight) {
 		t.Fatalf("snapshot size: %dx%d, want %dx%d",
-			snap.GetWidth(), snap.GetHeight(), DefaultViewportWidth, DefaultViewportHeight)
+			got.GetWidth(), got.GetHeight(), DefaultViewportWidth, DefaultViewportHeight)
 	}
-	if len(snap.GetTiles()) != DefaultViewportWidth*DefaultViewportHeight {
+	if len(got.GetTiles()) != DefaultViewportWidth*DefaultViewportHeight {
 		t.Fatalf("snapshot tile count: got %d, want %d",
-			len(snap.GetTiles()), DefaultViewportWidth*DefaultViewportHeight)
-	}
-	if snap.GetOrigin().GetX() != int32(spawn.X-DefaultViewportWidth/2) ||
-		snap.GetOrigin().GetY() != int32(spawn.Y-DefaultViewportHeight/2) {
-		t.Fatalf("origin: %+v, want centred on spawn %+v", snap.GetOrigin(), spawn)
-	}
-	if len(snap.GetEntities()) != 1 || snap.GetEntities()[0].GetId() != "p1" {
-		t.Fatalf("entities: %v", snap.GetEntities())
+			len(got.GetTiles()), DefaultViewportWidth*DefaultViewportHeight)
 	}
 }

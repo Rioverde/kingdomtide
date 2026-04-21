@@ -9,6 +9,7 @@ package ui
 import (
 	"context"
 
+	"github.com/charmbracelet/bubbles/textinput"
 	"google.golang.org/grpc"
 
 	"github.com/Rioverde/gongeons/internal/game"
@@ -26,10 +27,10 @@ const (
 	// on any sane terminal.
 	nameInputMaxLen = 24
 
-	// textInputMaxVisual caps how many rune cells a text input is allowed
-	// to display on screen before scrolling kicks in (not implemented yet,
-	// but the constant documents the intent).
-	textInputMaxVisual = 32
+	// NameInputLabel is the prompt shown above the name-entry box. Rendered
+	// separately from the bubbles textinput's own Prompt field (which we
+	// suppress) so lipgloss styling stays under our control.
+	NameInputLabel = "Your name:"
 )
 
 // phase is the top-level UI state machine of the client.
@@ -49,79 +50,16 @@ type playerInfo struct {
 	Pos  game.Position
 }
 
-// textInput is a minimal single-line text input. It intentionally avoids a
-// dependency on bubbles/textinput: the requirements here (one line, no
-// masking, no validation) are small enough that a purpose-built struct
-// keeps the call graph obvious.
-type textInput struct {
-	value     []rune
-	cursor    int
-	maxLen    int
-	prompt    string
-	focus     bool
-	maxVisual int
-}
-
-// newTextInput returns a focused, empty text input.
-func newTextInput(prompt string, maxLen int) textInput {
-	return textInput{
-		prompt:    prompt,
-		maxLen:    maxLen,
-		focus:     true,
-		maxVisual: textInputMaxVisual,
-	}
-}
-
-// Value returns the current contents as a string.
-func (t textInput) Value() string {
-	return string(t.value)
-}
-
-// SetValue replaces the buffer and parks the cursor at the end.
-func (t *textInput) SetValue(s string) {
-	t.value = []rune(s)
-	t.cursor = len(t.value)
-}
-
-// InsertRune appends a rune at the cursor position. Silently drops input
-// once maxLen is reached.
-func (t *textInput) InsertRune(r rune) {
-	if len(t.value) >= t.maxLen {
-		return
-	}
-	// Insert at cursor. A one-line buffer is small; the O(n) copy is fine.
-	out := make([]rune, 0, len(t.value)+1)
-	out = append(out, t.value[:t.cursor]...)
-	out = append(out, r)
-	out = append(out, t.value[t.cursor:]...)
-	t.value = out
-	t.cursor++
-}
-
-// Backspace deletes the rune before the cursor, if any.
-func (t *textInput) Backspace() {
-	if t.cursor == 0 {
-		return
-	}
-	out := make([]rune, 0, len(t.value)-1)
-	out = append(out, t.value[:t.cursor-1]...)
-	out = append(out, t.value[t.cursor:]...)
-	t.value = out
-	t.cursor--
-}
-
-// MoveLeft shifts the cursor one rune left, clamped to the buffer start.
-func (t *textInput) MoveLeft() {
-	if t.cursor > 0 {
-		t.cursor--
-	}
-}
-
-// MoveRight shifts the cursor one rune right, clamped to the buffer end.
-func (t *textInput) MoveRight() {
-	if t.cursor < len(t.value) {
-		t.cursor++
-	}
+// newNameInput returns a focused, empty textinput.Model sized for the
+// enter-name screen. The bubbles model renders its own cursor and prompt;
+// we suppress its Prompt and render the "Your name:" label separately in
+// view.go so lipgloss styling stays in our hands.
+func newNameInput() textinput.Model {
+	ti := textinput.New()
+	ti.CharLimit = nameInputMaxLen
+	ti.Prompt = ""
+	ti.Focus()
+	return ti
 }
 
 // Model is the Bubble Tea model. It tracks the current UI phase, the
@@ -137,7 +75,7 @@ type Model struct {
 	phase phase
 
 	// Enter-name screen.
-	nameInput textInput
+	nameInput textinput.Model
 
 	// Connecting / disconnected screen status strings.
 	serverAddr string
@@ -174,7 +112,7 @@ type Model struct {
 func New(ctx context.Context, addr string) *Model {
 	return &Model{
 		phase:      phaseEnterName,
-		nameInput:  newTextInput("Your name:", nameInputMaxLen),
+		nameInput:  newNameInput(),
 		serverAddr: addr,
 		players:    make(map[string]playerInfo),
 		ctx:        ctx,
