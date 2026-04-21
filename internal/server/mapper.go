@@ -99,10 +99,7 @@ var objectPBMapping = map[game.ObjectKind]pb.WorldObject{
 // objectToPB looks up k in objectPBMapping. ObjectNone maps implicitly to
 // UNSPECIFIED via the default return.
 func objectToPB(k game.ObjectKind) pb.WorldObject {
-	if v, ok := objectPBMapping[k]; ok {
-		return v
-	}
-	return pb.WorldObject_WORLD_OBJECT_UNSPECIFIED
+	return lookupOr(objectPBMapping, k, pb.WorldObject_WORLD_OBJECT_UNSPECIFIED)
 }
 
 // terrainPBMapping is the 1:1 translation table from the domain Terrain
@@ -130,10 +127,7 @@ var terrainPBMapping = map[game.Terrain]pb.Terrain{
 // terrainToPB looks up t in terrainPBMapping. Unknown terrains fall back
 // to UNSPECIFIED so the client can render a clear "what is this" glyph.
 func terrainToPB(t game.Terrain) pb.Terrain {
-	if v, ok := terrainPBMapping[t]; ok {
-		return v
-	}
-	return pb.Terrain_TERRAIN_UNSPECIFIED
+	return lookupOr(terrainPBMapping, t, pb.Terrain_TERRAIN_UNSPECIFIED)
 }
 
 // clampViewport enforces the minimum size rule and defaults zero values to
@@ -145,13 +139,23 @@ func clampViewport(w, h int) (int, int) {
 	if h <= 0 {
 		h = DefaultViewportHeight
 	}
-	if w < MinViewportWidth {
-		w = MinViewportWidth
+	return max(w, MinViewportWidth), max(h, MinViewportHeight)
+}
+
+// tileFromDomain builds a wire Tile from a domain tile, overlaying the
+// player occupant when present. The terrain / river / object conversions
+// all live in one spot.
+func tileFromDomain(t game.Tile) *pb.Tile {
+	out := &pb.Tile{
+		Terrain: terrainToPB(t.Terrain),
+		River:   t.River,
+		Object:  objectToPB(t.Object),
 	}
-	if h < MinViewportHeight {
-		h = MinViewportHeight
+	if p, ok := t.Occupant.(*game.Player); ok && p != nil {
+		out.Occupant = pb.OccupantKind_OCCUPANT_PLAYER
+		out.EntityId = p.ID
 	}
-	return w, h
+	return out
 }
 
 // snapshotOf builds a viewport Snapshot of viewW × viewH tiles centred on
@@ -168,16 +172,7 @@ func snapshotOf(w *game.World, center game.Position, viewW, viewH int) *pb.Snaps
 		for dx := range viewW {
 			p := game.Position{X: originX + dx, Y: originY + dy}
 			t, _ := w.TileAt(p)
-			out := &pb.Tile{
-				Terrain: terrainToPB(t.Terrain),
-				River:   t.River,
-				Object:  objectToPB(t.Object),
-			}
-			if pl, ok := t.Occupant.(*game.Player); ok && pl != nil {
-				out.Occupant = pb.OccupantKind_OCCUPANT_PLAYER
-				out.EntityId = pl.ID
-			}
-			tiles = append(tiles, out)
+			tiles = append(tiles, tileFromDomain(t))
 		}
 	}
 	return &pb.Snapshot{

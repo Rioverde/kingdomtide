@@ -83,11 +83,7 @@ func (h *Hub) Broadcast(msg *pb.ServerMessage) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	for id, ch := range h.subs {
-		select {
-		case ch <- msg:
-		default:
-			h.log.Warn("hub: dropped broadcast for slow subscriber", "id", id)
-		}
+		h.trySend(id, ch, msg, "broadcast")
 	}
 }
 
@@ -103,11 +99,18 @@ func (h *Hub) SendTo(id string, msg *pb.ServerMessage) bool {
 	if !ok {
 		return false
 	}
+	return h.trySend(id, ch, msg, "targeted message")
+}
+
+// trySend attempts a non-blocking send. Logs and returns false if the
+// subscriber's outbox is full. The caller must hold h.mu — trySend
+// never takes the lock itself.
+func (h *Hub) trySend(id string, ch chan *pb.ServerMessage, msg *pb.ServerMessage, reason string) bool {
 	select {
 	case ch <- msg:
 		return true
 	default:
-		h.log.Warn("hub: dropped targeted message for slow subscriber", "id", id)
+		h.log.Warn("hub: dropped "+reason+" for slow subscriber", "id", id)
 		return false
 	}
 }

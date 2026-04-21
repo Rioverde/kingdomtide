@@ -163,11 +163,11 @@ func (s *Service) dispatch(msg *pb.ClientMessage, playerID string) {
 
 	cmd, cerr := clientMessageToCommand(msg, playerID)
 	if cerr != nil {
-		s.hub.SendTo(playerID, errorResponse("bad command: "+cerr.Error(), "invalid_argument"))
+		s.sendError(playerID, "bad command: "+cerr.Error(), "invalid_argument")
 		return
 	}
 	if _, isJoin := cmd.(game.JoinCmd); isJoin {
-		s.hub.SendTo(playerID, errorResponse("already joined", "invalid_protocol"))
+		s.sendError(playerID, "already joined", "invalid_protocol")
 		return
 	}
 
@@ -176,13 +176,12 @@ func (s *Service) dispatch(msg *pb.ClientMessage, playerID string) {
 	var followSnap *pb.Snapshot
 	if aerr == nil && movedSelf(events, playerID) {
 		if pos, ok := s.world.PositionOf(playerID); ok {
-			dims := s.viewports[playerID]
-			followSnap = snapshotOf(s.world, pos, dims.width, dims.height)
+			followSnap = s.snapshotFor(playerID, pos)
 		}
 	}
 	s.mu.Unlock()
 	if aerr != nil {
-		s.hub.SendTo(playerID, errorResponse(aerr.Error(), "rule_violation"))
+		s.sendError(playerID, aerr.Error(), "rule_violation")
 		return
 	}
 	s.broadcastEvents(events)
@@ -191,17 +190,40 @@ func (s *Service) dispatch(msg *pb.ClientMessage, playerID string) {
 	}
 }
 
+// sendError targets a single subscriber with a non-fatal error message.
+// Errors are per-player — the stream stays open for the next command.
+func (s *Service) sendError(id, msg, code string) {
+	s.hub.SendTo(id, errorResponse(msg, code))
+}
+
+// snapshotFor builds a viewport Snapshot sized to this player's stored
+// dims. Uses the server defaults when the player is unknown or dims are
+// unset. The caller must hold s.mu — snapshotFor never takes the mutex
+// itself, so callers can compose it into a larger critical section.
+func (s *Service) snapshotFor(id string, pos game.Position) *pb.Snapshot {
+	dims := s.viewports[id]
+	return snapshotOf(s.world, pos, dims.width, dims.height)
+}
+
+// applyCmd is the short critical section that every world mutation goes
+// through: take the mutex, apply, release. Returning outside the lock
+// lets callers broadcast events without re-entering it.
+func (s *Service) applyCmd(cmd game.Command) ([]game.Event, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.world.ApplyCommand(cmd)
+}
+
 // updateViewport changes the stored per-player dims and pushes a fresh
 // snapshot at the new size. Typically fires when the client's terminal
 // resizes.
 func (s *Service) updateViewport(playerID string, width, height int) {
 	s.mu.Lock()
-	dims := viewportDims{width: width, height: height}
-	s.viewports[playerID] = dims
+	s.viewports[playerID] = viewportDims{width: width, height: height}
 	pos, ok := s.world.PositionOf(playerID)
 	var snap *pb.Snapshot
 	if ok {
-		snap = snapshotOf(s.world, pos, dims.width, dims.height)
+		snap = s.snapshotFor(playerID, pos)
 	}
 	s.mu.Unlock()
 	if snap != nil {
@@ -238,8 +260,8 @@ func (s *Service) cleanup(
 	wg *sync.WaitGroup,
 	unsub func(),
 ) {
+	leaveEvents, _ := s.applyCmd(game.LeaveCmd{PlayerID: playerID})
 	s.mu.Lock()
-	leaveEvents, _ := s.world.ApplyCommand(game.LeaveCmd{PlayerID: playerID})
 	delete(s.viewports, playerID)
 	s.mu.Unlock()
 	s.broadcastEvents(leaveEvents)
