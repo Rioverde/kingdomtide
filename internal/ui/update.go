@@ -1,11 +1,14 @@
 package ui
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/Rioverde/gongeons/internal/ui/locale"
 )
 
 // Init is the Bubble Tea entry Cmd. The client does nothing until the
@@ -33,7 +36,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case connectedMsg:
 		return m.handleConnected(v)
 	case acceptedMsg:
-		m.myID = v.PlayerID
+		applyJoinAccepted(m, v)
 		cmd := m.keepListening()
 		return m, cmd
 	case snapshotMsg:
@@ -48,8 +51,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	case serverErrorMsg:
 		// Rule violations (move into wall / occupied tile) are expected UX —
-		// the player simply stays put. No log spam. Just keep listening.
-		_ = v
+		// the player simply stays put. renderServerError extracts the
+		// LocalizedMessage detail from the reconstructed gRPC Status and
+		// returns a player-facing string; the raw Status.Message is logged
+		// to stderr by renderServerError for developer diagnostics.
+		if text := renderServerError(v.Err, m.lang); text != "" {
+			m.appendLogDefault(fmt.Sprintf("%s %s", LogBullet, text))
+		}
 		cmd := m.keepListening()
 		return m, cmd
 	case netErrorMsg:
@@ -102,7 +110,7 @@ func (m *Model) handleKeyEnterName(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		m.nameInput.SetValue(name)
 		m.phase = phaseConnecting
-		m.status = "connecting to " + m.serverAddr + "..."
+		m.status = locale.Tr(m.lang, locale.KeyStatusConnecting, "Address", m.serverAddr)
 		return m, tea.Batch(connectCmd(m.ctx, m.serverAddr), m.spinner.Tick)
 	}
 	var cmd tea.Cmd
@@ -110,7 +118,7 @@ func (m *Model) handleKeyEnterName(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-// handleKeyPlaying turns WASD/hjkl/arrows into a MoveCmd on the outbox.
+// handleKeyPlaying turns WASD/arrows into a MoveCmd on the outbox.
 func (m *Model) handleKeyPlaying(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.outbox == nil {
 		return m, nil
@@ -149,11 +157,11 @@ func (m *Model) handleConnected(v connectedMsg) (tea.Model, tea.Cmd) {
 	m.stream = v.stream
 	m.cancel = v.cancel
 	m.outbox = v.outbox
-	m.status = "connected, joining..."
+	m.status = locale.Tr(m.lang, locale.KeyStatusConnectedJoining)
 	name := m.nameInput.Value()
 	viewW, viewH := viewportForTerm(m.termWidth, m.termHeight)
 	return m, tea.Batch(
-		sendJoinCmd(v.outbox, name, viewW, viewH),
+		sendJoinCmd(v.outbox, name, m.lang, viewW, viewH),
 		listenCmd(v.stream),
 	)
 }
@@ -181,7 +189,7 @@ func (m *Model) handleNetError(v netErrorMsg) *Model {
 	if v.Err != nil {
 		m.status = v.Err.Error()
 	} else {
-		m.status = "disconnected"
+		m.status = locale.Tr(m.lang, locale.KeyStatusDisconnected)
 	}
 	m.phase = phaseDisconnected
 	return m

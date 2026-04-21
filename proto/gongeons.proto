@@ -59,6 +59,54 @@ enum Structure {
   STRUCTURE_CASTLE      = 2;
 }
 
+// RegionCharacter is the dominant thematic identity of a Voronoi region
+// cell. Matches the internal/game/RegionCharacter enum bit-for-bit so
+// regionCharacterPB in internal/server/mapper.go is a pure cast.
+enum RegionCharacter {
+  REGION_CHARACTER_NORMAL   = 0;
+  REGION_CHARACTER_BLIGHTED = 1;
+  REGION_CHARACTER_FEY      = 2;
+  REGION_CHARACTER_ANCIENT  = 3;
+  REGION_CHARACTER_SAVAGE   = 4;
+  REGION_CHARACTER_HOLY     = 5;
+  REGION_CHARACTER_WILD     = 6;
+}
+
+// RegionInfluence mirrors the game-side struct. Sent to clients so they
+// can reason about sub-dominant influences (e.g. a Fey region with
+// significant Ancient undertones) and blend per-tile tints without
+// round-tripping the server.
+message RegionInfluence {
+  float blight  = 1;
+  float fae     = 2;
+  float ancient = 3;
+  float savage  = 4;
+  float holy    = 5;
+  float wild    = 6;
+}
+
+// Region carries anchor-level character, name, and influence for the
+// Voronoi cell containing the receiving player. Anchor position is NOT
+// on the wire — clients derive it via AnchorOf(world_seed, {super_chunk_x,
+// super_chunk_y}). The world seed is delivered once in JoinAccepted.
+message Region {
+  int32           super_chunk_x = 1;
+  int32           super_chunk_y = 2;
+  string          name          = 3;
+  RegionCharacter character     = 4;
+  RegionInfluence influence     = 5;
+}
+
+// LocalizedMessage is the server-to-client envelope for localized errors
+// and events. The server emits a stable message_id (catalog key) plus
+// template args; the client renders the final string through its i18n
+// bundle keyed on the player's language. Server logs still carry the
+// English Status message for developer diagnostics.
+message LocalizedMessage {
+  string              message_id = 1;
+  map<string, string> args       = 2;
+}
+
 // Tile is an atomic map cell. Used in Snapshot only — Events carry deltas,
 // not full tile replacements. overlays is a bitmask of TileOverlay flag
 // values shared with the domain (river, road, bridge, path...).
@@ -107,11 +155,15 @@ message ClientMessage {
 // JoinRequest is the first message a client sends. The server assigns a
 // PlayerID in JoinAccepted and begins broadcasting events to this stream.
 // viewport_width and viewport_height are the desired Snapshot dimensions
-// for this client; zero means "use server defaults".
+// for this client; zero means "use server defaults". language is the
+// client's preferred locale as a BCP 47 tag (e.g. "en", "ru"); empty
+// means the server picks "en" as default — see Sub-phase 1d for catalog
+// wiring.
 message JoinRequest {
   string name            = 1;
   int32  viewport_width  = 2;
   int32  viewport_height = 3;
+  string language        = 4;
 }
 
 // ViewportCmd updates the Snapshot dimensions the server should use for
@@ -142,10 +194,13 @@ message ServerMessage {
 
 // JoinAccepted is the server's reply to JoinRequest. It carries the generated
 // PlayerID and the player's spawn position — the client stores the ID and
-// uses it to recognise its own events.
+// uses it to recognise its own events. world_seed is forwarded so the
+// client can construct a local region source for per-tile influence
+// sampling (cosmetic only, not authoritative state).
 message JoinAccepted {
-  string   player_id = 1;
-  Position spawn     = 2;
+  string   player_id  = 1;
+  Position spawn      = 2;
+  int64    world_seed = 3;
 }
 
 // Snapshot is a viewport of the world. Width/height are tile counts; origin
@@ -157,6 +212,9 @@ message Snapshot {
   Position        origin   = 3;
   repeated Tile   tiles    = 4;
   repeated Entity entities = 5;
+  // region at this player's position (per-player, not shared). Clients
+  // use it for status-bar rendering, tint, and boundary-crossing events.
+  Region          region   = 6;
 }
 
 // Event is a domain event the server broadcasts to every connected client.

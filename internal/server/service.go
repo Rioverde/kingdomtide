@@ -21,11 +21,20 @@ type viewportDims struct {
 	width, height int
 }
 
+// defaultClientLanguage is the BCP 47 fallback tag used when a client joins
+// without a language preference. English keeps every server-generated
+// LocalizedMessage catalog lookup resolvable even before Sub-phase 1d
+// lands the Russian bundle.
+const defaultClientLanguage = "en"
+
 // Service is the authoritative gRPC server for a single shared world. All
 // gameplay mutations funnel through ApplyCommand under mu; mu is held for
 // the smallest possible window, never across network I/O. The viewports
 // map stores each connected player's Snapshot size so dispatch can re-send
-// a centred view after self-moves.
+// a centred view after self-moves; languages stores each player's BCP 47
+// locale tag so future LocalizedMessage emissions reach the correct
+// catalog. regions caches region lookups keyed by SuperChunkCoord so a
+// tile-crossing snapshot does not re-sample six noise fields per hop.
 type Service struct {
 	pb.UnimplementedGameServiceServer
 
@@ -34,20 +43,30 @@ type Service struct {
 	hub       *Hub
 	log       *slog.Logger
 	viewports map[string]viewportDims
+	languages map[string]string
+	regions   *regionCache
 }
 
 // NewService constructs a Service around the given world. If log is nil,
-// slog.Default is used.
+// slog.Default is used. If the world exposes a non-nil RegionSource
+// (configured via game.WithRegionSource), the service wires an LRU-backed
+// region cache around it so repeated snapshots on the same super-chunk do
+// not re-sample six noise fields per call.
 func NewService(w *game.World, log *slog.Logger) *Service {
 	if log == nil {
 		log = slog.Default()
 	}
-	return &Service{
+	svc := &Service{
 		world:     w,
 		hub:       NewHub(log),
 		log:       log,
 		viewports: make(map[string]viewportDims),
+		languages: make(map[string]string),
 	}
+	if src := w.RegionSource(); src != nil {
+		svc.regions = newRegionCache(src, DefaultRegionCacheCapacity)
+	}
+	return svc
 }
 
 // Play implements pb.GameServiceServer. Each call is one client session:
@@ -55,18 +74,18 @@ func NewService(w *game.World, log *slog.Logger) *Service {
 func (s *Service) Play(stream pb.GameService_PlayServer) error {
 	ctx := stream.Context()
 
-	name, dims, err := readJoinFrame(stream)
+	name, dims, lang, err := readJoinFrame(stream)
 	if err != nil {
 		return err
 	}
 
 	playerID := uuid.NewString()
-	spawn, snap, joinEvents, err := s.bootJoin(playerID, name, dims)
+	spawn, snap, joinEvents, err := s.bootJoin(playerID, name, dims, lang)
 	if err != nil {
 		return err
 	}
 	s.log.Info("player joined", "id", playerID, "name", name, "spawn", spawn,
-		"viewport", dims)
+		"viewport", dims, "lang", lang)
 
 	outbox, unsub := s.hub.Subscribe(playerID)
 	writeCtx, cancelWrite := context.WithCancel(ctx)
@@ -76,7 +95,7 @@ func (s *Service) Play(stream pb.GameService_PlayServer) error {
 
 	defer s.cleanup(playerID, name, cancelWrite, &wg, unsub)
 
-	s.hub.SendTo(playerID, acceptedResponse(playerID, spawn))
+	s.hub.SendTo(playerID, acceptedResponse(playerID, spawn, s.world.Seed()))
 	s.hub.SendTo(playerID, snapshotResponse(snap))
 	s.broadcastEvents(joinEvents)
 
@@ -85,33 +104,42 @@ func (s *Service) Play(stream pb.GameService_PlayServer) error {
 }
 
 // readJoinFrame reads the first frame, enforces that it is a JoinRequest,
-// and returns the name plus the requested viewport dims.
-func readJoinFrame(stream pb.GameService_PlayServer) (string, viewportDims, error) {
+// and returns the name, requested viewport dims, and BCP 47 language tag.
+// An empty language is normalised to defaultClientLanguage by the caller so
+// this helper reflects exactly what the client sent.
+func readJoinFrame(stream pb.GameService_PlayServer) (string, viewportDims, string, error) {
 	first, err := stream.Recv()
 	if err != nil {
 		if errors.Is(err, io.EOF) {
-			return "", viewportDims{}, nil
+			return "", viewportDims{}, "", nil
 		}
-		return "", viewportDims{}, err
+		return "", viewportDims{}, "", err
 	}
 	join := first.GetJoin()
 	if join == nil {
-		return "", viewportDims{}, status.Error(codes.InvalidArgument, "first message must be Join")
+		return "", viewportDims{}, "", status.Error(codes.InvalidArgument, "first message must be Join")
 	}
 	name := join.GetName()
 	if name == "" {
-		return "", viewportDims{}, status.Error(codes.InvalidArgument, "name required")
+		return "", viewportDims{}, "", status.Error(codes.InvalidArgument, "name required")
 	}
 	return name, viewportDims{
 		width:  int(join.GetViewportWidth()),
 		height: int(join.GetViewportHeight()),
-	}, nil
+	}, join.GetLanguage(), nil
 }
 
 // bootJoin applies the Join command under the world mutex, records the
-// client's viewport preference, and captures the spawn-centred snapshot in
-// the same critical section.
-func (s *Service) bootJoin(playerID, name string, dims viewportDims) (game.Position, *pb.Snapshot, []game.Event, error) {
+// client's viewport preference and locale, and captures the spawn-centred
+// snapshot in the same critical section.
+func (s *Service) bootJoin(
+	playerID, name string,
+	dims viewportDims,
+	lang string,
+) (game.Position, *pb.Snapshot, []game.Event, error) {
+	if lang == "" {
+		lang = defaultClientLanguage
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	events, err := s.world.ApplyCommand(game.JoinCmd{PlayerID: playerID, Name: name})
@@ -120,9 +148,35 @@ func (s *Service) bootJoin(playerID, name string, dims viewportDims) (game.Posit
 		return game.Position{}, nil, nil, status.Errorf(codes.ResourceExhausted, "join failed: %v", err)
 	}
 	s.viewports[playerID] = dims
+	s.languages[playerID] = lang
 	spawn := spawnFromEvents(events)
-	snap := snapshotOf(s.world, spawn, dims.width, dims.height)
+	snap := snapshotOf(s.world, spawn, dims.width, dims.height, s.regionAt(spawn))
 	return spawn, snap, events, nil
+}
+
+// regionAt resolves the wire Region for a player position via the cache,
+// returning nil when no RegionSource is configured (e.g. tests that skip
+// region wiring). Callers must hold s.mu — regionAt reads the world's
+// seed but does not take the mutex itself.
+func (s *Service) regionAt(p game.Position) *pb.Region {
+	if s.regions == nil {
+		return nil
+	}
+	_, sc := game.AnchorAt(s.world.Seed(), p.X, p.Y)
+	return regionPB(s.regions.At(sc))
+}
+
+// LanguageOf returns the stored BCP 47 locale tag for the given player,
+// or defaultClientLanguage when the player is unknown. Exported for tests
+// that assert the join-side language plumbing; production code reads via
+// the languages map directly under s.mu.
+func (s *Service) LanguageOf(playerID string) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if lang, ok := s.languages[playerID]; ok {
+		return lang
+	}
+	return defaultClientLanguage
 }
 
 // spawnFromEvents pulls the PlayerJoined position out of the event slice.
@@ -163,11 +217,11 @@ func (s *Service) dispatch(msg *pb.ClientMessage, playerID string) {
 
 	cmd, cerr := clientMessageToCommand(msg, playerID)
 	if cerr != nil {
-		s.sendError(playerID, "bad command: "+cerr.Error(), "invalid_argument")
+		s.sendError(playerID, "bad command: "+cerr.Error(), pb.ErrCodeInvalidArgument)
 		return
 	}
 	if _, isJoin := cmd.(game.JoinCmd); isJoin {
-		s.sendError(playerID, "already joined", "invalid_protocol")
+		s.sendError(playerID, "already joined", pb.ErrCodeInvalidProtocol)
 		return
 	}
 
@@ -181,7 +235,7 @@ func (s *Service) dispatch(msg *pb.ClientMessage, playerID string) {
 	}
 	s.mu.Unlock()
 	if aerr != nil {
-		s.sendError(playerID, aerr.Error(), "rule_violation")
+		s.sendError(playerID, aerr.Error(), pb.ErrCodeRuleViolation)
 		return
 	}
 	s.broadcastEvents(events)
@@ -202,7 +256,7 @@ func (s *Service) sendError(id, msg, code string) {
 // itself, so callers can compose it into a larger critical section.
 func (s *Service) snapshotFor(id string, pos game.Position) *pb.Snapshot {
 	dims := s.viewports[id]
-	return snapshotOf(s.world, pos, dims.width, dims.height)
+	return snapshotOf(s.world, pos, dims.width, dims.height, s.regionAt(pos))
 }
 
 // applyCmd is the short critical section that every world mutation goes
@@ -263,6 +317,7 @@ func (s *Service) cleanup(
 	leaveEvents, _ := s.applyCmd(game.LeaveCmd{PlayerID: playerID})
 	s.mu.Lock()
 	delete(s.viewports, playerID)
+	delete(s.languages, playerID)
 	s.mu.Unlock()
 	s.broadcastEvents(leaveEvents)
 	cancelWrite()

@@ -130,6 +130,53 @@ func terrainToPB(t game.Terrain) pb.Terrain {
 	return lookupOr(terrainPBMapping, t, pb.Terrain_TERRAIN_UNSPECIFIED)
 }
 
+// regionCharacterPBMapping is the 1:1 translation table from the domain
+// RegionCharacter enum to its wire counterpart. Kept as a map so adding a
+// seventh character (e.g. Phase 5 "Cultured") stays a one-line change.
+var regionCharacterPBMapping = map[game.RegionCharacter]pb.RegionCharacter{
+	game.RegionNormal:   pb.RegionCharacter_REGION_CHARACTER_NORMAL,
+	game.RegionBlighted: pb.RegionCharacter_REGION_CHARACTER_BLIGHTED,
+	game.RegionFey:      pb.RegionCharacter_REGION_CHARACTER_FEY,
+	game.RegionAncient:  pb.RegionCharacter_REGION_CHARACTER_ANCIENT,
+	game.RegionSavage:   pb.RegionCharacter_REGION_CHARACTER_SAVAGE,
+	game.RegionHoly:     pb.RegionCharacter_REGION_CHARACTER_HOLY,
+	game.RegionWild:     pb.RegionCharacter_REGION_CHARACTER_WILD,
+}
+
+// regionCharacterPB translates the domain RegionCharacter enum to its wire
+// counterpart. Unknown values fall back to NORMAL — the safe rendering
+// default (no tint, no crossing-verb prefix).
+func regionCharacterPB(c game.RegionCharacter) pb.RegionCharacter {
+	return lookupOr(regionCharacterPBMapping, c, pb.RegionCharacter_REGION_CHARACTER_NORMAL)
+}
+
+// regionInfluencePB builds a wire RegionInfluence from the domain struct.
+// The field order is intentional: it matches the proto declaration so a
+// visual diff against the .proto reads top-to-bottom.
+func regionInfluencePB(r game.RegionInfluence) *pb.RegionInfluence {
+	return &pb.RegionInfluence{
+		Blight:  r.Blight,
+		Fae:     r.Fae,
+		Ancient: r.Ancient,
+		Savage:  r.Savage,
+		Holy:    r.Holy,
+		Wild:    r.Wild,
+	}
+}
+
+// regionPB converts a domain Region to its wire form. The anchor position
+// is intentionally not sent — clients derive it locally from the world
+// seed via game.AnchorOf to keep Snapshot region payload compact.
+func regionPB(r game.Region) *pb.Region {
+	return &pb.Region{
+		SuperChunkX: int32(r.Coord.X),
+		SuperChunkY: int32(r.Coord.Y),
+		Name:        r.Name,
+		Character:   regionCharacterPB(r.Character),
+		Influence:   regionInfluencePB(r.Influence),
+	}
+}
+
 // clampViewport enforces the minimum size rule and defaults zero values to
 // the server defaults. Unused here — see dispatch in service.go.
 func clampViewport(w, h int) (int, int) {
@@ -161,8 +208,12 @@ func tileFromDomain(t game.Tile) *pb.Tile {
 
 // snapshotOf builds a viewport Snapshot of viewW × viewH tiles centred on
 // the given world position. Zero or too-small dimensions are replaced by
-// the server defaults via clampViewport.
-func snapshotOf(w *game.World, center game.Position, viewW, viewH int) *pb.Snapshot {
+// the server defaults via clampViewport. The returned Snapshot also carries
+// the region covering center — resolved from region on the caller's side
+// so the cache is owned by the service, not re-entered per snapshot here.
+// Pass a nil region when no RegionSource is configured (tests, legacy paths)
+// and the Snapshot omits the region field.
+func snapshotOf(w *game.World, center game.Position, viewW, viewH int, region *pb.Region) *pb.Snapshot {
 	viewW, viewH = clampViewport(viewW, viewH)
 	halfW := viewW / 2
 	halfH := viewH / 2
@@ -182,6 +233,7 @@ func snapshotOf(w *game.World, center game.Position, viewW, viewH int) *pb.Snaps
 		Origin:   positionPB(game.Position{X: originX, Y: originY}),
 		Tiles:    tiles,
 		Entities: entitiesOf(w),
+		Region:   region,
 	}
 }
 
@@ -211,11 +263,13 @@ func errorResponse(msg, code string) *pb.ServerMessage {
 }
 
 // acceptedResponse is the initial JoinAccepted message carrying the assigned
-// id and the player's spawn position.
-func acceptedResponse(playerID string, spawn game.Position) *pb.ServerMessage {
+// id, the player's spawn position, and the world seed. Clients use the seed
+// to construct a local region source for per-tile influence sampling.
+func acceptedResponse(playerID string, spawn game.Position, worldSeed int64) *pb.ServerMessage {
 	return &pb.ServerMessage{Payload: &pb.ServerMessage_Accepted{Accepted: &pb.JoinAccepted{
-		PlayerId: playerID,
-		Spawn:    positionPB(spawn),
+		PlayerId:  playerID,
+		Spawn:     positionPB(spawn),
+		WorldSeed: worldSeed,
 	}}}
 }
 

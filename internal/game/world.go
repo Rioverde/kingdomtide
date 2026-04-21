@@ -20,27 +20,94 @@ type World struct {
 	// occupants shadows the TileSource with runtime occupant info. TileAt
 	// merges the two on read so the TileSource stays read-only.
 	occupants map[Position]*Player
+	// seed is the world-level entropy shared with anchor geometry and the
+	// region source. Zero when unset; RegionAt tolerates that by returning a
+	// placeholder Region.
+	seed int64
+	// regionSource produces canonical Region data per anchor. May be nil; if
+	// nil, RegionAt returns a placeholder RegionNormal region.
+	regionSource RegionSource
+}
+
+// WorldOption configures optional fields on a World during construction.
+// Options compose so callers can opt into seed and region source
+// independently without widening the primary constructor signatures and
+// breaking existing call sites.
+type WorldOption func(*World)
+
+// WithSeed records the world seed on the World. The seed is surfaced via
+// Seed and is the entropy source AnchorAt uses when resolving a tile to a
+// region.
+func WithSeed(seed int64) WorldOption {
+	return func(w *World) {
+		w.seed = seed
+	}
+}
+
+// WithRegionSource attaches a RegionSource. If nil is passed, the option is
+// a no-op and RegionAt continues to return the placeholder region — callers
+// that genuinely want to clear an already-set source should build a new
+// World.
+func WithRegionSource(source RegionSource) WorldOption {
+	return func(w *World) {
+		if source != nil {
+			w.regionSource = source
+		}
+	}
 }
 
 // NewWorld constructs an infinite World around the given TileSource. Use
 // worldgen.NewChunkedSource for the procedural production source, or
 // NewWorldFromSource with a test-painted source for deterministic unit
-// tests.
-func NewWorld(source TileSource) *World {
-	return NewWorldFromSource(source)
+// tests. Optional seed and RegionSource configuration arrive as functional
+// options; omit them for back-compatible default construction.
+func NewWorld(source TileSource, opts ...WorldOption) *World {
+	return NewWorldFromSource(source, opts...)
 }
 
 // NewWorldFromSource wraps the given TileSource in a World. Production code
 // goes through NewWorld; NewWorldFromSource lets tests (or future scenario
 // loaders) supply a hand-crafted source without touching the procedural
-// pipeline.
-func NewWorldFromSource(source TileSource) *World {
-	return &World{
+// pipeline. Accepts the same WorldOptions as NewWorld.
+func NewWorldFromSource(source TileSource, opts ...WorldOption) *World {
+	w := &World{
 		source:    source,
 		players:   make(map[string]*Player),
 		positions: make(map[string]Position),
 		occupants: make(map[Position]*Player),
 	}
+	for _, opt := range opts {
+		opt(w)
+	}
+	return w
+}
+
+// Seed returns the world seed that drives deterministic geometry and
+// procedural generation. Zero when the world was constructed without a
+// seed option.
+func (w *World) Seed() int64 {
+	return w.seed
+}
+
+// RegionSource returns the configured region source, or nil when the world
+// was constructed without one. Callers (e.g. the server's region cache)
+// branch on the result rather than calling RegionAt through the World so
+// they can cache at the anchor's SuperChunkCoord granularity.
+func (w *World) RegionSource() RegionSource {
+	return w.regionSource
+}
+
+// RegionAt returns the region covering the given world position. It
+// resolves the nearest Voronoi anchor for (p.X, p.Y) and delegates to the
+// configured RegionSource keyed by that anchor's SuperChunkCoord. When no
+// RegionSource is configured, it returns a RegionNormal placeholder so
+// callers need not special-case the nil source.
+func (w *World) RegionAt(p Position) Region {
+	anchor, sc := AnchorAt(w.seed, p.X, p.Y)
+	if w.regionSource == nil {
+		return Region{Coord: sc, Anchor: anchor, Character: RegionNormal}
+	}
+	return w.regionSource.RegionAt(sc)
 }
 
 // InBounds reports whether p is a valid tile coordinate. For the current

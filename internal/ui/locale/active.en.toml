@@ -1,0 +1,231 @@
+# English catalog. Source of truth for message keys — every entry here must
+# exist in active.ru.toml too, enforced by TestBundleKeyCoverage.
+
+[crossing.normal]
+other = "You enter {{.Region}}."
+
+[crossing.blighted]
+other = "You feel the weight of {{.Region}}."
+
+[crossing.fey]
+other = "{{.Region}} draws you in."
+
+[crossing.ancient]
+other = "You tread into {{.Region}}."
+
+[crossing.savage]
+other = "You venture into {{.Region}}."
+
+[crossing.holy]
+other = "You enter the blessed {{.Region}}."
+
+[crossing.wild]
+other = "You push into {{.Region}}."
+
+[region_header.format]
+other = "─ {{.Name}} ─"
+
+[status.you]
+other = "you"
+
+[status.server]
+other = "server"
+
+[status.keybindings]
+other = "wasd move · q quit · ? help"
+
+[status.connecting]
+other = "connecting to {{.Address}}..."
+
+[status.connected_joining]
+other = "connected, joining..."
+
+[status.disconnected]
+other = "disconnected"
+
+[status.disconnected_with_error]
+other = "disconnected: {{.Error}}"
+
+[error.connection_lost]
+other = "connection lost"
+
+[error.server_closed]
+other = "server closed"
+
+[error.unknown]
+other = "unknown error"
+
+[error.outbox_full]
+other = "outbox full on {{.Label}}"
+
+[error.dial]
+other = "dial {{.Address}}: {{.Error}}"
+
+[error.open_play_stream]
+other = "open play stream: {{.Error}}"
+
+[error.stream_recv]
+other = "stream recv: {{.Error}}"
+
+[error.invalid_argument]
+other = "Invalid command."
+
+[error.invalid_protocol]
+other = "Protocol error."
+
+[error.rule_violation]
+other = "Rule violation."
+
+[input.name_label]
+other = "Your name:"
+
+[input.prompt]
+other = "❯ "
+
+[hint.quit_short]
+other = "q to quit"
+
+[hint.quit_long]
+other = "press Enter to connect, q to quit"
+
+[hint.disconnect]
+other = "press q to quit"
+
+[panel.players_header]
+other = "Players"
+
+[panel.stats_header]
+other = "Stats"
+
+[stats.empty]
+other = "(no stats yet)"
+
+[panel.events_header]
+other = "Events"
+
+[panel.empty_log]
+other = "(quiet)"
+
+[panel.empty_map]
+other = "(no map yet)"
+
+[panel.empty_list]
+other = "(none)"
+
+[title.text]
+other = "G · O · N · G · E · O · N · S"
+
+[title.tagline]
+other = "Let the dice fall where they may."
+
+[log.joined]
+other = "{{.Name}} joined"
+
+[log.left]
+other = "{{.Name}} left"
+
+[log.moved]
+other = "{{.Name}} moved"
+
+[character.normal]
+other = "Normal"
+
+[character.blighted]
+other = "Blighted"
+
+[character.fey]
+other = "Fey"
+
+[character.ancient]
+other = "Ancient"
+
+[character.savage]
+other = "Savage"
+
+[character.holy]
+other = "Holy"
+
+[character.wild]
+other = "Wild"
+
+# Geo terms — mirror geoTermsByBiomeFamily in
+# internal/game/worldgen/region_names.go one-for-one. Indices are zero-based
+# and stable; reorder these only alongside the source table.
+
+[geo.forest.0]
+other = "Thicket"
+
+[geo.forest.1]
+other = "Weald"
+
+[geo.forest.2]
+other = "Wood"
+
+[geo.forest.3]
+other = "Glade"
+
+[geo.forest.4]
+other = "Holt"
+
+[geo.plain.0]
+other = "Wolds"
+
+[geo.plain.1]
+other = "Downs"
+
+[geo.plain.2]
+other = "Reach"
+
+[geo.plain.3]
+other = "Heath"
+
+[geo.plain.4]
+other = "Moor"
+
+[geo.mountain.0]
+other = "Peaks"
+
+[geo.mountain.1]
+other = "Crags"
+
+[geo.mountain.2]
+other = "Spurs"
+
+[geo.mountain.3]
+other = "Heights"
+
+[geo.water.0]
+other = "Mere"
+
+[geo.water.1]
+other = "Fen"
+
+[geo.water.2]
+other = "Sound"
+
+[geo.water.3]
+other = "Marshes"
+
+[geo.desert.0]
+other = "Wastes"
+
+[geo.desert.1]
+other = "Dunes"
+
+[geo.desert.2]
+other = "Barrens"
+
+[geo.desert.3]
+other = "Sands"
+
+[geo.tundra.0]
+other = "Barrens"
+
+[geo.tundra.1]
+other = "Steppes"
+
+[geo.tundra.2]
+other = "Wastes"
+
+[geo.unknown.0]
+other = "Reach"

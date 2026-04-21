@@ -22,7 +22,7 @@ const (
 // a river. It sits over the underlying biome.
 const riverRune = "≈"
 
-// lakeRune is painted on tiles the worldgen drainage pass marked as standing
+// lakeRune is painted on tiles the worldgen hydrology pass marked as standing
 // water (OverlayLake). Triple tilde — the same glyph as deep ocean — signals
 // "still water" visually: no flow, no wavelets. The underlying biome is
 // preserved under the bit so a drained lakebed still reads correctly.
@@ -67,22 +67,16 @@ var terrainRunes = map[pb.Terrain]string{
 	pb.Terrain_TERRAIN_DEEP_OCEAN: "≋", // triple tilde (deeper)
 }
 
-// UI chrome runes — every string literal that shows up outside the map
-// grid. Centralised here so a redesign touches one file.
+// UI chrome glyphs — visual separators and bullets that stay stable across
+// locales. User-facing strings (labels, hints, headers) now flow through
+// the locale catalog; see locale/active.*.toml.
 const (
-	InputPrompt    = "❯ "
-	LogBullet      = "•"
-	StatusDivider  = "  │  "
-	EmptyLogLabel  = "(quiet)"
-	EmptyMapLabel  = "(no map yet)"
-	EmptyListLabel = "(none)"
-	QuitHint       = "q to quit"
-	QuitLongHint   = "press Enter to connect, q to quit"
-	PlayersHeader  = "Players"
-	EventsHeader   = "Events"
-	TitleText      = "G · O · N · G · E · O · N · S"
-	Tagline        = "Let the dice fall where they may."
-	DisconnectHint = "press q to quit"
+	// LogBullet precedes every event-log entry. Shared across translations
+	// because it is purely visual; changing it is a theme decision.
+	LogBullet = "•"
+
+	// StatusDivider sits between fields on the bottom status line.
+	StatusDivider = "  │  "
 )
 
 // TitleArt is the ASCII sword shown above the title on the name-entry screen.

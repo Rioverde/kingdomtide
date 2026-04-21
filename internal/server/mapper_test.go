@@ -188,7 +188,7 @@ func TestSnapshotOfIncludesStructures(t *testing.T) {
 
 	// Centre the viewport on the target so the local index is trivially
 	// computable from the viewport dimensions.
-	snap := snapshotOf(w, target, DefaultViewportWidth, DefaultViewportHeight)
+	snap := snapshotOf(w, target, DefaultViewportWidth, DefaultViewportHeight, nil)
 	localX := int(snap.GetWidth()) / 2
 	localY := int(snap.GetHeight()) / 2
 	idx := localY*int(snap.GetWidth()) + localX
@@ -216,7 +216,7 @@ func TestSnapshotOfShape(t *testing.T) {
 	}
 	spawn := events[0].(game.PlayerJoinedEvent).Position
 
-	got := snapshotOf(w, spawn, DefaultViewportWidth, DefaultViewportHeight)
+	got := snapshotOf(w, spawn, DefaultViewportWidth, DefaultViewportHeight, nil)
 
 	// Verify structural fields via cmp.Diff; tiles are verified by count only
 	// since their content is world-seed-dependent.
