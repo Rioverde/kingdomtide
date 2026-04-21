@@ -22,6 +22,12 @@ const (
 	OverlayRoad
 	OverlayBridge
 	OverlayPath
+	// OverlayLake marks tiles that the worldgen drainage pass raised during
+	// priority-flood depression filling — i.e. standing water sitting on top
+	// of a land biome. The underlying Terrain is preserved (plains, forest,
+	// etc.) so a drained lakebed would still render correctly; rendering code
+	// paints the lake glyph over the biome when this bit is set.
+	OverlayLake
 )
 
 // overlayNames indexes the human name of each bit for logging. Bits
@@ -32,6 +38,7 @@ var overlayNames = [...]string{
 	"OverlayRoad",
 	"OverlayBridge",
 	"OverlayPath",
+	"OverlayLake",
 }
 
 // Has reports whether every bit in o is set on t. Has(0) returns true

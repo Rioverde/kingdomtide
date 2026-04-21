@@ -147,6 +147,16 @@ func (m *Model) renderCell(t *pb.Tile) string {
 		return styles.unknownTile.Render(runeUnspecified)
 	}
 	overlays := game.TileOverlay(t.GetOverlays())
+	// Lake sits above river in the precedence order: a tile where both flags
+	// ended up set is visually a lake (the priority-flood pass raised it into
+	// a basin), even if flow accumulation also traced a tributary through it.
+	// The "this is standing water" reading is stronger than "a river runs
+	// through here" for basin tiles.
+	// TODO(Rioverde): introduce styles.lake if the shared styles.river colour
+	// ends up reading same-y against the river glyph in live play.
+	if overlays.Has(game.OverlayLake) {
+		return styles.river.Render(lakeRune)
+	}
 	if overlays.Has(game.OverlayRiver) {
 		return styles.river.Render(riverRune)
 	}

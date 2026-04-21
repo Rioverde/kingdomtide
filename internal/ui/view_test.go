@@ -82,6 +82,34 @@ func TestRenderCellLayerPrecedence(t *testing.T) {
 			tile:     nil,
 			mustHave: []string{runeUnspecified},
 		},
+		{
+			name: "lake overrides terrain",
+			tile: &pb.Tile{
+				Terrain:  pb.Terrain_TERRAIN_PLAINS,
+				Overlays: uint32(game.OverlayLake),
+			},
+			mustHave:    []string{lakeRune},
+			mustNotHave: []string{plainsRune, riverRune},
+		},
+		{
+			name: "lake wins over river when both set",
+			tile: &pb.Tile{
+				Terrain:  pb.Terrain_TERRAIN_PLAINS,
+				Overlays: uint32(game.OverlayLake | game.OverlayRiver),
+			},
+			mustHave:    []string{lakeRune},
+			mustNotHave: []string{riverRune},
+		},
+		{
+			name: "village wins over lake",
+			tile: &pb.Tile{
+				Terrain:   pb.Terrain_TERRAIN_PLAINS,
+				Overlays:  uint32(game.OverlayLake),
+				Structure: pb.Structure_STRUCTURE_VILLAGE,
+			},
+			mustHave:    []string{villageRune},
+			mustNotHave: []string{lakeRune},
+		},
 	}
 
 	for _, tc := range cases {

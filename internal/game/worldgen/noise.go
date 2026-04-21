@@ -1,6 +1,8 @@
 package worldgen
 
 import (
+	"math"
+
 	opensimplex "github.com/ojrac/opensimplex-go"
 )
 
@@ -87,4 +89,19 @@ func (n OctaveNoise) Eval2(x, y float64) float64 {
 // Eval2Normalized returns the noise value at (x, y) remapped to [0, 1].
 func (n OctaveNoise) Eval2Normalized(x, y float64) float64 {
 	return (n.Eval2(x, y) + 1.0) * 0.5
+}
+
+// Eval2Ridge returns a ridge-noise value at (x, y) in [0, 1]. The classic recipe:
+// take the absolute value of signed noise so zero-crossings become sharp crests, invert
+// so crests sit at 1.0 and plateaus at 0.0, then square to narrow the crests further.
+//
+// Result shape:
+//   - raw ≈ 0.0 → ridge ≈ 1.0 (sharp peak where underlying noise crosses zero)
+//   - |raw| ≈ 1.0 → ridge ≈ 0.0 (valley floors at the extrema of the underlying field)
+//
+// Leaves Eval2 and Eval2Normalized untouched — callers that want plain fBm still work.
+func (n OctaveNoise) Eval2Ridge(x, y float64) float64 {
+	raw := n.Eval2(x, y)
+	ridge := 1.0 - math.Abs(raw)
+	return ridge * ridge
 }
