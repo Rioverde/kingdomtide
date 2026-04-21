@@ -1,0 +1,131 @@
+syntax = "proto3";
+
+package gongeons.v1;
+
+option go_package = "github.com/Rioverde/gongeons/internal/proto;gongeonspb";
+
+// GameService is the bidirectional stream between client and server.
+// Each client opens exactly one Play stream for the lifetime of its session.
+service GameService {
+  // Play is a bidirectional stream. The client opens it, sends a JoinRequest
+  // first, then a sequence of commands. The server replies with JoinAccepted +
+  // a Snapshot on join and Event messages thereafter.
+  rpc Play(stream ClientMessage) returns (stream ServerMessage);
+}
+
+// Position is a square-grid tile coordinate. Origin is top-left, Y grows down.
+message Position {
+  int32 x = 1;
+  int32 y = 2;
+}
+
+// Terrain is the tile surface kind.
+enum Terrain {
+  TERRAIN_UNSPECIFIED = 0;
+  TERRAIN_FLOOR       = 1;
+  TERRAIN_WALL        = 2;
+  TERRAIN_GRASS       = 3;
+  TERRAIN_WATER       = 4;
+}
+
+// OccupantKind distinguishes entities on a tile. OCCUPANT_MONSTER is reserved
+// for future gameplay work — the current MVP only uses OCCUPANT_PLAYER.
+enum OccupantKind {
+  OCCUPANT_UNSPECIFIED = 0;
+  OCCUPANT_PLAYER      = 1;
+  OCCUPANT_MONSTER     = 2;
+}
+
+// Tile is an atomic map cell. Used in Snapshot only — Events carry deltas, not
+// full tile replacements.
+message Tile {
+  Terrain      terrain   = 1;
+  OccupantKind occupant  = 2;
+  string       entity_id = 3; // occupant ID, empty if no occupant
+}
+
+// Entity is a positioned actor in the world. The MVP ships with just players.
+// Combat stats / monsters are added in a later phase on top of this shape.
+message Entity {
+  string       id       = 1;
+  string       name     = 2;
+  OccupantKind kind     = 3;
+  Position     position = 4;
+}
+
+// ---- Client -> Server ----
+
+message ClientMessage {
+  oneof payload {
+    JoinRequest join = 1;
+    MoveCmd     move = 2;
+  }
+}
+
+// JoinRequest is the first message a client sends. The server assigns a
+// PlayerID in JoinAccepted and begins broadcasting events to this stream.
+message JoinRequest {
+  string name = 1;
+}
+
+// MoveCmd asks to move one step. dx/dy are in {-1, 0, 1}; exactly one is
+// non-zero (four-directional movement via WASD).
+message MoveCmd {
+  int32 dx = 1;
+  int32 dy = 2;
+}
+
+// ---- Server -> Client ----
+
+message ServerMessage {
+  oneof payload {
+    JoinAccepted  accepted = 1;
+    Snapshot      snapshot = 2;
+    Event         event    = 3;
+    ErrorResponse error    = 4;
+  }
+}
+
+// JoinAccepted is the server's reply to JoinRequest. It carries the generated
+// PlayerID — the client stores it and uses it to recognise its own events.
+message JoinAccepted {
+  string player_id = 1;
+}
+
+// Snapshot is the full world state. Sent once on join, and may be resent if
+// the server decides to hard-resync (post-MVP).
+message Snapshot {
+  int32           width    = 1;
+  int32           height   = 2;
+  repeated Tile   tiles    = 3; // length == width*height, row-major
+  repeated Entity entities = 4;
+}
+
+// Event is a domain event the server broadcasts to every connected client.
+// The client applies it to its local Model to stay in sync.
+message Event {
+  oneof payload {
+    PlayerJoined player_joined = 1;
+    PlayerLeft   player_left   = 2;
+    EntityMoved  entity_moved  = 3;
+  }
+}
+
+message PlayerJoined {
+  Entity entity = 1;
+}
+
+message PlayerLeft {
+  string player_id = 1;
+}
+
+message EntityMoved {
+  string   entity_id = 1;
+  Position from      = 2;
+  Position to        = 3;
+}
+
+message ErrorResponse {
+  string message = 1;
+  string code    = 2;
+}
