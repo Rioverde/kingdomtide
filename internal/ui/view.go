@@ -10,15 +10,9 @@ import (
 	pb "github.com/Rioverde/gongeons/internal/proto"
 )
 
-// runeFor* constants define the visual vocabulary of the playing grid.
-const (
-	runeSelf        = "@"
-	runeOther       = "P"
-	runeWall        = "#"
-	runeWater       = "~"
-	runeFloor       = "."
-	runeUnspecified = "?"
-)
+// Every glyph this file renders comes from runes.go — RuneSelf / RuneOther /
+// RuneUnspecified / RiverRune / TerrainRunes for the map, plus the
+// chrome constants (InputPrompt, LogBullet, etc.) for the surrounding UI.
 
 // View renders the full screen for the current phase.
 func (m *Model) View() string {
@@ -37,10 +31,10 @@ func (m *Model) View() string {
 
 // viewEnterName draws a bordered prompt asking for a nickname.
 func (m *Model) viewEnterName() string {
-	title := styles.title.Render("Gongeons")
+	title := styles.title.Render(TitleText)
 	prompt := styles.prompt.Render(m.nameInput.prompt)
 	input := renderInput(m.nameInput)
-	hint := styles.status.Render("press Enter to connect, q to quit")
+	hint := styles.status.Render(QuitLongHint)
 
 	inner := lipgloss.JoinVertical(lipgloss.Left,
 		title,
@@ -56,7 +50,7 @@ func (m *Model) viewEnterName() string {
 // viewConnecting shows a centred "connecting" notice.
 func (m *Model) viewConnecting() string {
 	line := styles.status.Render("Connecting to " + m.serverAddr + "...")
-	hint := styles.status.Render("q to quit")
+	hint := styles.status.Render(QuitHint)
 	return styles.box.Render(lipgloss.JoinVertical(lipgloss.Left, line, "", hint))
 }
 
@@ -69,7 +63,7 @@ func (m *Model) viewDisconnected() string {
 	body := lipgloss.JoinVertical(lipgloss.Left,
 		msg,
 		"",
-		"press q to quit",
+		DisconnectHint,
 	)
 	return styles.errBox.Render(body)
 }
@@ -77,13 +71,10 @@ func (m *Model) viewDisconnected() string {
 // viewPlaying composes the grid, the player list and the event log.
 func (m *Model) viewPlaying() string {
 	grid := m.renderGrid()
-
 	playerList := m.renderPlayerList()
 	log := m.renderLog()
-
 	rightCol := lipgloss.JoinVertical(lipgloss.Left, playerList, log)
 	main := lipgloss.JoinHorizontal(lipgloss.Top, grid, " ", rightCol)
-
 	status := m.renderStatus()
 	return lipgloss.JoinVertical(lipgloss.Left, main, status)
 }
@@ -91,7 +82,7 @@ func (m *Model) viewPlaying() string {
 // renderGrid turns the tile slice into a styled multi-line string.
 func (m *Model) renderGrid() string {
 	if m.width <= 0 || m.height <= 0 || len(m.tiles) == 0 {
-		return styles.box.Render("(no map yet)")
+		return styles.box.Render(EmptyMapLabel)
 	}
 	var b strings.Builder
 	b.Grow(m.width * m.height * 4)
@@ -99,7 +90,7 @@ func (m *Model) renderGrid() string {
 		for x := range m.width {
 			idx := y*m.width + x
 			if idx >= len(m.tiles) {
-				b.WriteString(runeUnspecified)
+				b.WriteString(styles.unknownTile.Render(RuneUnspecified))
 				continue
 			}
 			b.WriteString(m.renderCell(m.tiles[idx]))
@@ -115,31 +106,23 @@ func (m *Model) renderGrid() string {
 // terrain; self vs other is decided by myID.
 func (m *Model) renderCell(t *pb.Tile) string {
 	if t == nil {
-		return styles.unspecified.Render(runeUnspecified)
+		return styles.unknownTile.Render(RuneUnspecified)
 	}
 	if t.GetOccupant() == pb.OccupantKind_OCCUPANT_PLAYER && t.GetEntityId() != "" {
 		if t.GetEntityId() == m.myID {
-			return styles.selfPlayer.Render(runeSelf)
+			return styles.selfPlayer.Render(RuneSelf)
 		}
-		return styles.otherPlayer.Render(runeOther)
+		return styles.otherPlayer.Render(RuneOther)
 	}
-	switch bucketOf(t.GetTerrain()) {
-	case terrainBucketFloor:
-		return styles.floor.Render(runeFloor)
-	case terrainBucketWall:
-		return styles.wall.Render(runeWall)
-	case terrainBucketWater:
-		return styles.water.Render(runeWater)
-	default:
-		return styles.unspecified.Render(runeUnspecified)
-	}
+	r, s := lookTile(t)
+	return s.Render(r)
 }
 
 // renderPlayerList draws the "players online" panel, with the local
 // player's name highlighted.
 func (m *Model) renderPlayerList() string {
 	if len(m.players) == 0 {
-		return styles.playerL.Render("Players\n(none)")
+		return styles.playerL.Render(PlayersHeader + "\n" + EmptyListLabel)
 	}
 	ids := make([]string, 0, len(m.players))
 	for id := range m.players {
@@ -148,10 +131,10 @@ func (m *Model) renderPlayerList() string {
 	sort.Strings(ids)
 
 	var b strings.Builder
-	b.WriteString("Players\n")
+	b.WriteString(PlayersHeader + "\n")
 	for _, id := range ids {
 		info := m.players[id]
-		line := fmt.Sprintf("* %s %d,%d", displayName(info.Name, info.ID), info.Pos.X, info.Pos.Y)
+		line := fmt.Sprintf("%s %s %d,%d", LogBullet, displayName(info.Name, info.ID), info.Pos.X, info.Pos.Y)
 		if id == m.myID {
 			line = styles.selfPlayer.Render(line)
 		}
@@ -165,10 +148,10 @@ func (m *Model) renderPlayerList() string {
 // label so the box doesn't collapse to a single border-only line.
 func (m *Model) renderLog() string {
 	if len(m.logLines) == 0 {
-		return styles.log.Render("Events\n(quiet)")
+		return styles.log.Render(EventsHeader + "\n" + EmptyLogLabel)
 	}
 	var b strings.Builder
-	b.WriteString("Events\n")
+	b.WriteString(EventsHeader + "\n")
 	for _, line := range m.logLines {
 		b.WriteString(line)
 		b.WriteByte('\n')
@@ -187,15 +170,14 @@ func (m *Model) renderStatus() string {
 	if m.status != "" {
 		parts = append(parts, m.status)
 	}
-	return styles.status.Render(strings.Join(parts, "  |  "))
+	return styles.status.Render(strings.Join(parts, StatusDivider))
 }
 
 // renderInput renders the name buffer with a block cursor.
 func renderInput(t textInput) string {
 	chars := []rune(t.Value())
-	// Build rendered string with a highlighted cell at the cursor.
 	var b strings.Builder
-	b.WriteString(styles.input.Render("> "))
+	b.WriteString(styles.input.Render(InputPrompt))
 	for i := 0; i <= len(chars); i++ {
 		if i == t.cursor && t.focus {
 			cell := " "

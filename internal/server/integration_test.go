@@ -20,6 +20,10 @@ import (
 // that a genuine deadlock surfaces as a failure, not a 30-second timeout.
 const recvTimeout = 2 * time.Second
 
+// testWorld returns a deterministic world for integration tests. Uses a
+// fixed seed so failure modes are reproducible, not whim-of-the-clock.
+func testWorld() *game.World { return game.NewWorld(1) }
+
 // startTestServer brings up a real gRPC server on a random localhost port and
 // returns a client plus a cleanup function. Each test gets its own world, so
 // they cannot interact.
@@ -31,7 +35,7 @@ func startTestServer(t *testing.T) (pb.GameServiceClient, func()) {
 	}
 
 	grpcSrv := grpc.NewServer()
-	svc := NewService(game.NewMockWorld(), silentLog())
+	svc := NewService(testWorld(), silentLog())
 	pb.RegisterGameServiceServer(grpcSrv, svc)
 
 	serveErr := make(chan error, 1)
@@ -115,8 +119,9 @@ func TestIntegrationSingleJoin(t *testing.T) {
 		return m.GetSnapshot() != nil
 	})
 	snap := second.GetSnapshot()
-	if snap.GetWidth() != 20 || snap.GetHeight() != 10 {
-		t.Fatalf("snapshot size: %dx%d", snap.GetWidth(), snap.GetHeight())
+	if snap.GetWidth() != int32(ViewportWidth) || snap.GetHeight() != int32(ViewportHeight) {
+		t.Fatalf("snapshot size: %dx%d, want %dx%d",
+			snap.GetWidth(), snap.GetHeight(), ViewportWidth, ViewportHeight)
 	}
 	var found bool
 	for _, e := range snap.GetEntities() {

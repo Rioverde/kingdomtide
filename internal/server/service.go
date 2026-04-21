@@ -54,11 +54,11 @@ func (s *Service) Play(stream pb.GameService_PlayServer) error {
 	}
 
 	playerID := uuid.NewString()
-	snap, joinEvents, err := s.bootJoin(playerID, name)
+	spawn, snap, joinEvents, err := s.bootJoin(playerID, name)
 	if err != nil {
 		return err
 	}
-	s.log.Info("player joined", "id", playerID, "name", name)
+	s.log.Info("player joined", "id", playerID, "name", name, "spawn", spawn)
 
 	outbox, unsub := s.hub.Subscribe(playerID)
 	writeCtx, cancelWrite := context.WithCancel(ctx)
@@ -68,7 +68,7 @@ func (s *Service) Play(stream pb.GameService_PlayServer) error {
 
 	defer s.cleanup(playerID, name, cancelWrite, &wg, unsub)
 
-	s.hub.SendTo(playerID, acceptedResponse(playerID))
+	s.hub.SendTo(playerID, acceptedResponse(playerID, spawn))
 	s.hub.SendTo(playerID, snapshotResponse(snap))
 	s.broadcastEvents(joinEvents)
 
@@ -98,18 +98,32 @@ func readJoinName(stream pb.GameService_PlayServer) (string, error) {
 }
 
 // bootJoin applies the Join command under the world mutex and captures a
-// snapshot in the same critical section so the joining client gets a view
-// consistent with the Join event other clients will receive.
-func (s *Service) bootJoin(playerID, name string) (*pb.Snapshot, []game.Event, error) {
+// snapshot centred on the new player's spawn in the same critical section so
+// the joining client gets a view consistent with the Join event other
+// clients will receive.
+func (s *Service) bootJoin(playerID, name string) (game.Position, *pb.Snapshot, []game.Event, error) {
 	s.mu.Lock()
+	defer s.mu.Unlock()
 	events, err := s.world.ApplyCommand(game.JoinCmd{PlayerID: playerID, Name: name})
-	snap := snapshotOf(s.world)
-	s.mu.Unlock()
 	if err != nil {
 		s.log.Warn("join failed", "err", err, "name", name)
-		return nil, nil, status.Errorf(codes.ResourceExhausted, "join failed: %v", err)
+		return game.Position{}, nil, nil, status.Errorf(codes.ResourceExhausted, "join failed: %v", err)
 	}
-	return snap, events, nil
+	spawn := spawnFromEvents(events)
+	snap := snapshotOf(s.world, spawn)
+	return spawn, snap, events, nil
+}
+
+// spawnFromEvents pulls the PlayerJoined position out of the event slice
+// returned by ApplyCommand(JoinCmd{...}). Falls back to origin if the event
+// is absent, which should never happen in the current domain rules.
+func spawnFromEvents(events []game.Event) game.Position {
+	for _, ev := range events {
+		if pj, ok := ev.(game.PlayerJoinedEvent); ok {
+			return pj.Position
+		}
+	}
+	return game.Position{}
 }
 
 // readLoop drains ClientMessages until the peer disconnects. Any terminal
