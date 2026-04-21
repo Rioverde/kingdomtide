@@ -1,7 +1,9 @@
-package game
+package worldgen
 
 import (
 	"testing"
+
+	"github.com/Rioverde/gongeons/internal/game"
 )
 
 // TestObjectsInChunkDeterministic verifies that calling ObjectsInChunk twice with the same
@@ -75,15 +77,15 @@ func TestPOIRespectsBiome(t *testing.T) {
 				tile := g.TileAt(wq, wr)
 
 				switch kind {
-				case ObjectVillage:
-					if tile.Terrain == TerrainOcean || tile.Terrain == TerrainDeepOcean {
+				case game.ObjectVillage:
+					if tile.Terrain == game.TerrainOcean || tile.Terrain == game.TerrainDeepOcean {
 						t.Errorf("village at (%d,%d) on water terrain %q", wq, wr, tile.Terrain)
 					}
-				case ObjectCastle:
-					if tile.Terrain == TerrainSnowyPeak {
+				case game.ObjectCastle:
+					if tile.Terrain == game.TerrainSnowyPeak {
 						t.Errorf("castle at (%d,%d) on snowy_peak terrain", wq, wr)
 					}
-					if tile.Terrain == TerrainDeepOcean || tile.Terrain == TerrainOcean {
+					if tile.Terrain == game.TerrainDeepOcean || tile.Terrain == game.TerrainOcean {
 						t.Errorf("castle at (%d,%d) on water terrain %q", wq, wr, tile.Terrain)
 					}
 				}

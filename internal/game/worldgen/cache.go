@@ -1,4 +1,4 @@
-package game
+package worldgen
 
 import (
 	lru "github.com/hashicorp/golang-lru/v2"
@@ -29,7 +29,7 @@ func NewChunkCache(capacity int) *ChunkCache {
 	// lru.New only returns an error when size <= 0, which we have already guarded against.
 	c, err := lru.New[ChunkCoord, *Chunk](capacity)
 	if err != nil {
-		panic("game: chunk cache init: " + err.Error())
+		panic("worldgen: chunk cache init: " + err.Error())
 	}
 	return &ChunkCache{capacity: capacity, c: c}
 }

@@ -15,7 +15,7 @@ import (
 
 	"google.golang.org/grpc"
 
-	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/worldgen"
 	pb "github.com/Rioverde/gongeons/internal/proto"
 	"github.com/Rioverde/gongeons/internal/server"
 )
@@ -55,7 +55,7 @@ func run() error {
 	}
 
 	grpcSrv := grpc.NewServer()
-	svc := server.NewService(game.NewWorld(seed), logger)
+	svc := server.NewService(worldgen.NewWorld(seed), logger)
 	pb.RegisterGameServiceServer(grpcSrv, svc)
 
 	serveErr := make(chan error, 1)
