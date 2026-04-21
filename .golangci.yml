@@ -44,7 +44,7 @@ linters:
       # Procedural-generation ports. Algorithm constants (noise scales, hash
       # salts, bit-widths) read as MND and inflate cognitive/cyclomatic
       # complexity; they are not arbitrary magic.
-      - path: internal/game/worldgen/.*\.go$
+      - path: internal/game/worldgen/(noise|generator|biome|poi|rivers|chunk|cache)\.go$
         linters:
           - mnd
           - gocognit
