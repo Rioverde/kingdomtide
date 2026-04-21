@@ -9,6 +9,8 @@ package ui
 import (
 	"context"
 
+	"github.com/charmbracelet/bubbles/help"
+	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
 	"google.golang.org/grpc"
 
@@ -77,6 +79,15 @@ type Model struct {
 	// Enter-name screen.
 	nameInput textinput.Model
 
+	// help renders the bottom-bar keybinding hint from Keys. Width is
+	// updated on every tea.WindowSizeMsg so the short view truncates
+	// gracefully on narrow terminals.
+	help help.Model
+
+	// spinner animates the connecting-phase status line. It keeps ticking
+	// once started; we simply stop rendering it when the phase advances.
+	spinner spinner.Model
+
 	// Connecting / disconnected screen status strings.
 	serverAddr string
 	status     string
@@ -110,9 +121,13 @@ type Model struct {
 // signal.NotifyContext in main), any in-flight stream goroutine owned by
 // this Model winds down. ctx must be non-nil.
 func New(ctx context.Context, addr string) *Model {
+	sp := spinner.New()
+	sp.Spinner = spinner.Ellipsis
 	return &Model{
 		phase:      phaseEnterName,
 		nameInput:  newNameInput(),
+		help:       help.New(),
+		spinner:    sp,
 		serverAddr: addr,
 		players:    make(map[string]playerInfo),
 		ctx:        ctx,

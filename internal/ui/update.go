@@ -3,6 +3,8 @@ package ui
 import (
 	"strings"
 
+	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -20,58 +22,47 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch v := msg.(type) {
 	case tea.WindowSizeMsg:
 		return m.handleResize(v)
-
 	case tea.KeyMsg:
 		return m.handleKey(v)
-
+	case spinner.TickMsg:
+		var cmd tea.Cmd
+		m.spinner, cmd = m.spinner.Update(v)
+		return m, cmd
 	case connectingMsg:
 		return m, nil
-
 	case connectedMsg:
 		return m.handleConnected(v)
-
 	case acceptedMsg:
 		m.myID = v.PlayerID
-		if m.stream != nil {
-			return m, listenCmd(m.stream)
-		}
-		return m, nil
-
+		cmd := m.keepListening()
+		return m, cmd
 	case snapshotMsg:
 		applySnapshot(m, v.Snapshot)
 		m.phase = phasePlaying
 		m.status = ""
-		if m.stream != nil {
-			return m, listenCmd(m.stream)
-		}
-		return m, nil
-
+		cmd := m.keepListening()
+		return m, cmd
 	case eventMsg:
 		applyEvent(m, v.Event)
-		if m.stream != nil {
-			return m, listenCmd(m.stream)
-		}
-		return m, nil
-
+		cmd := m.keepListening()
+		return m, cmd
 	case serverErrorMsg:
 		// Rule violations (move into wall / occupied tile) are expected UX —
 		// the player simply stays put. No log spam. Just keep listening.
 		_ = v
-		if m.stream != nil {
-			return m, listenCmd(m.stream)
-		}
-		return m, nil
-
+		cmd := m.keepListening()
+		return m, cmd
 	case netErrorMsg:
 		return m.handleNetError(v), nil
 	}
 	return m, nil
 }
 
-// handleKey dispatches a key press to the right sub-handler based on
-// the current phase.
+// handleKey is the tea.KeyMsg dispatcher. Quit is handled globally so
+// no per-phase handler has to remember to check for it; every other
+// key press flows to the sub-handler for the current phase.
 func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	if isQuit(msg) {
+	if key.Matches(msg, Keys.Quit) {
 		if m.cancel != nil {
 			m.cancel()
 		}
@@ -83,10 +74,20 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case phasePlaying:
 		return m.handleKeyPlaying(msg)
 	case phaseConnecting, phaseDisconnected:
-		// No input accepted beyond quit. Already handled above.
+		// No input accepted beyond quit, which was handled above.
 		return m, nil
 	}
 	return m, nil
+}
+
+// keepListening returns a Cmd that re-arms the Recv goroutine if a
+// stream is live, or nil otherwise. Centralising the nil check keeps
+// the message-specific branches of Update one line apiece.
+func (m *Model) keepListening() tea.Cmd {
+	if m.stream == nil {
+		return nil
+	}
+	return listenCmd(m.stream)
 }
 
 // handleKeyEnterName edits the name buffer and, on Enter with a non-
@@ -102,7 +103,7 @@ func (m *Model) handleKeyEnterName(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.nameInput.SetValue(name)
 		m.phase = phaseConnecting
 		m.status = "connecting to " + m.serverAddr + "..."
-		return m, connectCmd(m.ctx, m.serverAddr)
+		return m, tea.Batch(connectCmd(m.ctx, m.serverAddr), m.spinner.Tick)
 	}
 	var cmd tea.Cmd
 	m.nameInput, cmd = m.nameInput.Update(msg)
@@ -111,14 +112,20 @@ func (m *Model) handleKeyEnterName(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 // handleKeyPlaying turns WASD/hjkl/arrows into a MoveCmd on the outbox.
 func (m *Model) handleKeyPlaying(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	dx, dy, ok := moveFor(msg)
-	if !ok {
-		return m, nil
-	}
 	if m.outbox == nil {
 		return m, nil
 	}
-	return m, sendMoveCmd(m.outbox, dx, dy)
+	switch {
+	case key.Matches(msg, Keys.Up):
+		return m, sendMoveCmd(m.outbox, 0, -1)
+	case key.Matches(msg, Keys.Down):
+		return m, sendMoveCmd(m.outbox, 0, +1)
+	case key.Matches(msg, Keys.Left):
+		return m, sendMoveCmd(m.outbox, -1, 0)
+	case key.Matches(msg, Keys.Right):
+		return m, sendMoveCmd(m.outbox, +1, 0)
+	}
+	return m, nil
 }
 
 // handleResize stores the new terminal dimensions and, if we are already
@@ -127,6 +134,7 @@ func (m *Model) handleKeyPlaying(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m *Model) handleResize(v tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
 	m.termWidth = v.Width
 	m.termHeight = v.Height
+	m.help.Width = v.Width
 	if m.phase == phasePlaying && m.outbox != nil {
 		w, h := viewportForTerm(v.Width, v.Height)
 		return m, sendViewportCmd(m.outbox, w, h)
