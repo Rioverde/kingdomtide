@@ -29,7 +29,10 @@ func (m *Model) View() string {
 	return ""
 }
 
-// viewEnterName draws a bordered prompt asking for a nickname.
+// viewEnterName draws a bordered prompt asking for a nickname, centred
+// in the available terminal area. Before the first tea.WindowSizeMsg
+// arrives termWidth/termHeight are 0; fall back to an uncentred box so
+// lipgloss.Place is never asked to fit something into a zero canvas.
 func (m *Model) viewEnterName() string {
 	title := styles.title.Render(TitleText)
 	prompt := styles.prompt.Render(NameInputLabel)
@@ -44,17 +47,36 @@ func (m *Model) viewEnterName() string {
 		"",
 		hint,
 	)
-	return styles.box.Render(inner)
+	box := styles.box.Render(inner)
+	if m.termWidth <= 0 || m.termHeight <= 0 {
+		return box
+	}
+	return lipgloss.Place(
+		m.termWidth, m.termHeight,
+		lipgloss.Center, lipgloss.Center,
+		box,
+	)
 }
 
-// viewConnecting shows a centred "connecting" notice.
+// viewConnecting shows a centred "connecting" notice with an animated
+// spinner so the wait never feels frozen.
 func (m *Model) viewConnecting() string {
-	line := styles.status.Render("Connecting to " + m.serverAddr + "...")
+	line := styles.status.Render(m.spinner.View() + "Connecting to " + m.serverAddr)
 	hint := styles.status.Render(QuitHint)
-	return styles.box.Render(lipgloss.JoinVertical(lipgloss.Left, line, "", hint))
+	inner := lipgloss.JoinVertical(lipgloss.Left, line, "", hint)
+	box := styles.box.Render(inner)
+	if m.termWidth <= 0 || m.termHeight <= 0 {
+		return box
+	}
+	return lipgloss.Place(
+		m.termWidth, m.termHeight,
+		lipgloss.Center, lipgloss.Center,
+		box,
+	)
 }
 
-// viewDisconnected shows the error in a red box plus a quit hint.
+// viewDisconnected shows the error in a red box plus a quit hint,
+// centred in the terminal area.
 func (m *Model) viewDisconnected() string {
 	msg := "disconnected"
 	if m.err != nil {
@@ -65,7 +87,15 @@ func (m *Model) viewDisconnected() string {
 		"",
 		DisconnectHint,
 	)
-	return styles.errBox.Render(body)
+	box := styles.errBox.Render(body)
+	if m.termWidth <= 0 || m.termHeight <= 0 {
+		return box
+	}
+	return lipgloss.Place(
+		m.termWidth, m.termHeight,
+		lipgloss.Center, lipgloss.Center,
+		box,
+	)
 }
 
 // viewPlaying composes the grid, the player list and the event log.
@@ -171,13 +201,15 @@ func (m *Model) renderLog() string {
 	return styles.log.Render(strings.TrimRight(b.String(), "\n"))
 }
 
-// renderStatus draws the bottom status line.
+// renderStatus draws the bottom status line. The keybinding hint comes
+// from the bubbles help.Model so its layout stays consistent with the
+// rest of the Charm ecosystem (and auto-truncates on narrow terminals).
 func (m *Model) renderStatus() string {
 	me := displayName(m.nameInput.Value(), m.myID)
 	parts := []string{
 		fmt.Sprintf("you: %s", me),
 		fmt.Sprintf("server: %s", m.serverAddr),
-		"WASD move, q quit",
+		m.help.View(Keys),
 	}
 	if m.status != "" {
 		parts = append(parts, m.status)
