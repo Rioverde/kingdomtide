@@ -120,36 +120,36 @@ func (m *Model) tileIndex(p game.Position) int {
 	return localY*m.width + localX
 }
 
-// setOccupant writes occupant metadata to a tile. No-op if the position is
-// out of the viewport or the tile slot is nil.
-func (m *Model) setOccupant(p game.Position, entityID string, kind pb.OccupantKind) {
+// withTile looks up the tile at p in the local viewport and invokes fn
+// if it exists. No-op for out-of-viewport positions or nil tile slots.
+func (m *Model) withTile(p game.Position, fn func(*pb.Tile)) {
 	idx := m.tileIndex(p)
 	if idx < 0 || idx >= len(m.tiles) {
 		return
 	}
-	t := m.tiles[idx]
-	if t == nil {
-		return
+	if t := m.tiles[idx]; t != nil {
+		fn(t)
 	}
-	t.Occupant = kind
-	t.EntityId = entityID
+}
+
+// setOccupant writes occupant metadata to a tile. No-op if the position is
+// out of the viewport or the tile slot is nil.
+func (m *Model) setOccupant(p game.Position, entityID string, kind pb.OccupantKind) {
+	m.withTile(p, func(t *pb.Tile) {
+		t.Occupant = kind
+		t.EntityId = entityID
+	})
 }
 
 // clearOccupantAt blanks occupant metadata only when the entity currently
 // listed on that tile matches id. Prevents out-of-order events from wiping a
 // cell a different entity has since moved onto.
 func (m *Model) clearOccupantAt(p game.Position, id string) {
-	idx := m.tileIndex(p)
-	if idx < 0 || idx >= len(m.tiles) {
-		return
-	}
-	t := m.tiles[idx]
-	if t == nil {
-		return
-	}
-	if t.GetEntityId() != id {
-		return
-	}
-	t.Occupant = pb.OccupantKind_OCCUPANT_UNSPECIFIED
-	t.EntityId = ""
+	m.withTile(p, func(t *pb.Tile) {
+		if t.GetEntityId() != id {
+			return
+		}
+		t.Occupant = pb.OccupantKind_OCCUPANT_UNSPECIFIED
+		t.EntityId = ""
+	})
 }

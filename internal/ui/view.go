@@ -2,7 +2,6 @@ package ui
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -29,25 +28,11 @@ func (m *Model) View() string {
 	return ""
 }
 
-// viewEnterName draws a bordered prompt asking for a nickname, centred
-// in the available terminal area. Before the first tea.WindowSizeMsg
-// arrives termWidth/termHeight are 0; fall back to an uncentred box so
-// lipgloss.Place is never asked to fit something into a zero canvas.
-func (m *Model) viewEnterName() string {
-	title := styles.title.Render(TitleText)
-	prompt := styles.prompt.Render(NameInputLabel)
-	input := renderInput(m)
-	hint := styles.status.Render(QuitLongHint)
-
-	inner := lipgloss.JoinVertical(lipgloss.Left,
-		title,
-		"",
-		prompt,
-		input,
-		"",
-		hint,
-	)
-	box := styles.box.Render(inner)
+// centeredBox renders inner with the given style, then centres the result
+// in the terminal. Falls back to the uncentred box before the first
+// WindowSizeMsg so lipgloss.Place is never asked to fit into a 0×0 canvas.
+func (m *Model) centeredBox(style lipgloss.Style, inner string) string {
+	box := style.Render(inner)
 	if m.termWidth <= 0 || m.termHeight <= 0 {
 		return box
 	}
@@ -58,21 +43,29 @@ func (m *Model) viewEnterName() string {
 	)
 }
 
+// viewEnterName draws a bordered prompt asking for a nickname, centred
+// in the available terminal area.
+func (m *Model) viewEnterName() string {
+	inner := lipgloss.JoinVertical(lipgloss.Left,
+		styles.title.Render(TitleText),
+		"",
+		styles.prompt.Render(NameInputLabel),
+		renderInput(m),
+		"",
+		styles.status.Render(QuitLongHint),
+	)
+	return m.centeredBox(styles.box, inner)
+}
+
 // viewConnecting shows a centred "connecting" notice with an animated
 // spinner so the wait never feels frozen.
 func (m *Model) viewConnecting() string {
-	line := styles.status.Render(m.spinner.View() + "Connecting to " + m.serverAddr)
-	hint := styles.status.Render(QuitHint)
-	inner := lipgloss.JoinVertical(lipgloss.Left, line, "", hint)
-	box := styles.box.Render(inner)
-	if m.termWidth <= 0 || m.termHeight <= 0 {
-		return box
-	}
-	return lipgloss.Place(
-		m.termWidth, m.termHeight,
-		lipgloss.Center, lipgloss.Center,
-		box,
+	inner := lipgloss.JoinVertical(lipgloss.Left,
+		styles.status.Render(m.spinner.View()+"Connecting to "+m.serverAddr),
+		"",
+		styles.status.Render(QuitHint),
 	)
+	return m.centeredBox(styles.box, inner)
 }
 
 // viewDisconnected shows the error in a red box plus a quit hint,
@@ -82,20 +75,12 @@ func (m *Model) viewDisconnected() string {
 	if m.err != nil {
 		msg = "disconnected: " + m.err.Error()
 	}
-	body := lipgloss.JoinVertical(lipgloss.Left,
+	inner := lipgloss.JoinVertical(lipgloss.Left,
 		msg,
 		"",
 		DisconnectHint,
 	)
-	box := styles.errBox.Render(body)
-	if m.termWidth <= 0 || m.termHeight <= 0 {
-		return box
-	}
-	return lipgloss.Place(
-		m.termWidth, m.termHeight,
-		lipgloss.Center, lipgloss.Center,
-		box,
-	)
+	return m.centeredBox(styles.errBox, inner)
 }
 
 // viewPlaying composes the grid, the player list and the event log.
@@ -160,45 +145,30 @@ func (m *Model) renderCell(t *pb.Tile) string {
 	return s.Render(r)
 }
 
+// sortedPlayers returns the Model's players ordered by ID.
+func (m *Model) sortedPlayers() []playerInfo {
+	return sortedMapValues(m.players)
+}
+
 // renderPlayerList draws the "players online" panel, with the local
 // player's name highlighted.
 func (m *Model) renderPlayerList() string {
-	if len(m.players) == 0 {
-		return styles.playerL.Render(PlayersHeader + "\n" + EmptyListLabel)
-	}
-	ids := make([]string, 0, len(m.players))
-	for id := range m.players {
-		ids = append(ids, id)
-	}
-	sort.Strings(ids)
-
-	var b strings.Builder
-	b.WriteString(PlayersHeader + "\n")
-	for _, id := range ids {
-		info := m.players[id]
-		line := fmt.Sprintf("%s %s %d,%d", LogBullet, displayName(info.Name, info.ID), info.Pos.X, info.Pos.Y)
-		if id == m.myID {
-			line = styles.selfPlayer.Render(line)
-		}
-		b.WriteString(line)
-		b.WriteByte('\n')
-	}
-	return styles.playerL.Render(strings.TrimRight(b.String(), "\n"))
+	return renderPanel(PlayersHeader, EmptyListLabel, styles.playerL, m.sortedPlayers(),
+		func(p playerInfo) string {
+			line := fmt.Sprintf("%s %s %d,%d",
+				LogBullet, displayName(p.Name, p.ID), p.Pos.X, p.Pos.Y)
+			if p.ID == m.myID {
+				line = styles.selfPlayer.Render(line)
+			}
+			return line
+		})
 }
 
 // renderLog draws the rolling event log panel. Empty state gets its own
 // label so the box doesn't collapse to a single border-only line.
 func (m *Model) renderLog() string {
-	if len(m.logLines) == 0 {
-		return styles.log.Render(EventsHeader + "\n" + EmptyLogLabel)
-	}
-	var b strings.Builder
-	b.WriteString(EventsHeader + "\n")
-	for _, line := range m.logLines {
-		b.WriteString(line)
-		b.WriteByte('\n')
-	}
-	return styles.log.Render(strings.TrimRight(b.String(), "\n"))
+	return renderPanel(EventsHeader, EmptyLogLabel, styles.log, m.logLines,
+		func(s string) string { return s })
 }
 
 // renderStatus draws the bottom status line. The keybinding hint comes
