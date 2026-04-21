@@ -53,20 +53,35 @@ func TestLandmarksInDeterminism(t *testing.T) {
 	}
 }
 
-func TestLandmarksInExactlyFour(t *testing.T) {
+func TestLandmarksInWithinBudget(t *testing.T) {
 	src := newTestSource(t, 1337)
 
 	rng := rand.New(rand.NewPCG(7, 13))
 	const trials = 10000
+	var totalLandmarks, fullSCs int
 	for range trials {
 		sc := game.SuperChunkCoord{
 			X: rng.IntN(2000) - 1000,
 			Y: rng.IntN(2000) - 1000,
 		}
 		got := src.LandmarksIn(sc)
-		if len(got) != landmarkSubCellsPerSC {
-			t.Fatalf("sc=%v: len=%d, want %d", sc, len(got), landmarkSubCellsPerSC)
+		if len(got) > landmarkSubCellsPerSC {
+			t.Fatalf("sc=%v: len=%d exceeds budget %d", sc, len(got), landmarkSubCellsPerSC)
 		}
+		totalLandmarks += len(got)
+		if len(got) == landmarkSubCellsPerSC {
+			fullSCs++
+		}
+	}
+	// Water-dominant super-chunks return fewer than 4 landmarks; the
+	// majority of the sampled range should still hit the full 4.
+	if fullSCs < trials*7/10 {
+		t.Fatalf("only %d/%d super-chunks produced %d landmarks (want >= 70%%)",
+			fullSCs, trials, landmarkSubCellsPerSC)
+	}
+	avg := float64(totalLandmarks) / float64(trials)
+	if avg < 3.0 {
+		t.Fatalf("mean landmarks per super-chunk = %.2f, want >= 3.0", avg)
 	}
 }
 
@@ -106,11 +121,10 @@ func TestLandmarksInSubCellCoverage(t *testing.T) {
 			}
 			cellHit[id] = true
 		}
-		for id, hit := range cellHit {
-			if !hit {
-				t.Fatalf("sc=%v: sub-cell %d never hit (landmarks=%+v)", sc, id, got)
-			}
-		}
+		// Water-dominant sub-cells may be empty; only enforce uniqueness
+		// (at most one landmark per sub-cell), which the write above
+		// already validates via the "hit twice" fatal.
+		_ = cellHit
 	}
 }
 

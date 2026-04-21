@@ -104,8 +104,11 @@ func NewNoiseLandmarkSource(
 	}
 }
 
-// LandmarksIn returns exactly four landmarks, one per sub-cell, in
-// fixed NW, NE, SW, SE order. Deterministic: same (seed, sc) always
+// LandmarksIn returns up to four landmarks — one per sub-cell in fixed
+// NW, NE, SW, SE order — with water-dominant sub-cells omitted. Landmarks
+// never spawn on ocean, deep-ocean, or lake tiles: a sub-cell whose
+// candidates are all water simply returns no landmark, and the output
+// slice is shorter than four. Deterministic: same (seed, sc) always
 // yields the same slice.
 func (s *NoiseLandmarkSource) LandmarksIn(sc game.SuperChunkCoord) []game.Landmark {
 	out := make([]game.Landmark, 0, landmarkSubCellsPerSC)
@@ -115,20 +118,27 @@ func (s *NoiseLandmarkSource) LandmarksIn(sc game.SuperChunkCoord) []game.Landma
 	minY := sc.Y * game.SuperChunkSize
 
 	for subID := range landmarkSubCellsPerSC {
-		out = append(out, s.landmarkForSubCell(sc, subID, minX, minY, region.Character))
+		lm, ok := s.landmarkForSubCell(sc, subID, minX, minY, region.Character)
+		if !ok {
+			continue
+		}
+		out = append(out, lm)
 	}
 	return out
 }
 
 // landmarkForSubCell scatters candidate positions inside the sub-cell,
-// picks the first that fits a kind under the terrain + region-bias
-// matrix, and falls back to a Shrine (any-terrain kind) at the first
-// candidate if every candidate's terrain rejects all kinds.
+// skips any candidate whose tile is water (ocean / deep-ocean / lake —
+// see isWaterTile), picks the first non-water candidate that fits a kind
+// under the terrain + region-bias matrix, and falls back to a Shrine at
+// the first non-water candidate if no kind fits. Returns ok == false
+// when every candidate is water, signalling the caller to omit this
+// sub-cell.
 func (s *NoiseLandmarkSource) landmarkForSubCell(
 	sc game.SuperChunkCoord,
 	subID, scMinX, scMinY int,
 	character game.RegionCharacter,
-) game.Landmark {
+) (game.Landmark, bool) {
 	offX, offY := subCellOrigin(subID)
 	subMinX := scMinX + offX
 	subMinY := scMinY + offY
@@ -136,20 +146,44 @@ func (s *NoiseLandmarkSource) landmarkForSubCell(
 	rng := newSubCellRNG(s.seed, sc, subID)
 	candidates := scatterCandidates(rng, subMinX, subMinY)
 
+	var firstDry game.Position
+	firstDryFound := false
 	for _, cand := range candidates {
 		tile := s.worldgen.TileAt(cand.X, cand.Y)
+		if isWaterTile(tile) {
+			continue
+		}
+		if !firstDryFound {
+			firstDry = cand
+			firstDryFound = true
+		}
 		elev := s.worldgen.elevationAt(float64(cand.X), float64(cand.Y))
 
 		kind, ok := s.pickKind(rng, cand, tile, elev, character)
 		if !ok {
 			continue
 		}
-		return game.Landmark{Coord: cand, Kind: kind}
+		return game.Landmark{Coord: cand, Kind: kind}, true
 	}
 
-	// Fallback: Shrine accepts any terrain, so the first candidate is
-	// always a valid placement and the 4-per-super-chunk invariant holds.
-	return game.Landmark{Coord: candidates[0], Kind: game.LandmarkShrine}
+	if !firstDryFound {
+		return game.Landmark{}, false
+	}
+	// Shrine fallback on the first non-water candidate — keeps landmark
+	// density high in mixed land/water sub-cells while still honouring
+	// the no-water-spawn invariant.
+	return game.Landmark{Coord: firstDry, Kind: game.LandmarkShrine}, true
+}
+
+// isWaterTile reports whether a tile's terrain or overlay puts it
+// underwater. Landmarks must not spawn on these — a Tower or Shrine in
+// the middle of the ocean would read as a bug, not a landmark.
+func isWaterTile(t game.Tile) bool {
+	switch t.Terrain {
+	case game.TerrainOcean, game.TerrainDeepOcean:
+		return true
+	}
+	return t.Overlays&game.OverlayLake != 0
 }
 
 // pickKind filters kinds by terrain affinity, weights the survivors by
