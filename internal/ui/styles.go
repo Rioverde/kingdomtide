@@ -13,6 +13,8 @@ var styles = struct {
 	selfPlayer  lipgloss.Style
 	otherPlayer lipgloss.Style
 	river       lipgloss.Style
+	village     lipgloss.Style
+	castle      lipgloss.Style
 	unknownTile lipgloss.Style
 
 	title   lipgloss.Style
@@ -28,6 +30,8 @@ var styles = struct {
 	selfPlayer:  lipgloss.NewStyle().Foreground(lipgloss.Color("15")).Bold(true),
 	otherPlayer: lipgloss.NewStyle().Foreground(lipgloss.Color("13")).Bold(true),
 	river:       lipgloss.NewStyle().Foreground(lipgloss.Color("45")),
+	village:     lipgloss.NewStyle().Foreground(lipgloss.Color("208")).Bold(true), // warm orange
+	castle:      lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Bold(true), // red
 	unknownTile: lipgloss.NewStyle().Foreground(lipgloss.Color("240")),
 
 	title:  lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("12")).Padding(0, 1),

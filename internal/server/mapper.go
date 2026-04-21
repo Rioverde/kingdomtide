@@ -89,6 +89,22 @@ func positionPB(p game.Position) *pb.Position {
 	return &pb.Position{X: int32(p.X), Y: int32(p.Y)}
 }
 
+// objectPBMapping translates the domain ObjectKind enum to its wire
+// counterpart. Unknown values fall back to UNSPECIFIED.
+var objectPBMapping = map[game.ObjectKind]pb.WorldObject{
+	game.ObjectVillage: pb.WorldObject_WORLD_OBJECT_VILLAGE,
+	game.ObjectCastle:  pb.WorldObject_WORLD_OBJECT_CASTLE,
+}
+
+// objectToPB looks up k in objectPBMapping. ObjectNone maps implicitly to
+// UNSPECIFIED via the default return.
+func objectToPB(k game.ObjectKind) pb.WorldObject {
+	if v, ok := objectPBMapping[k]; ok {
+		return v
+	}
+	return pb.WorldObject_WORLD_OBJECT_UNSPECIFIED
+}
+
 // terrainPBMapping is the 1:1 translation table from the domain Terrain
 // enum to its wire counterpart. Kept as a map (not a switch) so adding a
 // new biome is a single-line change and cyclomatic complexity stays flat.
@@ -155,6 +171,7 @@ func snapshotOf(w *game.World, center game.Position, viewW, viewH int) *pb.Snaps
 			out := &pb.Tile{
 				Terrain: terrainToPB(t.Terrain),
 				River:   t.River,
+				Object:  objectToPB(t.Object),
 			}
 			if pl, ok := t.Occupant.(*game.Player); ok && pl != nil {
 				out.Occupant = pb.OccupantKind_OCCUPANT_PLAYER
