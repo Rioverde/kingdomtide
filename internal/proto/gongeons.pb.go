@@ -166,6 +166,57 @@ func (OccupantKind) EnumDescriptor() ([]byte, []int) {
 	return file_gongeons_proto_rawDescGZIP(), []int{1}
 }
 
+// WorldObject is a static structure the procedural generator places on a tile.
+// Rendered below the player glyph but above the terrain.
+type WorldObject int32
+
+const (
+	WorldObject_WORLD_OBJECT_UNSPECIFIED WorldObject = 0
+	WorldObject_WORLD_OBJECT_VILLAGE     WorldObject = 1
+	WorldObject_WORLD_OBJECT_CASTLE      WorldObject = 2
+)
+
+// Enum value maps for WorldObject.
+var (
+	WorldObject_name = map[int32]string{
+		0: "WORLD_OBJECT_UNSPECIFIED",
+		1: "WORLD_OBJECT_VILLAGE",
+		2: "WORLD_OBJECT_CASTLE",
+	}
+	WorldObject_value = map[string]int32{
+		"WORLD_OBJECT_UNSPECIFIED": 0,
+		"WORLD_OBJECT_VILLAGE":     1,
+		"WORLD_OBJECT_CASTLE":      2,
+	}
+)
+
+func (x WorldObject) Enum() *WorldObject {
+	p := new(WorldObject)
+	*p = x
+	return p
+}
+
+func (x WorldObject) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (WorldObject) Descriptor() protoreflect.EnumDescriptor {
+	return file_gongeons_proto_enumTypes[2].Descriptor()
+}
+
+func (WorldObject) Type() protoreflect.EnumType {
+	return &file_gongeons_proto_enumTypes[2]
+}
+
+func (x WorldObject) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use WorldObject.Descriptor instead.
+func (WorldObject) EnumDescriptor() ([]byte, []int) {
+	return file_gongeons_proto_rawDescGZIP(), []int{2}
+}
+
 // Position is an absolute square-grid tile coordinate. Origin is arbitrary
 // (world 0, 0); the coordinate system is unbounded in both axes.
 type Position struct {
@@ -226,8 +277,9 @@ type Tile struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Terrain       Terrain                `protobuf:"varint,1,opt,name=terrain,proto3,enum=gongeons.v1.Terrain" json:"terrain,omitempty"`
 	Occupant      OccupantKind           `protobuf:"varint,2,opt,name=occupant,proto3,enum=gongeons.v1.OccupantKind" json:"occupant,omitempty"`
-	EntityId      string                 `protobuf:"bytes,3,opt,name=entity_id,json=entityId,proto3" json:"entity_id,omitempty"` // occupant ID, empty if no occupant
-	River         bool                   `protobuf:"varint,4,opt,name=river,proto3" json:"river,omitempty"`                      // set on tiles the generator carved a river on
+	EntityId      string                 `protobuf:"bytes,3,opt,name=entity_id,json=entityId,proto3" json:"entity_id,omitempty"`           // occupant ID, empty if no occupant
+	River         bool                   `protobuf:"varint,4,opt,name=river,proto3" json:"river,omitempty"`                                // set on tiles the generator carved a river on
+	Object        WorldObject            `protobuf:"varint,5,opt,name=object,proto3,enum=gongeons.v1.WorldObject" json:"object,omitempty"` // village / castle overlay
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -288,6 +340,13 @@ func (x *Tile) GetRiver() bool {
 		return x.River
 	}
 	return false
+}
+
+func (x *Tile) GetObject() WorldObject {
+	if x != nil {
+		return x.Object
+	}
+	return WorldObject_WORLD_OBJECT_UNSPECIFIED
 }
 
 // Entity is a positioned actor in the world. Combat stats / monsters are
@@ -1186,12 +1245,13 @@ const file_gongeons_proto_rawDesc = "" +
 	"\x0egongeons.proto\x12\vgongeons.v1\"&\n" +
 	"\bPosition\x12\f\n" +
 	"\x01x\x18\x01 \x01(\x05R\x01x\x12\f\n" +
-	"\x01y\x18\x02 \x01(\x05R\x01y\"\xa0\x01\n" +
+	"\x01y\x18\x02 \x01(\x05R\x01y\"\xd2\x01\n" +
 	"\x04Tile\x12.\n" +
 	"\aterrain\x18\x01 \x01(\x0e2\x14.gongeons.v1.TerrainR\aterrain\x125\n" +
 	"\boccupant\x18\x02 \x01(\x0e2\x19.gongeons.v1.OccupantKindR\boccupant\x12\x1b\n" +
 	"\tentity_id\x18\x03 \x01(\tR\bentityId\x12\x14\n" +
-	"\x05river\x18\x04 \x01(\bR\x05river\"\x8e\x01\n" +
+	"\x05river\x18\x04 \x01(\bR\x05river\x120\n" +
+	"\x06object\x18\x05 \x01(\x0e2\x18.gongeons.v1.WorldObjectR\x06object\"\x8e\x01\n" +
 	"\x06Entity\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12-\n" +
@@ -1267,7 +1327,11 @@ const file_gongeons_proto_rawDesc = "" +
 	"\fOccupantKind\x12\x18\n" +
 	"\x14OCCUPANT_UNSPECIFIED\x10\x00\x12\x13\n" +
 	"\x0fOCCUPANT_PLAYER\x10\x01\x12\x14\n" +
-	"\x10OCCUPANT_MONSTER\x10\x022Q\n" +
+	"\x10OCCUPANT_MONSTER\x10\x02*^\n" +
+	"\vWorldObject\x12\x1c\n" +
+	"\x18WORLD_OBJECT_UNSPECIFIED\x10\x00\x12\x18\n" +
+	"\x14WORLD_OBJECT_VILLAGE\x10\x01\x12\x17\n" +
+	"\x13WORLD_OBJECT_CASTLE\x10\x022Q\n" +
 	"\vGameService\x12B\n" +
 	"\x04Play\x12\x1a.gongeons.v1.ClientMessage\x1a\x1a.gongeons.v1.ServerMessage(\x010\x01B8Z6github.com/Rioverde/gongeons/internal/proto;gongeonspbb\x06proto3"
 
@@ -1283,56 +1347,58 @@ func file_gongeons_proto_rawDescGZIP() []byte {
 	return file_gongeons_proto_rawDescData
 }
 
-var file_gongeons_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_gongeons_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
 var file_gongeons_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
 var file_gongeons_proto_goTypes = []any{
 	(Terrain)(0),          // 0: gongeons.v1.Terrain
 	(OccupantKind)(0),     // 1: gongeons.v1.OccupantKind
-	(*Position)(nil),      // 2: gongeons.v1.Position
-	(*Tile)(nil),          // 3: gongeons.v1.Tile
-	(*Entity)(nil),        // 4: gongeons.v1.Entity
-	(*ClientMessage)(nil), // 5: gongeons.v1.ClientMessage
-	(*JoinRequest)(nil),   // 6: gongeons.v1.JoinRequest
-	(*ViewportCmd)(nil),   // 7: gongeons.v1.ViewportCmd
-	(*MoveCmd)(nil),       // 8: gongeons.v1.MoveCmd
-	(*ServerMessage)(nil), // 9: gongeons.v1.ServerMessage
-	(*JoinAccepted)(nil),  // 10: gongeons.v1.JoinAccepted
-	(*Snapshot)(nil),      // 11: gongeons.v1.Snapshot
-	(*Event)(nil),         // 12: gongeons.v1.Event
-	(*PlayerJoined)(nil),  // 13: gongeons.v1.PlayerJoined
-	(*PlayerLeft)(nil),    // 14: gongeons.v1.PlayerLeft
-	(*EntityMoved)(nil),   // 15: gongeons.v1.EntityMoved
-	(*ErrorResponse)(nil), // 16: gongeons.v1.ErrorResponse
+	(WorldObject)(0),      // 2: gongeons.v1.WorldObject
+	(*Position)(nil),      // 3: gongeons.v1.Position
+	(*Tile)(nil),          // 4: gongeons.v1.Tile
+	(*Entity)(nil),        // 5: gongeons.v1.Entity
+	(*ClientMessage)(nil), // 6: gongeons.v1.ClientMessage
+	(*JoinRequest)(nil),   // 7: gongeons.v1.JoinRequest
+	(*ViewportCmd)(nil),   // 8: gongeons.v1.ViewportCmd
+	(*MoveCmd)(nil),       // 9: gongeons.v1.MoveCmd
+	(*ServerMessage)(nil), // 10: gongeons.v1.ServerMessage
+	(*JoinAccepted)(nil),  // 11: gongeons.v1.JoinAccepted
+	(*Snapshot)(nil),      // 12: gongeons.v1.Snapshot
+	(*Event)(nil),         // 13: gongeons.v1.Event
+	(*PlayerJoined)(nil),  // 14: gongeons.v1.PlayerJoined
+	(*PlayerLeft)(nil),    // 15: gongeons.v1.PlayerLeft
+	(*EntityMoved)(nil),   // 16: gongeons.v1.EntityMoved
+	(*ErrorResponse)(nil), // 17: gongeons.v1.ErrorResponse
 }
 var file_gongeons_proto_depIdxs = []int32{
 	0,  // 0: gongeons.v1.Tile.terrain:type_name -> gongeons.v1.Terrain
 	1,  // 1: gongeons.v1.Tile.occupant:type_name -> gongeons.v1.OccupantKind
-	1,  // 2: gongeons.v1.Entity.kind:type_name -> gongeons.v1.OccupantKind
-	2,  // 3: gongeons.v1.Entity.position:type_name -> gongeons.v1.Position
-	6,  // 4: gongeons.v1.ClientMessage.join:type_name -> gongeons.v1.JoinRequest
-	8,  // 5: gongeons.v1.ClientMessage.move:type_name -> gongeons.v1.MoveCmd
-	7,  // 6: gongeons.v1.ClientMessage.viewport:type_name -> gongeons.v1.ViewportCmd
-	10, // 7: gongeons.v1.ServerMessage.accepted:type_name -> gongeons.v1.JoinAccepted
-	11, // 8: gongeons.v1.ServerMessage.snapshot:type_name -> gongeons.v1.Snapshot
-	12, // 9: gongeons.v1.ServerMessage.event:type_name -> gongeons.v1.Event
-	16, // 10: gongeons.v1.ServerMessage.error:type_name -> gongeons.v1.ErrorResponse
-	2,  // 11: gongeons.v1.JoinAccepted.spawn:type_name -> gongeons.v1.Position
-	2,  // 12: gongeons.v1.Snapshot.origin:type_name -> gongeons.v1.Position
-	3,  // 13: gongeons.v1.Snapshot.tiles:type_name -> gongeons.v1.Tile
-	4,  // 14: gongeons.v1.Snapshot.entities:type_name -> gongeons.v1.Entity
-	13, // 15: gongeons.v1.Event.player_joined:type_name -> gongeons.v1.PlayerJoined
-	14, // 16: gongeons.v1.Event.player_left:type_name -> gongeons.v1.PlayerLeft
-	15, // 17: gongeons.v1.Event.entity_moved:type_name -> gongeons.v1.EntityMoved
-	4,  // 18: gongeons.v1.PlayerJoined.entity:type_name -> gongeons.v1.Entity
-	2,  // 19: gongeons.v1.EntityMoved.from:type_name -> gongeons.v1.Position
-	2,  // 20: gongeons.v1.EntityMoved.to:type_name -> gongeons.v1.Position
-	5,  // 21: gongeons.v1.GameService.Play:input_type -> gongeons.v1.ClientMessage
-	9,  // 22: gongeons.v1.GameService.Play:output_type -> gongeons.v1.ServerMessage
-	22, // [22:23] is the sub-list for method output_type
-	21, // [21:22] is the sub-list for method input_type
-	21, // [21:21] is the sub-list for extension type_name
-	21, // [21:21] is the sub-list for extension extendee
-	0,  // [0:21] is the sub-list for field type_name
+	2,  // 2: gongeons.v1.Tile.object:type_name -> gongeons.v1.WorldObject
+	1,  // 3: gongeons.v1.Entity.kind:type_name -> gongeons.v1.OccupantKind
+	3,  // 4: gongeons.v1.Entity.position:type_name -> gongeons.v1.Position
+	7,  // 5: gongeons.v1.ClientMessage.join:type_name -> gongeons.v1.JoinRequest
+	9,  // 6: gongeons.v1.ClientMessage.move:type_name -> gongeons.v1.MoveCmd
+	8,  // 7: gongeons.v1.ClientMessage.viewport:type_name -> gongeons.v1.ViewportCmd
+	11, // 8: gongeons.v1.ServerMessage.accepted:type_name -> gongeons.v1.JoinAccepted
+	12, // 9: gongeons.v1.ServerMessage.snapshot:type_name -> gongeons.v1.Snapshot
+	13, // 10: gongeons.v1.ServerMessage.event:type_name -> gongeons.v1.Event
+	17, // 11: gongeons.v1.ServerMessage.error:type_name -> gongeons.v1.ErrorResponse
+	3,  // 12: gongeons.v1.JoinAccepted.spawn:type_name -> gongeons.v1.Position
+	3,  // 13: gongeons.v1.Snapshot.origin:type_name -> gongeons.v1.Position
+	4,  // 14: gongeons.v1.Snapshot.tiles:type_name -> gongeons.v1.Tile
+	5,  // 15: gongeons.v1.Snapshot.entities:type_name -> gongeons.v1.Entity
+	14, // 16: gongeons.v1.Event.player_joined:type_name -> gongeons.v1.PlayerJoined
+	15, // 17: gongeons.v1.Event.player_left:type_name -> gongeons.v1.PlayerLeft
+	16, // 18: gongeons.v1.Event.entity_moved:type_name -> gongeons.v1.EntityMoved
+	5,  // 19: gongeons.v1.PlayerJoined.entity:type_name -> gongeons.v1.Entity
+	3,  // 20: gongeons.v1.EntityMoved.from:type_name -> gongeons.v1.Position
+	3,  // 21: gongeons.v1.EntityMoved.to:type_name -> gongeons.v1.Position
+	6,  // 22: gongeons.v1.GameService.Play:input_type -> gongeons.v1.ClientMessage
+	10, // 23: gongeons.v1.GameService.Play:output_type -> gongeons.v1.ServerMessage
+	23, // [23:24] is the sub-list for method output_type
+	22, // [22:23] is the sub-list for method input_type
+	22, // [22:22] is the sub-list for extension type_name
+	22, // [22:22] is the sub-list for extension extendee
+	0,  // [0:22] is the sub-list for field type_name
 }
 
 func init() { file_gongeons_proto_init() }
@@ -1361,7 +1427,7 @@ func file_gongeons_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_gongeons_proto_rawDesc), len(file_gongeons_proto_rawDesc)),
-			NumEnums:      2,
+			NumEnums:      3,
 			NumMessages:   15,
 			NumExtensions: 0,
 			NumServices:   1,

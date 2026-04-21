@@ -102,8 +102,9 @@ func (m *Model) renderGrid() string {
 	return styles.box.Render(b.String())
 }
 
-// renderCell picks the rune + style for one tile. Occupant wins over
-// terrain; self vs other is decided by myID.
+// renderCell picks the rune + style for one tile. Layer precedence:
+// occupant > world-object (village / castle) > river > terrain. Self vs
+// other player is decided by myID.
 func (m *Model) renderCell(t *pb.Tile) string {
 	if t == nil {
 		return styles.unknownTile.Render(RuneUnspecified)
@@ -113,6 +114,18 @@ func (m *Model) renderCell(t *pb.Tile) string {
 			return styles.selfPlayer.Render(RuneSelf)
 		}
 		return styles.otherPlayer.Render(RuneOther)
+	}
+	if obj := t.GetObject(); obj != pb.WorldObject_WORLD_OBJECT_UNSPECIFIED {
+		if glyph, ok := ObjectRunes[obj]; ok {
+			switch obj {
+			case pb.WorldObject_WORLD_OBJECT_VILLAGE:
+				return styles.village.Render(glyph)
+			case pb.WorldObject_WORLD_OBJECT_CASTLE:
+				return styles.castle.Render(glyph)
+			case pb.WorldObject_WORLD_OBJECT_UNSPECIFIED:
+				// unreachable — guarded by outer if
+			}
+		}
 	}
 	r, s := lookTile(t)
 	return s.Render(r)

@@ -51,6 +51,14 @@ enum OccupantKind {
   OCCUPANT_MONSTER     = 2;
 }
 
+// WorldObject is a static structure the procedural generator places on a tile.
+// Rendered below the player glyph but above the terrain.
+enum WorldObject {
+  WORLD_OBJECT_UNSPECIFIED = 0;
+  WORLD_OBJECT_VILLAGE     = 1;
+  WORLD_OBJECT_CASTLE      = 2;
+}
+
 // Tile is an atomic map cell. Used in Snapshot only — Events carry deltas,
 // not full tile replacements.
 message Tile {
@@ -58,6 +66,7 @@ message Tile {
   OccupantKind occupant  = 2;
   string       entity_id = 3; // occupant ID, empty if no occupant
   bool         river     = 4; // set on tiles the generator carved a river on
+  WorldObject  object    = 5; // village / castle overlay
 }
 
 // Entity is a positioned actor in the world. Combat stats / monsters are

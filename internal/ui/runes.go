@@ -4,27 +4,69 @@ import pb "github.com/Rioverde/gongeons/internal/proto"
 
 // This file is the single source of truth for every glyph that reaches the
 // screen. Colours live in styles.go; rune choice lives here so you can
-// rebalance the visual vocabulary (swap to Unicode block characters, or to
-// a fantasy-roguelike alternative set) without touching anything else.
+// rebalance the visual vocabulary without touching anything else.
+//
+// Everything below is a single display-cell wide in well-behaved terminals.
+// If a glyph renders as double-width (most commonly emoji variants with the
+// VS16 selector), the grid will visually skew — swap to a narrower one.
 
 // Occupant overlay runes. Occupants win over terrain when a tile is
 // rendered — they sit "on top of" the biome glyph.
 const (
-	RuneSelf        = "@"
-	RuneOther       = "P"
+	RuneSelf        = "@" // classic roguelike player — universal, unambiguous
+	RuneOther       = "𐙬" // hanja-ish "person", single-width in most monospace
 	RuneUnspecified = "?"
 )
 
 // RiverRune is painted on tiles the procedural generator marked as part of
 // a river. It sits over the underlying biome.
-const RiverRune = "~"
+const RiverRune = "≈"
+
+// ObjectRunes maps village / castle / etc. to the glyph drawn in place of
+// the terrain rune. Rendered below players but above rivers and terrain.
+var ObjectRunes = map[pb.WorldObject]string{
+	pb.WorldObject_WORLD_OBJECT_VILLAGE: "⌂", // BMP U+2302 HOUSE
+	pb.WorldObject_WORLD_OBJECT_CASTLE:  "♜", // BMP U+265C BLACK CHESS ROOK
+}
+
+// TerrainRunes maps every wire-level Terrain value to the rune shown for
+// that biome. Missing keys fall back to RuneUnspecified in the renderer.
+var TerrainRunes = map[pb.Terrain]string{
+	// Grass family: progressively denser vegetation.
+	pb.Terrain_TERRAIN_PLAINS:    "·", // middle dot
+	pb.Terrain_TERRAIN_GRASSLAND: "„", // low double comma
+	pb.Terrain_TERRAIN_MEADOW:    "❀", // flower
+
+	// Arid family: grainy textures, beach → dune.
+	pb.Terrain_TERRAIN_BEACH:   "░", // light shade
+	pb.Terrain_TERRAIN_SAVANNA: "⁖", // four-dot cluster
+	pb.Terrain_TERRAIN_DESERT:  "∙", // bullet operator
+
+	// Forest family: deciduous / tangled / conifer.
+	pb.Terrain_TERRAIN_FOREST: "♣", // club (canopy)
+	pb.Terrain_TERRAIN_JUNGLE: "♠", // spade (denser canopy)
+	pb.Terrain_TERRAIN_TAIGA:  "♤", // white spade (conifer)
+
+	// Cold flats.
+	pb.Terrain_TERRAIN_TUNDRA: "‥", // two-dot leader (sparse)
+	pb.Terrain_TERRAIN_SNOW:   "∗", // asterisk operator (non-emoji, narrow)
+
+	// Relief ladder: bump → peak → snow-capped peak.
+	pb.Terrain_TERRAIN_HILLS:      "∩", // inverted cup
+	pb.Terrain_TERRAIN_MOUNTAIN:   "▲", // solid up-triangle
+	pb.Terrain_TERRAIN_SNOWY_PEAK: "△", // hollow up-triangle
+
+	// Water: wave → heavy wave.
+	pb.Terrain_TERRAIN_OCEAN:      "≈", // approximately equal (wavelets)
+	pb.Terrain_TERRAIN_DEEP_OCEAN: "≋", // triple tilde (deeper)
+}
 
 // UI chrome runes — every string literal that shows up outside the map
 // grid. Centralised here so a redesign touches one file.
 const (
-	InputPrompt    = "> "
-	LogBullet      = "*"
-	StatusDivider  = "  |  "
+	InputPrompt    = "❯ "
+	LogBullet      = "•"
+	StatusDivider  = "  │  "
 	EmptyLogLabel  = "(quiet)"
 	EmptyMapLabel  = "(no map yet)"
 	EmptyListLabel = "(none)"
@@ -35,35 +77,3 @@ const (
 	TitleText      = "Gongeons"
 	DisconnectHint = "press q to quit"
 )
-
-// TerrainRunes maps every wire-level Terrain value to the rune shown for
-// that biome. Missing keys fall back to RuneUnspecified in the renderer.
-var TerrainRunes = map[pb.Terrain]string{
-	// Grass family: rune weight grows with vegetation density.
-	pb.Terrain_TERRAIN_PLAINS:    ".",
-	pb.Terrain_TERRAIN_GRASSLAND: ",",
-	pb.Terrain_TERRAIN_MEADOW:    "\"",
-
-	// Arid family: grainy punctuation, beach to dune horizon.
-	pb.Terrain_TERRAIN_BEACH:   ":",
-	pb.Terrain_TERRAIN_SAVANNA: ";",
-	pb.Terrain_TERRAIN_DESERT:  "-",
-
-	// Forest family: deciduous / tangled canopy / conifer.
-	pb.Terrain_TERRAIN_FOREST: "T",
-	pb.Terrain_TERRAIN_JUNGLE: "&",
-	pb.Terrain_TERRAIN_TAIGA:  "Y",
-
-	// Cold flats.
-	pb.Terrain_TERRAIN_TUNDRA: "'",
-	pb.Terrain_TERRAIN_SNOW:   "*",
-
-	// Relief ladder: bump -> peak -> snow-capped peak.
-	pb.Terrain_TERRAIN_HILLS:      "n",
-	pb.Terrain_TERRAIN_MOUNTAIN:   "^",
-	pb.Terrain_TERRAIN_SNOWY_PEAK: "A",
-
-	// Water: wave -> flat depth.
-	pb.Terrain_TERRAIN_OCEAN:      "~",
-	pb.Terrain_TERRAIN_DEEP_OCEAN: "=",
-}
