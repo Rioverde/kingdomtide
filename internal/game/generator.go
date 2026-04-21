@@ -1,112 +1,102 @@
 package game
 
-import "fmt"
-
-// cell* constants are single-character codes for the hand-crafted mock
-// layout. Keeping the layout rune-based makes the map editable as a block
-// of string literals — what you see is what you get.
+// Seed salts for per-layer noise decorrelation. Independent layers must see different
+// underlying noise fields, otherwise elevation and temperature would look visually
+// correlated across the map. XOR-ing the user seed with a fixed salt is cheap and keeps
+// determinism — two runs with the same base seed produce the same per-layer seeds.
+// The constants are the fractional digits of π and e in hex (Knuth-style nothing-up-my-sleeve
+// numbers), so small user seeds like 0, 1, 2 cannot accidentally cancel the salt.
 const (
-	cellMountain  = 'M'
-	cellOcean     = 'O'
-	cellBeach     = 'B'
-	cellForest    = 'F'
-	cellGrassland = 'G'
-	cellHills     = 'H'
-	cellMeadow    = 'E'
-	cellPlains    = 'P'
+	seedSaltTemperature int64 = 0x243f6a8885a308d3
+	seedSaltMoisture    int64 = 0x13198a2e03707344
 )
 
-// mockLayout is the deterministic demo map used by NewMockWorld. Rows must
-// all be the same length; paintLayout validates and panics on mismatch. Keep
-// it tweakable by hand — this file is the map editor until a procedural
-// generator replaces it.
-var mockLayout = []string{
-	"MMMMMMMMMMMMMMMMMMMM",
-	"MFFPPPPGGGGPPPHHHPPM",
-	"MFFFPPPGGGGPPPHHHPPM",
-	"MFPPPBBBPPPPPPPHPPPM",
-	"MPPPBOOOBPPPPPPPPPPM",
-	"MPPPBOOOBPPPPPPPPPPM",
-	"MPPPPBBBPPPPPEEEEPPM",
-	"MPPPPPPPPPPPPEEEEPPM",
-	"MPPPPPPPPPPPPPPPPPPM",
-	"MMMMMMMMMMMMMMMMMMMM",
+// temperatureOpts is a lower-frequency two-octave fBm field. Temperature varies over large
+// distances (continents worth of terrain) so a bigger scale and fewer octaves feel right.
+var temperatureOpts = OctaveOpts{
+	Octaves:     2,
+	Lacunarity:  2.0,
+	Persistence: 0.5,
+	Scale:       80.0,
 }
 
-// terrainForCell maps a layout rune to its domain Terrain. Unknown runes
-// resolve to TerrainPlains — a gentler failure mode than panicking when
-// somebody mistypes the map.
-func terrainForCell(r rune) Terrain {
-	switch r {
-	case cellMountain:
-		return TerrainMountain
-	case cellOcean:
-		return TerrainOcean
-	case cellBeach:
-		return TerrainBeach
-	case cellForest:
-		return TerrainForest
-	case cellGrassland:
-		return TerrainGrassland
-	case cellHills:
-		return TerrainHills
-	case cellMeadow:
-		return TerrainMeadow
-	case cellPlains:
-		return TerrainPlains
-	default:
-		return TerrainPlains
+// moistureOpts adds a touch more detail than temperature — rain shadows feel local — but
+// still coarser than elevation.
+var moistureOpts = OctaveOpts{
+	Octaves:     3,
+	Lacunarity:  2.0,
+	Persistence: 0.5,
+	Scale:       64.0,
+}
+
+// WorldGenerator is the deterministic pure function layer: given a (q, r) coordinate (or a
+// whole chunk coord) it returns the tile that would live there for this seed. It owns three
+// independent noise fields — elevation, temperature, moisture — sampled on global world
+// coordinates so that chunk borders stitch seamlessly.
+type WorldGenerator struct {
+	seed        int64
+	elevation   OctaveNoise
+	temperature OctaveNoise
+	moisture    OctaveNoise
+}
+
+// NewWorldGenerator builds the three noise fields off the supplied base seed. The per-layer
+// seeds are derived by XOR-ing with fixed salts so callers that care about determinism only
+// need to remember one number.
+func NewWorldGenerator(seed int64) *WorldGenerator {
+	return &WorldGenerator{
+		seed:        seed,
+		elevation:   NewOctaveNoise(seed, DefaultOctaveOpts),
+		temperature: NewOctaveNoise(seed^seedSaltTemperature, temperatureOpts),
+		moisture:    NewOctaveNoise(seed^seedSaltMoisture, moistureOpts),
 	}
 }
 
-// NewMockWorld returns a deterministic, hand-crafted demo world. It is the
-// temporary stand-in for a future procedural generator — same signature, so
-// the server bootstrap won't change the day procgen lands.
-func NewMockWorld() *World {
-	w, err := newWorldFromLayout(mockLayout)
-	if err != nil {
-		// The layout is a source-code literal; a mismatch is a programmer
-		// error caught at startup, not runtime data corruption.
-		panic(fmt.Sprintf("game: bad mock layout: %v", err))
-	}
-	return w
+// Seed returns the base seed used to construct the generator. Useful for the JSON meta API
+// and for reproducing a world elsewhere.
+func (g *WorldGenerator) Seed() int64 {
+	return g.seed
 }
 
-// newWorldFromLayout builds a World whose dimensions are inferred from the
-// layout itself (rows = height, rune count of first row = width). All rows
-// must be the same rune-length; else a descriptive error is returned so the
-// caller can panic with context.
-func newWorldFromLayout(layout []string) (*World, error) {
-	if len(layout) == 0 {
-		return nil, fmt.Errorf("empty layout")
-	}
-	height := len(layout)
-	width := len([]rune(layout[0]))
-	if width == 0 {
-		return nil, fmt.Errorf("first row has zero width")
-	}
-	w := NewWorld(width, height)
-	if err := paintLayout(w, layout); err != nil {
-		return nil, err
-	}
-	return w, nil
+// TileAt is the canonical per-coord lookup. It samples the three noise fields at the given
+// global axial coordinate and hands them to the biome matrix. Same (seed, q, r) always
+// yields the same tile, with or without the chunk cache in front.
+func (g *WorldGenerator) TileAt(q, r int) Tile {
+	x, y := float64(q), float64(r)
+	elev := g.elevation.Eval2Normalized(x, y)
+	temp := g.temperature.Eval2Normalized(x, y)
+	moist := g.moisture.Eval2Normalized(x, y)
+	return Tile{Terrain: Biome(elev, temp, moist)}
 }
 
-// paintLayout writes the terrain indicated by each rune in layout onto w.
-// Every row must be exactly w.Width() runes long; every column count must
-// equal w.Height().
-func paintLayout(w *World, layout []string) error {
-	if len(layout) != w.Height() {
-		return fmt.Errorf("layout has %d rows, world height is %d", len(layout), w.Height())
-	}
-	for y, row := range layout {
-		runes := []rune(row)
-		if len(runes) != w.Width() {
-			return fmt.Errorf("row %d has %d runes, world width is %d", y, len(runes), w.Width())
-		}
-		for x, r := range runes {
-			w.SetTerrain(Position{X: x, Y: y}, terrainForCell(r))
+// Chunk fills an entire Chunk worth of tiles by calling TileAt for every coord in the chunk
+// bounds. After biome assignment it overlays river data: any tile whose axial coord appears
+// in RiverTilesInChunk has its River flag set to true. Biome is intentionally not altered
+// here — river-adjacent biome blending is a later tuning pass.
+func (g *WorldGenerator) Chunk(cc ChunkCoord) Chunk {
+	chunk := Chunk{Coord: cc}
+	minQ, _, minR, _ := cc.Bounds()
+	for dr := range ChunkSize {
+		for dq := range ChunkSize {
+			chunk.Tiles[dr][dq] = g.TileAt(minQ+dq, minR+dr)
 		}
 	}
-	return nil
+
+	riverTiles := g.RiverTilesInChunk(cc)
+	for dr := range ChunkSize {
+		for dq := range ChunkSize {
+			if _, ok := riverTiles[[2]int{minQ + dq, minR + dr}]; ok {
+				chunk.Tiles[dr][dq].River = true
+			}
+		}
+	}
+
+	// Overlay point-of-interest objects on top of the biome + river layer. A POI on a
+	// river tile is intentional — the river flag stays true alongside the object.
+	objects := g.ObjectsInChunk(cc)
+	for key, kind := range objects {
+		chunk.Tiles[key[1]][key[0]].Object = kind
+	}
+
+	return chunk
 }

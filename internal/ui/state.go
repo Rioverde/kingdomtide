@@ -148,6 +148,7 @@ type Model struct {
 	myID     string
 	width    int
 	height   int
+	origin   game.Position // world coord of tiles[0]
 	tiles    []*pb.Tile
 	players  map[string]playerInfo
 	logLines []string

@@ -75,8 +75,8 @@ func TestSnapshotTransitionsToPlaying(t *testing.T) {
 		Width:  2,
 		Height: 1,
 		Tiles: []*pb.Tile{
-			{Terrain: pb.Terrain_TERRAIN_FLOOR},
-			{Terrain: pb.Terrain_TERRAIN_FLOOR, Occupant: pb.OccupantKind_OCCUPANT_PLAYER, EntityId: "me"},
+			{Terrain: pb.Terrain_TERRAIN_PLAINS},
+			{Terrain: pb.Terrain_TERRAIN_PLAINS, Occupant: pb.OccupantKind_OCCUPANT_PLAYER, EntityId: "me"},
 		},
 		Entities: []*pb.Entity{
 			{Id: "me", Name: "me", Position: &pb.Position{X: 1, Y: 0}},
@@ -103,8 +103,8 @@ func TestEventMsgAppendsLogAndUpdatesPlayers(t *testing.T) {
 	m.width = 2
 	m.height = 1
 	m.tiles = []*pb.Tile{
-		{Terrain: pb.Terrain_TERRAIN_FLOOR},
-		{Terrain: pb.Terrain_TERRAIN_FLOOR},
+		{Terrain: pb.Terrain_TERRAIN_PLAINS},
+		{Terrain: pb.Terrain_TERRAIN_PLAINS},
 	}
 
 	ev := &pb.Event{

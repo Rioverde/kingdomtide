@@ -7,12 +7,11 @@
 package gongeonspb
 
 import (
+	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
+	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
-
-	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
-	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 )
 
 const (
@@ -22,32 +21,70 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Terrain is the tile surface kind.
+// Terrain is the biome of a tile. One value per domain terrain, so the
+// client can render every biome distinctly without asking the server for
+// side-channel info.
 type Terrain int32
 
 const (
 	Terrain_TERRAIN_UNSPECIFIED Terrain = 0
-	Terrain_TERRAIN_FLOOR       Terrain = 1
-	Terrain_TERRAIN_WALL        Terrain = 2
-	Terrain_TERRAIN_GRASS       Terrain = 3
-	Terrain_TERRAIN_WATER       Terrain = 4
+	Terrain_TERRAIN_PLAINS      Terrain = 1
+	Terrain_TERRAIN_GRASSLAND   Terrain = 2
+	Terrain_TERRAIN_MEADOW      Terrain = 3
+	Terrain_TERRAIN_BEACH       Terrain = 4
+	Terrain_TERRAIN_DESERT      Terrain = 5
+	Terrain_TERRAIN_SAVANNA     Terrain = 6
+	Terrain_TERRAIN_FOREST      Terrain = 7
+	Terrain_TERRAIN_JUNGLE      Terrain = 8
+	Terrain_TERRAIN_TAIGA       Terrain = 9
+	Terrain_TERRAIN_TUNDRA      Terrain = 10
+	Terrain_TERRAIN_SNOW        Terrain = 11
+	Terrain_TERRAIN_HILLS       Terrain = 12
+	Terrain_TERRAIN_MOUNTAIN    Terrain = 13
+	Terrain_TERRAIN_SNOWY_PEAK  Terrain = 14
+	Terrain_TERRAIN_OCEAN       Terrain = 15
+	Terrain_TERRAIN_DEEP_OCEAN  Terrain = 16
 )
 
 // Enum value maps for Terrain.
 var (
 	Terrain_name = map[int32]string{
-		0: "TERRAIN_UNSPECIFIED",
-		1: "TERRAIN_FLOOR",
-		2: "TERRAIN_WALL",
-		3: "TERRAIN_GRASS",
-		4: "TERRAIN_WATER",
+		0:  "TERRAIN_UNSPECIFIED",
+		1:  "TERRAIN_PLAINS",
+		2:  "TERRAIN_GRASSLAND",
+		3:  "TERRAIN_MEADOW",
+		4:  "TERRAIN_BEACH",
+		5:  "TERRAIN_DESERT",
+		6:  "TERRAIN_SAVANNA",
+		7:  "TERRAIN_FOREST",
+		8:  "TERRAIN_JUNGLE",
+		9:  "TERRAIN_TAIGA",
+		10: "TERRAIN_TUNDRA",
+		11: "TERRAIN_SNOW",
+		12: "TERRAIN_HILLS",
+		13: "TERRAIN_MOUNTAIN",
+		14: "TERRAIN_SNOWY_PEAK",
+		15: "TERRAIN_OCEAN",
+		16: "TERRAIN_DEEP_OCEAN",
 	}
 	Terrain_value = map[string]int32{
 		"TERRAIN_UNSPECIFIED": 0,
-		"TERRAIN_FLOOR":       1,
-		"TERRAIN_WALL":        2,
-		"TERRAIN_GRASS":       3,
-		"TERRAIN_WATER":       4,
+		"TERRAIN_PLAINS":      1,
+		"TERRAIN_GRASSLAND":   2,
+		"TERRAIN_MEADOW":      3,
+		"TERRAIN_BEACH":       4,
+		"TERRAIN_DESERT":      5,
+		"TERRAIN_SAVANNA":     6,
+		"TERRAIN_FOREST":      7,
+		"TERRAIN_JUNGLE":      8,
+		"TERRAIN_TAIGA":       9,
+		"TERRAIN_TUNDRA":      10,
+		"TERRAIN_SNOW":        11,
+		"TERRAIN_HILLS":       12,
+		"TERRAIN_MOUNTAIN":    13,
+		"TERRAIN_SNOWY_PEAK":  14,
+		"TERRAIN_OCEAN":       15,
+		"TERRAIN_DEEP_OCEAN":  16,
 	}
 )
 
@@ -129,7 +166,8 @@ func (OccupantKind) EnumDescriptor() ([]byte, []int) {
 	return file_gongeons_proto_rawDescGZIP(), []int{1}
 }
 
-// Position is a square-grid tile coordinate. Origin is top-left, Y grows down.
+// Position is an absolute square-grid tile coordinate. Origin is arbitrary
+// (world 0, 0); the coordinate system is unbounded in both axes.
 type Position struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	X             int32                  `protobuf:"varint,1,opt,name=x,proto3" json:"x,omitempty"`
@@ -182,13 +220,14 @@ func (x *Position) GetY() int32 {
 	return 0
 }
 
-// Tile is an atomic map cell. Used in Snapshot only — Events carry deltas, not
-// full tile replacements.
+// Tile is an atomic map cell. Used in Snapshot only — Events carry deltas,
+// not full tile replacements.
 type Tile struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Terrain       Terrain                `protobuf:"varint,1,opt,name=terrain,proto3,enum=gongeons.v1.Terrain" json:"terrain,omitempty"`
 	Occupant      OccupantKind           `protobuf:"varint,2,opt,name=occupant,proto3,enum=gongeons.v1.OccupantKind" json:"occupant,omitempty"`
 	EntityId      string                 `protobuf:"bytes,3,opt,name=entity_id,json=entityId,proto3" json:"entity_id,omitempty"` // occupant ID, empty if no occupant
+	River         bool                   `protobuf:"varint,4,opt,name=river,proto3" json:"river,omitempty"`                      // set on tiles the generator carved a river on
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -244,8 +283,15 @@ func (x *Tile) GetEntityId() string {
 	return ""
 }
 
-// Entity is a positioned actor in the world. The MVP ships with just players.
-// Combat stats / monsters are added in a later phase on top of this shape.
+func (x *Tile) GetRiver() bool {
+	if x != nil {
+		return x.River
+	}
+	return false
+}
+
+// Entity is a positioned actor in the world. Combat stats / monsters are
+// added in a later phase on top of this shape.
 type Entity struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -611,10 +657,12 @@ func (*ServerMessage_Event) isServerMessage_Payload() {}
 func (*ServerMessage_Error) isServerMessage_Payload() {}
 
 // JoinAccepted is the server's reply to JoinRequest. It carries the generated
-// PlayerID — the client stores it and uses it to recognise its own events.
+// PlayerID and the player's spawn position — the client stores the ID and
+// uses it to recognise its own events.
 type JoinAccepted struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	PlayerId      string                 `protobuf:"bytes,1,opt,name=player_id,json=playerId,proto3" json:"player_id,omitempty"`
+	Spawn         *Position              `protobuf:"bytes,2,opt,name=spawn,proto3" json:"spawn,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -656,14 +704,23 @@ func (x *JoinAccepted) GetPlayerId() string {
 	return ""
 }
 
-// Snapshot is the full world state. Sent once on join, and may be resent if
-// the server decides to hard-resync (post-MVP).
+func (x *JoinAccepted) GetSpawn() *Position {
+	if x != nil {
+		return x.Spawn
+	}
+	return nil
+}
+
+// Snapshot is a viewport of the world. Width/height are tile counts; origin
+// is the world-space position of the top-left tile. Tiles are row-major of
+// length width*height.
 type Snapshot struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Width         int32                  `protobuf:"varint,1,opt,name=width,proto3" json:"width,omitempty"`
 	Height        int32                  `protobuf:"varint,2,opt,name=height,proto3" json:"height,omitempty"`
-	Tiles         []*Tile                `protobuf:"bytes,3,rep,name=tiles,proto3" json:"tiles,omitempty"` // length == width*height, row-major
-	Entities      []*Entity              `protobuf:"bytes,4,rep,name=entities,proto3" json:"entities,omitempty"`
+	Origin        *Position              `protobuf:"bytes,3,opt,name=origin,proto3" json:"origin,omitempty"`
+	Tiles         []*Tile                `protobuf:"bytes,4,rep,name=tiles,proto3" json:"tiles,omitempty"`
+	Entities      []*Entity              `protobuf:"bytes,5,rep,name=entities,proto3" json:"entities,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -710,6 +767,13 @@ func (x *Snapshot) GetHeight() int32 {
 		return x.Height
 	}
 	return 0
+}
+
+func (x *Snapshot) GetOrigin() *Position {
+	if x != nil {
+		return x.Origin
+	}
+	return nil
 }
 
 func (x *Snapshot) GetTiles() []*Tile {
@@ -1033,11 +1097,12 @@ const file_gongeons_proto_rawDesc = "" +
 	"\x0egongeons.proto\x12\vgongeons.v1\"&\n" +
 	"\bPosition\x12\f\n" +
 	"\x01x\x18\x01 \x01(\x05R\x01x\x12\f\n" +
-	"\x01y\x18\x02 \x01(\x05R\x01y\"\x8a\x01\n" +
+	"\x01y\x18\x02 \x01(\x05R\x01y\"\xa0\x01\n" +
 	"\x04Tile\x12.\n" +
 	"\aterrain\x18\x01 \x01(\x0e2\x14.gongeons.v1.TerrainR\aterrain\x125\n" +
 	"\boccupant\x18\x02 \x01(\x0e2\x19.gongeons.v1.OccupantKindR\boccupant\x12\x1b\n" +
-	"\tentity_id\x18\x03 \x01(\tR\bentityId\"\x8e\x01\n" +
+	"\tentity_id\x18\x03 \x01(\tR\bentityId\x12\x14\n" +
+	"\x05river\x18\x04 \x01(\bR\x05river\"\x8e\x01\n" +
 	"\x06Entity\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12-\n" +
@@ -1057,14 +1122,16 @@ const file_gongeons_proto_rawDesc = "" +
 	"\bsnapshot\x18\x02 \x01(\v2\x15.gongeons.v1.SnapshotH\x00R\bsnapshot\x12*\n" +
 	"\x05event\x18\x03 \x01(\v2\x12.gongeons.v1.EventH\x00R\x05event\x122\n" +
 	"\x05error\x18\x04 \x01(\v2\x1a.gongeons.v1.ErrorResponseH\x00R\x05errorB\t\n" +
-	"\apayload\"+\n" +
+	"\apayload\"X\n" +
 	"\fJoinAccepted\x12\x1b\n" +
-	"\tplayer_id\x18\x01 \x01(\tR\bplayerId\"\x92\x01\n" +
+	"\tplayer_id\x18\x01 \x01(\tR\bplayerId\x12+\n" +
+	"\x05spawn\x18\x02 \x01(\v2\x15.gongeons.v1.PositionR\x05spawn\"\xc1\x01\n" +
 	"\bSnapshot\x12\x14\n" +
 	"\x05width\x18\x01 \x01(\x05R\x05width\x12\x16\n" +
-	"\x06height\x18\x02 \x01(\x05R\x06height\x12'\n" +
-	"\x05tiles\x18\x03 \x03(\v2\x11.gongeons.v1.TileR\x05tiles\x12/\n" +
-	"\bentities\x18\x04 \x03(\v2\x13.gongeons.v1.EntityR\bentities\"\xcf\x01\n" +
+	"\x06height\x18\x02 \x01(\x05R\x06height\x12-\n" +
+	"\x06origin\x18\x03 \x01(\v2\x15.gongeons.v1.PositionR\x06origin\x12'\n" +
+	"\x05tiles\x18\x04 \x03(\v2\x11.gongeons.v1.TileR\x05tiles\x12/\n" +
+	"\bentities\x18\x05 \x03(\v2\x13.gongeons.v1.EntityR\bentities\"\xcf\x01\n" +
 	"\x05Event\x12@\n" +
 	"\rplayer_joined\x18\x01 \x01(\v2\x19.gongeons.v1.PlayerJoinedH\x00R\fplayerJoined\x12:\n" +
 	"\vplayer_left\x18\x02 \x01(\v2\x17.gongeons.v1.PlayerLeftH\x00R\n" +
@@ -1082,13 +1149,26 @@ const file_gongeons_proto_rawDesc = "" +
 	"\x02to\x18\x03 \x01(\v2\x15.gongeons.v1.PositionR\x02to\"=\n" +
 	"\rErrorResponse\x12\x18\n" +
 	"\amessage\x18\x01 \x01(\tR\amessage\x12\x12\n" +
-	"\x04code\x18\x02 \x01(\tR\x04code*m\n" +
+	"\x04code\x18\x02 \x01(\tR\x04code*\xea\x02\n" +
 	"\aTerrain\x12\x17\n" +
-	"\x13TERRAIN_UNSPECIFIED\x10\x00\x12\x11\n" +
-	"\rTERRAIN_FLOOR\x10\x01\x12\x10\n" +
-	"\fTERRAIN_WALL\x10\x02\x12\x11\n" +
-	"\rTERRAIN_GRASS\x10\x03\x12\x11\n" +
-	"\rTERRAIN_WATER\x10\x04*S\n" +
+	"\x13TERRAIN_UNSPECIFIED\x10\x00\x12\x12\n" +
+	"\x0eTERRAIN_PLAINS\x10\x01\x12\x15\n" +
+	"\x11TERRAIN_GRASSLAND\x10\x02\x12\x12\n" +
+	"\x0eTERRAIN_MEADOW\x10\x03\x12\x11\n" +
+	"\rTERRAIN_BEACH\x10\x04\x12\x12\n" +
+	"\x0eTERRAIN_DESERT\x10\x05\x12\x13\n" +
+	"\x0fTERRAIN_SAVANNA\x10\x06\x12\x12\n" +
+	"\x0eTERRAIN_FOREST\x10\a\x12\x12\n" +
+	"\x0eTERRAIN_JUNGLE\x10\b\x12\x11\n" +
+	"\rTERRAIN_TAIGA\x10\t\x12\x12\n" +
+	"\x0eTERRAIN_TUNDRA\x10\n" +
+	"\x12\x10\n" +
+	"\fTERRAIN_SNOW\x10\v\x12\x11\n" +
+	"\rTERRAIN_HILLS\x10\f\x12\x14\n" +
+	"\x10TERRAIN_MOUNTAIN\x10\r\x12\x16\n" +
+	"\x12TERRAIN_SNOWY_PEAK\x10\x0e\x12\x11\n" +
+	"\rTERRAIN_OCEAN\x10\x0f\x12\x16\n" +
+	"\x12TERRAIN_DEEP_OCEAN\x10\x10*S\n" +
 	"\fOccupantKind\x12\x18\n" +
 	"\x14OCCUPANT_UNSPECIFIED\x10\x00\x12\x13\n" +
 	"\x0fOCCUPANT_PLAYER\x10\x01\x12\x14\n" +
@@ -1139,21 +1219,23 @@ var file_gongeons_proto_depIdxs = []int32{
 	10, // 7: gongeons.v1.ServerMessage.snapshot:type_name -> gongeons.v1.Snapshot
 	11, // 8: gongeons.v1.ServerMessage.event:type_name -> gongeons.v1.Event
 	15, // 9: gongeons.v1.ServerMessage.error:type_name -> gongeons.v1.ErrorResponse
-	3,  // 10: gongeons.v1.Snapshot.tiles:type_name -> gongeons.v1.Tile
-	4,  // 11: gongeons.v1.Snapshot.entities:type_name -> gongeons.v1.Entity
-	12, // 12: gongeons.v1.Event.player_joined:type_name -> gongeons.v1.PlayerJoined
-	13, // 13: gongeons.v1.Event.player_left:type_name -> gongeons.v1.PlayerLeft
-	14, // 14: gongeons.v1.Event.entity_moved:type_name -> gongeons.v1.EntityMoved
-	4,  // 15: gongeons.v1.PlayerJoined.entity:type_name -> gongeons.v1.Entity
-	2,  // 16: gongeons.v1.EntityMoved.from:type_name -> gongeons.v1.Position
-	2,  // 17: gongeons.v1.EntityMoved.to:type_name -> gongeons.v1.Position
-	5,  // 18: gongeons.v1.GameService.Play:input_type -> gongeons.v1.ClientMessage
-	8,  // 19: gongeons.v1.GameService.Play:output_type -> gongeons.v1.ServerMessage
-	19, // [19:20] is the sub-list for method output_type
-	18, // [18:19] is the sub-list for method input_type
-	18, // [18:18] is the sub-list for extension type_name
-	18, // [18:18] is the sub-list for extension extendee
-	0,  // [0:18] is the sub-list for field type_name
+	2,  // 10: gongeons.v1.JoinAccepted.spawn:type_name -> gongeons.v1.Position
+	2,  // 11: gongeons.v1.Snapshot.origin:type_name -> gongeons.v1.Position
+	3,  // 12: gongeons.v1.Snapshot.tiles:type_name -> gongeons.v1.Tile
+	4,  // 13: gongeons.v1.Snapshot.entities:type_name -> gongeons.v1.Entity
+	12, // 14: gongeons.v1.Event.player_joined:type_name -> gongeons.v1.PlayerJoined
+	13, // 15: gongeons.v1.Event.player_left:type_name -> gongeons.v1.PlayerLeft
+	14, // 16: gongeons.v1.Event.entity_moved:type_name -> gongeons.v1.EntityMoved
+	4,  // 17: gongeons.v1.PlayerJoined.entity:type_name -> gongeons.v1.Entity
+	2,  // 18: gongeons.v1.EntityMoved.from:type_name -> gongeons.v1.Position
+	2,  // 19: gongeons.v1.EntityMoved.to:type_name -> gongeons.v1.Position
+	5,  // 20: gongeons.v1.GameService.Play:input_type -> gongeons.v1.ClientMessage
+	8,  // 21: gongeons.v1.GameService.Play:output_type -> gongeons.v1.ServerMessage
+	21, // [21:22] is the sub-list for method output_type
+	20, // [20:21] is the sub-list for method input_type
+	20, // [20:20] is the sub-list for extension type_name
+	20, // [20:20] is the sub-list for extension extendee
+	0,  // [0:20] is the sub-list for field type_name
 }
 
 func init() { file_gongeons_proto_init() }

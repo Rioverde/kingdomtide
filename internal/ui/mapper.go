@@ -7,35 +7,9 @@ import (
 	pb "github.com/Rioverde/gongeons/internal/proto"
 )
 
-// terrainBucket is the reduced render category for a tile. It collapses
-// pb.Terrain variants down to just the cases the view cares about so the
-// render path does not spell out a big switch per cell.
-type terrainBucket int
-
-const (
-	terrainBucketUnspecified terrainBucket = iota
-	terrainBucketFloor
-	terrainBucketWall
-	terrainBucketWater
-)
-
-// bucketOf maps a pb.Terrain to its render bucket.
-func bucketOf(t pb.Terrain) terrainBucket {
-	switch t {
-	case pb.Terrain_TERRAIN_FLOOR, pb.Terrain_TERRAIN_GRASS:
-		return terrainBucketFloor
-	case pb.Terrain_TERRAIN_WALL:
-		return terrainBucketWall
-	case pb.Terrain_TERRAIN_WATER:
-		return terrainBucketWater
-	default:
-		return terrainBucketUnspecified
-	}
-}
-
-// positionFromPB converts a proto Position to the domain value type.
-// A nil receiver maps to the origin — a deliberate choice so callers
-// don't have to guard every field access.
+// positionFromPB converts a proto Position to the domain value type. A nil
+// receiver maps to the origin — callers don't have to guard every field
+// access.
 func positionFromPB(p *pb.Position) game.Position {
 	if p == nil {
 		return game.Position{}
@@ -43,20 +17,18 @@ func positionFromPB(p *pb.Position) game.Position {
 	return game.Position{X: int(p.GetX()), Y: int(p.GetY())}
 }
 
-// applySnapshot replaces the local world state with a full server
-// snapshot. It clears any previous tiles/players and rebuilds from
-// scratch — snapshots are authoritative.
+// applySnapshot replaces the local world state with a full server snapshot.
+// Origin is recorded so world-space event coordinates can be translated to
+// local tile-array indices.
 func applySnapshot(m *Model, s *pb.Snapshot) {
 	if s == nil {
 		return
 	}
 	m.width = int(s.GetWidth())
 	m.height = int(s.GetHeight())
+	m.origin = positionFromPB(s.GetOrigin())
 
 	src := s.GetTiles()
-	// Copy the slice header so callers cannot mutate our tiles through
-	// the Snapshot they passed in. The element pointers are shared —
-	// acceptable here because the server never reuses them.
 	tiles := make([]*pb.Tile, len(src))
 	copy(tiles, src)
 	m.tiles = tiles
@@ -74,9 +46,9 @@ func applySnapshot(m *Model, s *pb.Snapshot) {
 	}
 }
 
-// applyEvent folds one server event into the local model. Each branch
-// also appends a log line so the event log panel on the playing screen
-// gives a running narrative of other players' actions.
+// applyEvent folds one server event into the local model. Each branch also
+// appends a log line so the event log panel on the playing screen gives a
+// running narrative of other players' actions.
 func applyEvent(m *Model, ev *pb.Event) {
 	if ev == nil {
 		return
@@ -91,22 +63,20 @@ func applyEvent(m *Model, ev *pb.Event) {
 		pos := positionFromPB(ent.GetPosition())
 		m.players[id] = playerInfo{ID: id, Name: ent.GetName(), Pos: pos}
 		m.setOccupant(pos, id, pb.OccupantKind_OCCUPANT_PLAYER)
-		m.appendLog(fmt.Sprintf("* %s joined", displayName(ent.GetName(), id)))
+		m.appendLog(fmt.Sprintf(LogBullet+" %s joined", displayName(ent.GetName(), id)))
 	case *pb.Event_PlayerLeft:
 		id := payload.PlayerLeft.GetPlayerId()
 		if info, ok := m.players[id]; ok {
 			m.clearOccupantAt(info.Pos, id)
 			delete(m.players, id)
-			m.appendLog(fmt.Sprintf("* %s left", displayName(info.Name, id)))
+			m.appendLog(fmt.Sprintf(LogBullet+" %s left", displayName(info.Name, id)))
 			return
 		}
-		m.appendLog(fmt.Sprintf("* %s left", displayName("", id)))
+		m.appendLog(fmt.Sprintf(LogBullet+" %s left", displayName("", id)))
 	case *pb.Event_EntityMoved:
 		id := payload.EntityMoved.GetEntityId()
 		from := positionFromPB(payload.EntityMoved.GetFrom())
 		to := positionFromPB(payload.EntityMoved.GetTo())
-		// Keep the tiles slice in sync with the authoritative position so
-		// re-renders don't show ghosts at the old cell.
 		m.clearOccupantAt(from, id)
 		m.setOccupant(to, id, pb.OccupantKind_OCCUPANT_PLAYER)
 		info, ok := m.players[id]
@@ -115,7 +85,7 @@ func applyEvent(m *Model, ev *pb.Event) {
 		}
 		info.Pos = to
 		m.players[id] = info
-		m.appendLog(fmt.Sprintf("* %s moved", displayName(info.Name, id)))
+		m.appendLog(fmt.Sprintf(LogBullet+" %s moved", displayName(info.Name, id)))
 	}
 }
 
@@ -136,21 +106,22 @@ func displayName(name, id string) string {
 	return id
 }
 
-// tileIndex returns the row-major offset of (p.X, p.Y) or -1 if the
-// position is out of bounds.
+// tileIndex translates a world-space position into the local tile-array
+// offset, or -1 when the position falls outside the current viewport.
 func (m *Model) tileIndex(p game.Position) int {
 	if m.width <= 0 || m.height <= 0 {
 		return -1
 	}
-	if p.X < 0 || p.Y < 0 || p.X >= m.width || p.Y >= m.height {
+	localX := p.X - m.origin.X
+	localY := p.Y - m.origin.Y
+	if localX < 0 || localY < 0 || localX >= m.width || localY >= m.height {
 		return -1
 	}
-	return p.Y*m.width + p.X
+	return localY*m.width + localX
 }
 
-// setOccupant writes occupant metadata to a tile. No-op if the position
-// is out of bounds or the tile slot is nil (server didn't ship this
-// cell — shouldn't happen, but the guard is cheap).
+// setOccupant writes occupant metadata to a tile. No-op if the position is
+// out of the viewport or the tile slot is nil.
 func (m *Model) setOccupant(p game.Position, entityID string, kind pb.OccupantKind) {
 	idx := m.tileIndex(p)
 	if idx < 0 || idx >= len(m.tiles) {
@@ -165,8 +136,8 @@ func (m *Model) setOccupant(p game.Position, entityID string, kind pb.OccupantKi
 }
 
 // clearOccupantAt blanks occupant metadata only when the entity currently
-// listed on that tile matches id. Prevents out-of-order events from
-// wiping a cell a different entity has since moved onto.
+// listed on that tile matches id. Prevents out-of-order events from wiping a
+// cell a different entity has since moved onto.
 func (m *Model) clearOccupantAt(p game.Position, id string) {
 	idx := m.tileIndex(p)
 	if idx < 0 || idx >= len(m.tiles) {

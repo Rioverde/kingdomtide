@@ -8,7 +8,6 @@ package gongeonspb
 
 import (
 	context "context"
-
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -31,8 +30,8 @@ const (
 // Each client opens exactly one Play stream for the lifetime of its session.
 type GameServiceClient interface {
 	// Play is a bidirectional stream. The client opens it, sends a JoinRequest
-	// first, then a sequence of commands. The server replies with JoinAccepted +
-	// a Snapshot on join and Event messages thereafter.
+	// first, then a sequence of commands. The server replies with JoinAccepted
+	// + a Snapshot on join and Event messages thereafter.
 	Play(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ClientMessage, ServerMessage], error)
 }
 
@@ -65,8 +64,8 @@ type GameService_PlayClient = grpc.BidiStreamingClient[ClientMessage, ServerMess
 // Each client opens exactly one Play stream for the lifetime of its session.
 type GameServiceServer interface {
 	// Play is a bidirectional stream. The client opens it, sends a JoinRequest
-	// first, then a sequence of commands. The server replies with JoinAccepted +
-	// a Snapshot on join and Event messages thereafter.
+	// first, then a sequence of commands. The server replies with JoinAccepted
+	// + a Snapshot on join and Event messages thereafter.
 	Play(grpc.BidiStreamingServer[ClientMessage, ServerMessage]) error
 	mustEmbedUnimplementedGameServiceServer()
 }

@@ -62,9 +62,6 @@ func TestEventToServerMessagePlayerJoined(t *testing.T) {
 	if pj.GetEntity().GetPosition().GetX() != 3 || pj.GetEntity().GetPosition().GetY() != 4 {
 		t.Fatalf("position wrong: %+v", pj.GetEntity().GetPosition())
 	}
-	if pj.GetEntity().GetKind() != pb.OccupantKind_OCCUPANT_PLAYER {
-		t.Fatalf("kind wrong: %v", pj.GetEntity().GetKind())
-	}
 }
 
 func TestEventToServerMessagePlayerLeft(t *testing.T) {
@@ -95,15 +92,16 @@ func TestEventToServerMessageEntityMoved(t *testing.T) {
 	}
 }
 
-func TestTerrainToPBBuckets(t *testing.T) {
+func TestTerrainToPBMapping(t *testing.T) {
 	cases := map[game.Terrain]pb.Terrain{
-		game.TerrainPlains:    pb.Terrain_TERRAIN_FLOOR,
-		game.TerrainGrassland: pb.Terrain_TERRAIN_FLOOR,
-		game.TerrainForest:    pb.Terrain_TERRAIN_FLOOR,
-		game.TerrainMountain:  pb.Terrain_TERRAIN_WALL,
-		game.TerrainSnowyPeak: pb.Terrain_TERRAIN_WALL,
-		game.TerrainOcean:     pb.Terrain_TERRAIN_WATER,
-		game.TerrainDeepOcean: pb.Terrain_TERRAIN_WATER,
+		game.TerrainPlains:    pb.Terrain_TERRAIN_PLAINS,
+		game.TerrainGrassland: pb.Terrain_TERRAIN_GRASSLAND,
+		game.TerrainForest:    pb.Terrain_TERRAIN_FOREST,
+		game.TerrainMountain:  pb.Terrain_TERRAIN_MOUNTAIN,
+		game.TerrainOcean:     pb.Terrain_TERRAIN_OCEAN,
+		game.TerrainDeepOcean: pb.Terrain_TERRAIN_DEEP_OCEAN,
+		game.TerrainBeach:     pb.Terrain_TERRAIN_BEACH,
+		game.TerrainHills:     pb.Terrain_TERRAIN_HILLS,
 		game.Terrain(""):      pb.Terrain_TERRAIN_UNSPECIFIED,
 		game.Terrain("xyz"):   pb.Terrain_TERRAIN_UNSPECIFIED,
 	}
@@ -114,36 +112,27 @@ func TestTerrainToPBBuckets(t *testing.T) {
 	}
 }
 
-func TestSnapshotOfDefaultWorldWithPlayer(t *testing.T) {
-	w := game.NewMockWorld()
+func TestSnapshotOfShape(t *testing.T) {
+	w := game.NewWorld(42)
 	events, err := w.ApplyCommand(game.JoinCmd{PlayerID: "p1", Name: "alice"})
 	if err != nil {
 		t.Fatalf("apply join: %v", err)
 	}
-	pj, ok := events[0].(game.PlayerJoinedEvent)
-	if !ok {
-		t.Fatalf("expected PlayerJoinedEvent, got %T", events[0])
-	}
+	spawn := events[0].(game.PlayerJoinedEvent).Position
 
-	snap := snapshotOf(w)
-	if snap.GetWidth() != int32(w.Width()) || snap.GetHeight() != int32(w.Height()) {
-		t.Fatalf("snapshot size %dx%d, want %dx%d",
-			snap.GetWidth(), snap.GetHeight(), w.Width(), w.Height())
+	snap := snapshotOf(w, spawn)
+	if snap.GetWidth() != int32(ViewportWidth) || snap.GetHeight() != int32(ViewportHeight) {
+		t.Fatalf("snapshot size: %dx%d, want %dx%d",
+			snap.GetWidth(), snap.GetHeight(), ViewportWidth, ViewportHeight)
 	}
-	if len(snap.GetTiles()) != w.Width()*w.Height() {
+	if len(snap.GetTiles()) != ViewportWidth*ViewportHeight {
 		t.Fatalf("snapshot tile count: got %d, want %d",
-			len(snap.GetTiles()), w.Width()*w.Height())
+			len(snap.GetTiles()), ViewportWidth*ViewportHeight)
 	}
-
-	spawnIdx := pj.Position.Y*w.Width() + pj.Position.X
-	spawnTile := snap.GetTiles()[spawnIdx]
-	if spawnTile.GetOccupant() != pb.OccupantKind_OCCUPANT_PLAYER {
-		t.Fatalf("spawn tile occupant: %v", spawnTile.GetOccupant())
+	if snap.GetOrigin().GetX() != int32(spawn.X-ViewportWidth/2) ||
+		snap.GetOrigin().GetY() != int32(spawn.Y-ViewportHeight/2) {
+		t.Fatalf("origin: %+v, want centred on spawn %+v", snap.GetOrigin(), spawn)
 	}
-	if spawnTile.GetEntityId() != "p1" {
-		t.Fatalf("spawn tile entity id: %v", spawnTile.GetEntityId())
-	}
-
 	if len(snap.GetEntities()) != 1 || snap.GetEntities()[0].GetId() != "p1" {
 		t.Fatalf("entities: %v", snap.GetEntities())
 	}

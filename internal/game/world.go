@@ -2,67 +2,90 @@ package game
 
 import "sort"
 
-// World is the authoritative in-memory state of a single match: a rectangular
-// grid of Tiles plus a registry of active players and their positions. The
-// grid is flat, row-major: index y*width + x. World is not safe for
-// concurrent use; callers (server) own the lock.
-type World struct {
-	width, height int
-	tiles         []Tile
-	players       map[string]*Player
-	positions     map[string]Position
+// TileSource is the read-only pluggable backend that tells a World what
+// terrain sits at a given coordinate. Both procedural and hand-painted
+// sources implement it; the World does not care which variant it holds.
+type TileSource interface {
+	TileAt(x, y int) Tile
 }
 
-// NewWorld constructs an empty world of the given dimensions, pre-filled with
-// TerrainPlains and no occupants. Panics on non-positive dimensions: the
-// caller is building a world at startup and a zero-sized map is a programmer
-// error, not a recoverable runtime condition.
-func NewWorld(width, height int) *World {
-	if width <= 0 || height <= 0 {
-		panic("game: world dimensions must be positive")
+// chunkedSource is the procedural, infinite TileSource: a WorldGenerator
+// plus an LRU chunk cache in front of it. Determined fully by seed.
+type chunkedSource struct {
+	gen   *WorldGenerator
+	cache *ChunkCache
+}
+
+// newChunkedSource wires a fresh generator and cache around the given seed.
+func newChunkedSource(seed int64) *chunkedSource {
+	return &chunkedSource{
+		gen:   NewWorldGenerator(seed),
+		cache: NewChunkCache(DefaultChunkCacheCapacity),
 	}
-	tiles := make([]Tile, width*height)
-	for i := range tiles {
-		tiles[i].Terrain = TerrainPlains
+}
+
+// TileAt returns the procedurally-generated tile at (x, y), memoised at the
+// chunk level so repeated reads inside the same chunk are cheap.
+func (s *chunkedSource) TileAt(x, y int) Tile {
+	cc := WorldToChunk(x, y)
+	if cached, ok := s.cache.Get(cc); ok {
+		return cached.At(x, y)
 	}
+	c := s.gen.Chunk(cc)
+	s.cache.Put(cc, &c)
+	return c.At(x, y)
+}
+
+// World is the authoritative in-memory state of a single match. It combines
+// an immutable, pluggable TileSource with mutable runtime overlays — the
+// player registry and the occupancy map. World is NOT safe for concurrent
+// use; callers (server) own the lock.
+type World struct {
+	source    TileSource
+	players   map[string]*Player
+	positions map[string]Position
+	// occupants shadows the TileSource with runtime occupant info. TileAt
+	// merges the two on read so the TileSource stays read-only.
+	occupants map[Position]*Player
+}
+
+// NewWorld constructs an infinite, procedural World seeded from the given
+// value. Two worlds built with the same seed yield identical terrain.
+func NewWorld(seed int64) *World {
+	return NewWorldFromSource(newChunkedSource(seed))
+}
+
+// NewWorldFromSource wraps the given TileSource in a World. Production code
+// goes through NewWorld; NewWorldFromSource lets tests (or future scenario
+// loaders) supply a hand-crafted source without touching the procedural
+// pipeline.
+func NewWorldFromSource(source TileSource) *World {
 	return &World{
-		width:     width,
-		height:    height,
-		tiles:     tiles,
+		source:    source,
 		players:   make(map[string]*Player),
 		positions: make(map[string]Position),
+		occupants: make(map[Position]*Player),
 	}
 }
 
-// Width returns the world width in tiles.
-func (w *World) Width() int { return w.width }
-
-// Height returns the world height in tiles.
-func (w *World) Height() int { return w.height }
-
-// InBounds reports whether p is a valid tile coordinate in this world.
+// InBounds reports whether p is a valid tile coordinate. For the current
+// infinite world this is always true; the method stays on the API so
+// callers are prepared to treat it as a real check when (if) we introduce
+// hard world limits.
 func (w *World) InBounds(p Position) bool {
-	return p.X >= 0 && p.X < w.width && p.Y >= 0 && p.Y < w.height
+	_ = p
+	return true
 }
 
-// TileAt returns the tile at p. The second return is false when p is out of
-// bounds, in which case the first return is the zero Tile.
+// TileAt returns the tile at p with any runtime occupant merged in. The
+// second return is always true in an infinite world — kept for API
+// compatibility with the previous fixed-grid variant.
 func (w *World) TileAt(p Position) (Tile, bool) {
-	if !w.InBounds(p) {
-		return Tile{}, false
+	t := w.source.TileAt(p.X, p.Y)
+	if occ, ok := w.occupants[p]; ok {
+		t.Occupant = occ
 	}
-	return w.tiles[w.index(p)], true
-}
-
-// SetTerrain overwrites the terrain at p. Exported so world builders
-// (scenario loaders, future procgen) can shape a world without going through
-// ApplyCommand. Out-of-bounds writes are silently ignored so builder code can
-// stay straight-line.
-func (w *World) SetTerrain(p Position, t Terrain) {
-	if !w.InBounds(p) {
-		return
-	}
-	w.tiles[w.index(p)].Terrain = t
+	return t, true
 }
 
 // PlayerByID returns the player with the given id. The second return is
@@ -93,12 +116,6 @@ func (w *World) Players() []*Player {
 		out = append(out, w.players[id])
 	}
 	return out
-}
-
-// index converts a position to a row-major tile index. Callers must have
-// verified InBounds(p).
-func (w *World) index(p Position) int {
-	return p.Y*w.width + p.X
 }
 
 // Passable reports whether an entity can stand on a tile of this terrain.

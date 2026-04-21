@@ -2,6 +2,11 @@ package game
 
 import "fmt"
 
+// spawnSearchRadius caps how far from the origin the spawn scanner looks
+// before giving up. An infinite world cannot be exhaustively searched, so a
+// finite budget guarantees Join eventually fails rather than hanging.
+const spawnSearchRadius = 32
+
 // ApplyCommand advances world state by one domain command, returning the
 // events that describe the transition. On error the world is left unchanged
 // and the returned event slice is empty. ApplyCommand is pure in the usual
@@ -40,7 +45,7 @@ func (w *World) applyJoin(c JoinCmd) ([]Event, error) {
 
 	w.players[c.PlayerID] = player
 	w.positions[c.PlayerID] = spawn
-	w.tiles[w.index(spawn)].Occupant = player
+	w.occupants[spawn] = player
 
 	events := make([]Event, 0, 1)
 	events = append(events, PlayerJoinedEvent{
@@ -61,26 +66,20 @@ func (w *World) applyMove(c MoveCmd) ([]Event, error) {
 	}
 	from, ok := w.positions[c.PlayerID]
 	if !ok {
-		// players and positions are kept in sync by this package; a miss
-		// here is a bug, but surfacing it as ErrPlayerNotFound is the
-		// safest external behaviour.
 		return nil, fmt.Errorf("move: %w", ErrPlayerNotFound)
 	}
 	to := from.Add(c.DX, c.DY)
 
-	if !w.InBounds(to) {
-		return nil, fmt.Errorf("move: %w", ErrBlocked)
-	}
-	target := &w.tiles[w.index(to)]
+	target, _ := w.TileAt(to)
 	if !target.Terrain.Passable() {
 		return nil, fmt.Errorf("move: %w", ErrBlocked)
 	}
-	if target.Occupant != nil {
+	if _, occupied := w.occupants[to]; occupied {
 		return nil, fmt.Errorf("move: %w", ErrBlocked)
 	}
 
-	w.tiles[w.index(from)].Occupant = nil
-	target.Occupant = player
+	delete(w.occupants, from)
+	w.occupants[to] = player
 	w.positions[c.PlayerID] = to
 
 	events := make([]Event, 0, 1)
@@ -97,7 +96,7 @@ func (w *World) applyLeave(c LeaveCmd) ([]Event, error) {
 		return nil, fmt.Errorf("leave: %w", ErrPlayerNotFound)
 	}
 	if pos, ok := w.positions[c.PlayerID]; ok {
-		w.tiles[w.index(pos)].Occupant = nil
+		delete(w.occupants, pos)
 	}
 	delete(w.players, c.PlayerID)
 	delete(w.positions, c.PlayerID)
@@ -107,19 +106,48 @@ func (w *World) applyLeave(c LeaveCmd) ([]Event, error) {
 	return events, nil
 }
 
-// findSpawn scans the interior of the world (excluding the border row/column)
-// in row-major order and returns the first passable, unoccupied tile.
+// findSpawn walks outward from the origin in expanding square rings and
+// returns the first passable, unoccupied tile. The radius is bounded by
+// spawnSearchRadius so the scan terminates even on a pathological seed
+// (e.g. origin in the middle of an ocean).
 func (w *World) findSpawn() (Position, bool) {
-	for y := 1; y < w.height-1; y++ {
-		for x := 1; x < w.width-1; x++ {
-			p := Position{X: x, Y: y}
-			t := w.tiles[w.index(p)]
-			if t.Terrain.Passable() && t.Occupant == nil {
+	if p, ok := w.spawnCandidate(0, 0); ok {
+		return p, true
+	}
+	for r := 1; r <= spawnSearchRadius; r++ {
+		// Top and bottom edges of the ring.
+		for x := -r; x <= r; x++ {
+			if p, ok := w.spawnCandidate(x, -r); ok {
+				return p, true
+			}
+			if p, ok := w.spawnCandidate(x, r); ok {
+				return p, true
+			}
+		}
+		// Left and right edges, excluding the corners already covered above.
+		for y := -r + 1; y <= r-1; y++ {
+			if p, ok := w.spawnCandidate(-r, y); ok {
+				return p, true
+			}
+			if p, ok := w.spawnCandidate(r, y); ok {
 				return p, true
 			}
 		}
 	}
 	return Position{}, false
+}
+
+// spawnCandidate tests a single tile for spawn eligibility.
+func (w *World) spawnCandidate(x, y int) (Position, bool) {
+	p := Position{X: x, Y: y}
+	if _, busy := w.occupants[p]; busy {
+		return Position{}, false
+	}
+	t := w.source.TileAt(x, y)
+	if !t.Terrain.Passable() {
+		return Position{}, false
+	}
+	return p, true
 }
 
 // validStep reports whether (dx, dy) is a four-directional unit step: exactly

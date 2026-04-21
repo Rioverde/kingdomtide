@@ -8,24 +8,39 @@ option go_package = "github.com/Rioverde/gongeons/internal/proto;gongeonspb";
 // Each client opens exactly one Play stream for the lifetime of its session.
 service GameService {
   // Play is a bidirectional stream. The client opens it, sends a JoinRequest
-  // first, then a sequence of commands. The server replies with JoinAccepted +
-  // a Snapshot on join and Event messages thereafter.
+  // first, then a sequence of commands. The server replies with JoinAccepted
+  // + a Snapshot on join and Event messages thereafter.
   rpc Play(stream ClientMessage) returns (stream ServerMessage);
 }
 
-// Position is a square-grid tile coordinate. Origin is top-left, Y grows down.
+// Position is an absolute square-grid tile coordinate. Origin is arbitrary
+// (world 0, 0); the coordinate system is unbounded in both axes.
 message Position {
   int32 x = 1;
   int32 y = 2;
 }
 
-// Terrain is the tile surface kind.
+// Terrain is the biome of a tile. One value per domain terrain, so the
+// client can render every biome distinctly without asking the server for
+// side-channel info.
 enum Terrain {
   TERRAIN_UNSPECIFIED = 0;
-  TERRAIN_FLOOR       = 1;
-  TERRAIN_WALL        = 2;
-  TERRAIN_GRASS       = 3;
-  TERRAIN_WATER       = 4;
+  TERRAIN_PLAINS      = 1;
+  TERRAIN_GRASSLAND   = 2;
+  TERRAIN_MEADOW      = 3;
+  TERRAIN_BEACH       = 4;
+  TERRAIN_DESERT      = 5;
+  TERRAIN_SAVANNA     = 6;
+  TERRAIN_FOREST      = 7;
+  TERRAIN_JUNGLE      = 8;
+  TERRAIN_TAIGA       = 9;
+  TERRAIN_TUNDRA      = 10;
+  TERRAIN_SNOW        = 11;
+  TERRAIN_HILLS       = 12;
+  TERRAIN_MOUNTAIN    = 13;
+  TERRAIN_SNOWY_PEAK  = 14;
+  TERRAIN_OCEAN       = 15;
+  TERRAIN_DEEP_OCEAN  = 16;
 }
 
 // OccupantKind distinguishes entities on a tile. OCCUPANT_MONSTER is reserved
@@ -36,16 +51,17 @@ enum OccupantKind {
   OCCUPANT_MONSTER     = 2;
 }
 
-// Tile is an atomic map cell. Used in Snapshot only — Events carry deltas, not
-// full tile replacements.
+// Tile is an atomic map cell. Used in Snapshot only — Events carry deltas,
+// not full tile replacements.
 message Tile {
   Terrain      terrain   = 1;
   OccupantKind occupant  = 2;
   string       entity_id = 3; // occupant ID, empty if no occupant
+  bool         river     = 4; // set on tiles the generator carved a river on
 }
 
-// Entity is a positioned actor in the world. The MVP ships with just players.
-// Combat stats / monsters are added in a later phase on top of this shape.
+// Entity is a positioned actor in the world. Combat stats / monsters are
+// added in a later phase on top of this shape.
 message Entity {
   string       id       = 1;
   string       name     = 2;
@@ -87,18 +103,22 @@ message ServerMessage {
 }
 
 // JoinAccepted is the server's reply to JoinRequest. It carries the generated
-// PlayerID — the client stores it and uses it to recognise its own events.
+// PlayerID and the player's spawn position — the client stores the ID and
+// uses it to recognise its own events.
 message JoinAccepted {
-  string player_id = 1;
+  string   player_id = 1;
+  Position spawn     = 2;
 }
 
-// Snapshot is the full world state. Sent once on join, and may be resent if
-// the server decides to hard-resync (post-MVP).
+// Snapshot is a viewport of the world. Width/height are tile counts; origin
+// is the world-space position of the top-left tile. Tiles are row-major of
+// length width*height.
 message Snapshot {
   int32           width    = 1;
   int32           height   = 2;
-  repeated Tile   tiles    = 3; // length == width*height, row-major
-  repeated Entity entities = 4;
+  Position        origin   = 3;
+  repeated Tile   tiles    = 4;
+  repeated Entity entities = 5;
 }
 
 // Event is a domain event the server broadcasts to every connected client.

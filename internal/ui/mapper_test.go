@@ -30,65 +30,51 @@ func TestPositionFromPB(t *testing.T) {
 	}
 }
 
-func TestBucketOf(t *testing.T) {
-	t.Parallel()
-	cases := []struct {
-		in   pb.Terrain
-		want terrainBucket
-	}{
-		{pb.Terrain_TERRAIN_UNSPECIFIED, terrainBucketUnspecified},
-		{pb.Terrain_TERRAIN_FLOOR, terrainBucketFloor},
-		{pb.Terrain_TERRAIN_GRASS, terrainBucketFloor},
-		{pb.Terrain_TERRAIN_WALL, terrainBucketWall},
-		{pb.Terrain_TERRAIN_WATER, terrainBucketWater},
-	}
-	for _, tc := range cases {
-		if got := bucketOf(tc.in); got != tc.want {
-			t.Fatalf("bucketOf(%v) = %v, want %v", tc.in, got, tc.want)
-		}
-	}
-}
-
-// newTestModel returns a Model prepared with a 3x2 world so the
-// applySnapshot / applyEvent helpers have somewhere to write.
+// newTestModel returns a Model whose local viewport covers world columns
+// 10..12 and rows 10..11. Picking a non-zero origin catches index-math
+// bugs that a (0,0)-origin viewport would hide.
 func newTestModel() *Model {
 	m := &Model{
 		players: make(map[string]playerInfo),
+		width:   3,
+		height:  2,
+		origin:  game.Position{X: 10, Y: 10},
 	}
 	tiles := make([]*pb.Tile, 6)
 	for i := range tiles {
-		tiles[i] = &pb.Tile{Terrain: pb.Terrain_TERRAIN_FLOOR}
+		tiles[i] = &pb.Tile{Terrain: pb.Terrain_TERRAIN_PLAINS}
 	}
 	m.tiles = tiles
-	m.width = 3
-	m.height = 2
 	return m
 }
 
 func TestApplySnapshotResetsState(t *testing.T) {
 	t.Parallel()
 	m := newTestModel()
-	// Seed with stale data to verify the reset.
 	m.players["stale"] = playerInfo{ID: "stale"}
 	m.logLines = []string{"old"}
 
 	snap := &pb.Snapshot{
 		Width:  2,
 		Height: 2,
+		Origin: &pb.Position{X: 5, Y: 5},
 		Tiles: []*pb.Tile{
-			{Terrain: pb.Terrain_TERRAIN_WALL},
-			{Terrain: pb.Terrain_TERRAIN_FLOOR},
-			{Terrain: pb.Terrain_TERRAIN_FLOOR, Occupant: pb.OccupantKind_OCCUPANT_PLAYER, EntityId: "a"},
-			{Terrain: pb.Terrain_TERRAIN_WATER},
+			{Terrain: pb.Terrain_TERRAIN_MOUNTAIN},
+			{Terrain: pb.Terrain_TERRAIN_PLAINS},
+			{Terrain: pb.Terrain_TERRAIN_PLAINS, Occupant: pb.OccupantKind_OCCUPANT_PLAYER, EntityId: "a"},
+			{Terrain: pb.Terrain_TERRAIN_OCEAN},
 		},
 		Entities: []*pb.Entity{
-			{Id: "a", Name: "alice", Kind: pb.OccupantKind_OCCUPANT_PLAYER, Position: &pb.Position{X: 0, Y: 1}},
+			{Id: "a", Name: "alice", Kind: pb.OccupantKind_OCCUPANT_PLAYER, Position: &pb.Position{X: 5, Y: 6}},
 		},
 	}
 	applySnapshot(m, snap)
 
 	if m.width != 2 || m.height != 2 {
 		t.Fatalf("dims = %dx%d, want 2x2", m.width, m.height)
+	}
+	if m.origin != (game.Position{X: 5, Y: 5}) {
+		t.Fatalf("origin = %+v, want (5,5)", m.origin)
 	}
 	if len(m.tiles) != 4 {
 		t.Fatalf("tiles len = %d, want 4", len(m.tiles))
@@ -100,7 +86,7 @@ func TestApplySnapshotResetsState(t *testing.T) {
 	if !ok {
 		t.Fatalf("entity a missing from players map")
 	}
-	if got.Name != "alice" || got.Pos != (game.Position{X: 0, Y: 1}) {
+	if got.Name != "alice" || got.Pos != (game.Position{X: 5, Y: 6}) {
 		t.Fatalf("entity a = %+v", got)
 	}
 }
@@ -115,7 +101,7 @@ func TestApplyEventPlayerJoined(t *testing.T) {
 					Id:       "bob",
 					Name:     "bob",
 					Kind:     pb.OccupantKind_OCCUPANT_PLAYER,
-					Position: &pb.Position{X: 1, Y: 0},
+					Position: &pb.Position{X: 11, Y: 10}, // local (1,0) given origin (10,10)
 				},
 			},
 		},
@@ -128,9 +114,9 @@ func TestApplyEventPlayerJoined(t *testing.T) {
 	if len(m.logLines) != 1 {
 		t.Fatalf("expected 1 log line, got %d", len(m.logLines))
 	}
-	tile := m.tiles[0*m.width+1]
+	tile := m.tiles[1] // local (1,0)
 	if tile.GetEntityId() != "bob" || tile.GetOccupant() != pb.OccupantKind_OCCUPANT_PLAYER {
-		t.Fatalf("tile(1,0) = %+v, want bob occupant", tile)
+		t.Fatalf("tile local(1,0) = %+v, want bob occupant", tile)
 	}
 }
 
@@ -138,7 +124,7 @@ func TestApplyEventEntityMovedTracksMyPosition(t *testing.T) {
 	t.Parallel()
 	m := newTestModel()
 	m.myID = "me"
-	m.players["me"] = playerInfo{ID: "me", Name: "me", Pos: game.Position{X: 0, Y: 0}}
+	m.players["me"] = playerInfo{ID: "me", Name: "me", Pos: game.Position{X: 10, Y: 10}}
 	m.tiles[0].Occupant = pb.OccupantKind_OCCUPANT_PLAYER
 	m.tiles[0].EntityId = "me"
 
@@ -146,15 +132,15 @@ func TestApplyEventEntityMovedTracksMyPosition(t *testing.T) {
 		Payload: &pb.Event_EntityMoved{
 			EntityMoved: &pb.EntityMoved{
 				EntityId: "me",
-				From:     &pb.Position{X: 0, Y: 0},
-				To:       &pb.Position{X: 1, Y: 0},
+				From:     &pb.Position{X: 10, Y: 10},
+				To:       &pb.Position{X: 11, Y: 10},
 			},
 		},
 	}
 	applyEvent(m, ev)
 
-	if pos := m.players["me"].Pos; pos != (game.Position{X: 1, Y: 0}) {
-		t.Fatalf("my position = %v, want (1,0)", pos)
+	if pos := m.players["me"].Pos; pos != (game.Position{X: 11, Y: 10}) {
+		t.Fatalf("my position = %v, want (11,10)", pos)
 	}
 	if m.tiles[0].GetEntityId() != "" {
 		t.Fatalf("old tile still claims me: %+v", m.tiles[0])
@@ -167,9 +153,8 @@ func TestApplyEventEntityMovedTracksMyPosition(t *testing.T) {
 func TestApplyEventPlayerLeft(t *testing.T) {
 	t.Parallel()
 	m := newTestModel()
-	m.players["a"] = playerInfo{ID: "a", Name: "alice", Pos: game.Position{X: 2, Y: 1}}
-	// Mark the tile so the clear code path runs.
-	idx := 1*m.width + 2
+	m.players["a"] = playerInfo{ID: "a", Name: "alice", Pos: game.Position{X: 12, Y: 11}}
+	idx := 1*m.width + 2 // local (2,1)
 	m.tiles[idx].Occupant = pb.OccupantKind_OCCUPANT_PLAYER
 	m.tiles[idx].EntityId = "a"
 
@@ -196,5 +181,24 @@ func TestAppendLogCap(t *testing.T) {
 	}
 	if len(m.logLines) != logLinesCap {
 		t.Fatalf("log len = %d, want %d", len(m.logLines), logLinesCap)
+	}
+}
+
+func TestLookTileKnownAndUnknown(t *testing.T) {
+	t.Parallel()
+	known := &pb.Tile{Terrain: pb.Terrain_TERRAIN_FOREST}
+	r, _ := lookTile(known)
+	if r == RuneUnspecified {
+		t.Fatalf("lookTile(known biome) returned unspecified rune")
+	}
+	unknown := &pb.Tile{Terrain: pb.Terrain(999)}
+	r, _ = lookTile(unknown)
+	if r != RuneUnspecified {
+		t.Fatalf("lookTile(unknown) = %q, want %q", r, RuneUnspecified)
+	}
+	river := &pb.Tile{Terrain: pb.Terrain_TERRAIN_FOREST, River: true}
+	r, _ = lookTile(river)
+	if r != RiverRune {
+		t.Fatalf("lookTile(river) = %q, want %q", r, RiverRune)
 	}
 }
