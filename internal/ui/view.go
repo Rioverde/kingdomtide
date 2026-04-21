@@ -6,6 +6,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/Rioverde/gongeons/internal/game"
 	pb "github.com/Rioverde/gongeons/internal/proto"
 )
 
@@ -118,8 +119,8 @@ func (m *Model) renderGrid() string {
 }
 
 // renderCell picks the rune + style for one tile. Layer precedence:
-// occupant > world-object (village / castle) > river > terrain. Self vs
-// other player is decided by myID.
+// occupant > structure (village / castle) > river overlay > terrain.
+// Self vs other player is decided by myID.
 func (m *Model) renderCell(t *pb.Tile) string {
 	if t == nil {
 		return styles.unknownTile.Render(runeUnspecified)
@@ -130,16 +131,20 @@ func (m *Model) renderCell(t *pb.Tile) string {
 		}
 		return styles.otherPlayer.Render(runeOther)
 	}
-	if obj := t.GetObject(); obj != pb.WorldObject_WORLD_OBJECT_UNSPECIFIED {
-		glyph, gOK := objectRunes[obj]
-		style, sOK := objectStyles[obj]
+	if s := t.GetStructure(); s != pb.Structure_STRUCTURE_UNSPECIFIED {
+		glyph, gOK := structureRunes[s]
+		style, sOK := structureStyles[s]
 		if gOK && sOK && glyph != "" {
 			return style.Render(glyph)
 		}
-		// Unknown / version-skew object from the server: render the "what is this"
+		// Unknown / version-skew structure from the server: render the "what is this"
 		// marker so the player SEES something is there, rather than silently
 		// falling through to the terrain underneath.
 		return styles.unknownTile.Render(runeUnspecified)
+	}
+	overlays := game.TileOverlay(t.GetOverlays())
+	if overlays.Has(game.OverlayRiver) {
+		return styles.river.Render(riverRune)
 	}
 	r, s := lookTile(t)
 	return s.Render(r)

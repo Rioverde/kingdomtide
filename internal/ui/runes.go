@@ -22,11 +22,11 @@ const (
 // a river. It sits over the underlying biome.
 const riverRune = "≈"
 
-// objectRunes maps village / castle / etc. to the glyph drawn in place of
-// the terrain rune. Rendered below players but above rivers and terrain.
-var objectRunes = map[pb.WorldObject]string{
-	pb.WorldObject_WORLD_OBJECT_VILLAGE: "⌂", // BMP U+2302 HOUSE
-	pb.WorldObject_WORLD_OBJECT_CASTLE:  "♜", // BMP U+265C BLACK CHESS ROOK
+// structureRunes maps village / castle / etc. to the glyph drawn in place
+// of the terrain rune. Rendered below players but above rivers and terrain.
+var structureRunes = map[pb.Structure]string{
+	pb.Structure_STRUCTURE_VILLAGE: "⌂", // BMP U+2302 HOUSE
+	pb.Structure_STRUCTURE_CASTLE:  "♜", // BMP U+265C BLACK CHESS ROOK
 }
 
 // terrainRunes maps every wire-level Terrain value to the rune shown for

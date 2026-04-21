@@ -3,6 +3,8 @@ package worldgen
 import (
 	"reflect"
 	"testing"
+
+	"github.com/Rioverde/gongeons/internal/game"
 )
 
 // findRiverSource scans tiles in a region around the origin to locate the first
@@ -108,7 +110,7 @@ func chunkWindowHasRiver(gen *WorldGenerator, centerCC ChunkCoord) bool {
 			chunk := gen.Chunk(cc)
 			for dy := range ChunkSize {
 				for dx := range ChunkSize {
-					if chunk.Tiles[dy][dx].River {
+					if chunk.Tiles[dy][dx].Overlays.Has(game.OverlayRiver) {
 						return true
 					}
 				}

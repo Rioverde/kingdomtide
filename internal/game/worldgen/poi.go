@@ -27,7 +27,7 @@ const poiThresholdResolution = 1 << 16
 // poiCandidate holds a tentative POI before the min-distance filter is applied.
 type poiCandidate struct {
 	x, y    int
-	kind    game.ObjectKind
+	kind    game.StructureKind
 	sortKey uint64 // raw hash used for stable ordering in the greedy filter
 }
 
@@ -91,9 +91,9 @@ func castleAllowed(t game.Terrain) bool {
 	}
 }
 
-// ObjectsInChunk returns the deterministic POI map for chunk cc. The map key is the
+// StructuresInChunk returns the deterministic POI map for chunk cc. The map key is the
 // chunk-local [dx, dy] offset (not world coordinates) so callers can write directly
-// into chunk.Tiles[dy][dx].Object without an extra coordinate conversion.
+// into chunk.Tiles[dy][dx].Structure without an extra coordinate conversion.
 //
 // Algorithm: scan the 3x3 neighbourhood of cc (cc itself plus its eight neighbours) and
 // evaluate poiCandidatesPerChunk candidate slots per chunk. Each slot is hashed to a
@@ -101,7 +101,7 @@ func castleAllowed(t game.Terrain) bool {
 // candidates are sorted by their raw hash and filtered greedily: a candidate is kept
 // only if it is at least poiMinDistance tiles away from every previously accepted POI.
 // Only placements whose world coordinates fall inside cc.Bounds() are returned.
-func (g *WorldGenerator) ObjectsInChunk(cc ChunkCoord) map[[2]int]game.ObjectKind {
+func (g *WorldGenerator) StructuresInChunk(cc ChunkCoord) map[[2]int]game.StructureKind {
 	cands := g.poiCandidatesIn(cc)
 	kept := filterPOIByDistance(cands)
 	return assignPOIKinds(cc, kept)
@@ -135,12 +135,12 @@ func (g *WorldGenerator) poiCandidatesIn(cc ChunkCoord) []poiCandidate {
 				// Determine kind from the top 16 bits of the hash so the comparison
 				// aligns with the fixed-point thresholds computed above.
 				topBits := h >> 48
-				var kind game.ObjectKind
+				var kind game.StructureKind
 				switch {
 				case topBits < castleThreshold:
-					kind = game.ObjectCastle
+					kind = game.StructureCastle
 				case topBits < villageThreshold:
-					kind = game.ObjectVillage
+					kind = game.StructureVillage
 				default:
 					continue // no POI for this slot
 				}
@@ -156,15 +156,15 @@ func (g *WorldGenerator) poiCandidatesIn(cc ChunkCoord) []poiCandidate {
 				wy := minY + dy
 
 				tile := g.TileAt(wx, wy)
-				if tile.River {
+				if tile.Overlays.Has(game.OverlayRiver) {
 					continue
 				}
 				switch kind {
-				case game.ObjectVillage:
+				case game.StructureVillage:
 					if !villageAllowed(tile.Terrain) {
 						continue
 					}
-				case game.ObjectCastle:
+				case game.StructureCastle:
 					if !castleAllowed(tile.Terrain) {
 						continue
 					}
@@ -211,10 +211,10 @@ func filterPOIByDistance(cands []poiCandidate) []poiCandidate {
 // assignPOIKinds collects the accepted candidates that fall inside cc.Bounds() and
 // converts each surviving world coordinate to a chunk-local (dx, dy) offset. The
 // returned map key is the local offset so callers can write directly into
-// chunk.Tiles[dy][dx].Object without an extra coordinate conversion.
-func assignPOIKinds(cc ChunkCoord, accepted []poiCandidate) map[[2]int]game.ObjectKind {
+// chunk.Tiles[dy][dx].Structure without an extra coordinate conversion.
+func assignPOIKinds(cc ChunkCoord, accepted []poiCandidate) map[[2]int]game.StructureKind {
 	minX, maxX, minY, maxY := cc.Bounds()
-	result := make(map[[2]int]game.ObjectKind)
+	result := make(map[[2]int]game.StructureKind)
 	for _, a := range accepted {
 		if a.x >= minX && a.x < maxX && a.y >= minY && a.y < maxY {
 			dx := a.x - minX

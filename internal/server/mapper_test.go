@@ -153,36 +153,36 @@ func TestTerrainToPBMapping(t *testing.T) {
 	}
 }
 
-func TestObjectToPBMapping(t *testing.T) {
-	cases := map[game.ObjectKind]pb.WorldObject{
-		game.ObjectVillage:     pb.WorldObject_WORLD_OBJECT_VILLAGE,
-		game.ObjectCastle:      pb.WorldObject_WORLD_OBJECT_CASTLE,
-		game.ObjectNone:        pb.WorldObject_WORLD_OBJECT_UNSPECIFIED,
-		game.ObjectKind("xyz"): pb.WorldObject_WORLD_OBJECT_UNSPECIFIED,
+func TestStructureToPBMapping(t *testing.T) {
+	cases := map[game.StructureKind]pb.Structure{
+		game.StructureVillage:     pb.Structure_STRUCTURE_VILLAGE,
+		game.StructureCastle:      pb.Structure_STRUCTURE_CASTLE,
+		game.StructureNone:        pb.Structure_STRUCTURE_UNSPECIFIED,
+		game.StructureKind("xyz"): pb.Structure_STRUCTURE_UNSPECIFIED,
 	}
 	for in, want := range cases {
-		if got := objectToPB(in); got != want {
-			t.Errorf("objectToPB(%q): want %v, got %v", string(in), want, got)
+		if got := structureToPB(in); got != want {
+			t.Errorf("structureToPB(%q): want %v, got %v", string(in), want, got)
 		}
 	}
 }
 
 // villageTileSource is a TileSource that paints a village over plains at a
 // fixed target coordinate and plain plains everywhere else. Used by
-// TestSnapshotOfIncludesObjects to assert the wire Snapshot carries the
-// object field through.
+// TestSnapshotOfIncludesStructures to assert the wire Snapshot carries the
+// structure field through.
 type villageTileSource struct {
 	target game.Position
 }
 
 func (s villageTileSource) TileAt(x, y int) game.Tile {
 	if (game.Position{X: x, Y: y}) == s.target {
-		return game.Tile{Terrain: game.TerrainPlains, Object: game.ObjectVillage}
+		return game.Tile{Terrain: game.TerrainPlains, Structure: game.StructureVillage}
 	}
 	return game.Tile{Terrain: game.TerrainPlains}
 }
 
-func TestSnapshotOfIncludesObjects(t *testing.T) {
+func TestSnapshotOfIncludesStructures(t *testing.T) {
 	target := game.Position{X: 3, Y: 4}
 	w := game.NewWorldFromSource(villageTileSource{target: target})
 
@@ -199,8 +199,8 @@ func TestSnapshotOfIncludesObjects(t *testing.T) {
 	}
 
 	want := &pb.Tile{
-		Terrain: pb.Terrain_TERRAIN_PLAINS,
-		Object:  pb.WorldObject_WORLD_OBJECT_VILLAGE,
+		Terrain:   pb.Terrain_TERRAIN_PLAINS,
+		Structure: pb.Structure_STRUCTURE_VILLAGE,
 	}
 	opts := []cmp.Option{protocmp.Transform()}
 	if diff := cmp.Diff(want, tiles[idx], opts...); diff != "" {

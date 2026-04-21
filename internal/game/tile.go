@@ -1,14 +1,13 @@
 package game
 
-// Tile is the atomic unit of the world map. Terrain drives rendering and
-// biome logic; Occupant holds an entity standing on the tile (player, monster,
-// NPC). River marks tiles that have been traced as part of a river path. Object
-// holds an optional point-of-interest overlay (village, castle, etc.). River
-// and Object are omitted from JSON when their zero value so existing clients
-// see no extra noise.
+// Tile is the atomic map cell. Terrain is the base biome; Overlays is a
+// bitmask of binary features that can coexist (river + road + bridge);
+// Structure is a single built thing occupying the tile (mutually
+// exclusive — a castle and a village don't share a cell); Occupant is
+// the runtime entity currently standing on the tile.
 type Tile struct {
-	Terrain  Terrain    `json:"terrain"`
-	Occupant Occupant   `json:"occupant,omitempty"`
-	River    bool       `json:"river,omitempty"`
-	Object   ObjectKind `json:"object,omitempty"`
+	Terrain   Terrain
+	Overlays  TileOverlay
+	Structure StructureKind
+	Occupant  Occupant
 }

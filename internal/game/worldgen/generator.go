@@ -71,33 +71,32 @@ func (g *WorldGenerator) TileAt(x, y int) game.Tile {
 	return game.Tile{Terrain: Biome(elev, temp, moist)}
 }
 
-// Chunk fills an entire Chunk worth of tiles by calling TileAt for every coord in the chunk
-// bounds. After biome assignment it overlays two layers in a single pass: any tile whose
-// grid coord appears in RiverTilesInChunk has its River flag set, and any tile matching a
-// POI entry from ObjectsInChunk gets its Object field populated. Biome is intentionally not
-// altered here — river-adjacent biome blending is a later tuning pass. A POI on a river
-// tile is intentional — the river flag stays true alongside the object.
+// Chunk fills an entire Chunk worth of tiles in a single pass: for each coord it calls
+// TileAt for the base biome, then overlays two layers inline — any tile whose grid coord
+// appears in RiverTilesInChunk gets the OverlayRiver bit set in its overlay mask, and any
+// tile matching a POI entry from StructuresInChunk gets its Structure field populated.
+// Biome is intentionally not altered here — river-adjacent biome blending is a later
+// tuning pass. A POI on a river tile is intentional — the river overlay stays set
+// alongside the structure.
 func (g *WorldGenerator) Chunk(cc ChunkCoord) Chunk {
 	chunk := Chunk{Coord: cc}
 	minX, _, minY, _ := cc.Bounds()
-	for dy := range ChunkSize {
-		for dx := range ChunkSize {
-			chunk.Tiles[dy][dx] = g.TileAt(minX+dx, minY+dy)
-		}
-	}
 
-	// Overlay rivers and POIs in a single pass. River keys are global grid coords;
-	// POI keys are chunk-local (dx, dy) offsets — preserve both contracts.
+	// River keys are global grid coords; POI keys are chunk-local (dx, dy)
+	// offsets — preserve both contracts.
 	riverTiles := g.RiverTilesInChunk(cc)
-	objects := g.ObjectsInChunk(cc)
+	structures := g.StructuresInChunk(cc)
+
 	for dy := range ChunkSize {
 		for dx := range ChunkSize {
+			t := g.TileAt(minX+dx, minY+dy)
 			if _, wet := riverTiles[[2]int{minX + dx, minY + dy}]; wet {
-				chunk.Tiles[dy][dx].River = true
+				t.Overlays |= game.OverlayRiver
 			}
-			if obj, ok := objects[[2]int{dx, dy}]; ok {
-				chunk.Tiles[dy][dx].Object = obj
+			if s, ok := structures[[2]int{dx, dy}]; ok {
+				t.Structure = s
 			}
+			chunk.Tiles[dy][dx] = t
 		}
 	}
 

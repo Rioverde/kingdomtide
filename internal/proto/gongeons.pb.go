@@ -166,54 +166,54 @@ func (OccupantKind) EnumDescriptor() ([]byte, []int) {
 	return file_gongeons_proto_rawDescGZIP(), []int{1}
 }
 
-// WorldObject is a static structure the procedural generator places on a tile.
-// Rendered below the player glyph but above the terrain.
-type WorldObject int32
+// Structure is a single built feature on a tile — mutually exclusive.
+// Binary overlay features (river, road, bridge...) go in Tile.overlays.
+type Structure int32
 
 const (
-	WorldObject_WORLD_OBJECT_UNSPECIFIED WorldObject = 0
-	WorldObject_WORLD_OBJECT_VILLAGE     WorldObject = 1
-	WorldObject_WORLD_OBJECT_CASTLE      WorldObject = 2
+	Structure_STRUCTURE_UNSPECIFIED Structure = 0
+	Structure_STRUCTURE_VILLAGE     Structure = 1
+	Structure_STRUCTURE_CASTLE      Structure = 2
 )
 
-// Enum value maps for WorldObject.
+// Enum value maps for Structure.
 var (
-	WorldObject_name = map[int32]string{
-		0: "WORLD_OBJECT_UNSPECIFIED",
-		1: "WORLD_OBJECT_VILLAGE",
-		2: "WORLD_OBJECT_CASTLE",
+	Structure_name = map[int32]string{
+		0: "STRUCTURE_UNSPECIFIED",
+		1: "STRUCTURE_VILLAGE",
+		2: "STRUCTURE_CASTLE",
 	}
-	WorldObject_value = map[string]int32{
-		"WORLD_OBJECT_UNSPECIFIED": 0,
-		"WORLD_OBJECT_VILLAGE":     1,
-		"WORLD_OBJECT_CASTLE":      2,
+	Structure_value = map[string]int32{
+		"STRUCTURE_UNSPECIFIED": 0,
+		"STRUCTURE_VILLAGE":     1,
+		"STRUCTURE_CASTLE":      2,
 	}
 )
 
-func (x WorldObject) Enum() *WorldObject {
-	p := new(WorldObject)
+func (x Structure) Enum() *Structure {
+	p := new(Structure)
 	*p = x
 	return p
 }
 
-func (x WorldObject) String() string {
+func (x Structure) String() string {
 	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
 }
 
-func (WorldObject) Descriptor() protoreflect.EnumDescriptor {
+func (Structure) Descriptor() protoreflect.EnumDescriptor {
 	return file_gongeons_proto_enumTypes[2].Descriptor()
 }
 
-func (WorldObject) Type() protoreflect.EnumType {
+func (Structure) Type() protoreflect.EnumType {
 	return &file_gongeons_proto_enumTypes[2]
 }
 
-func (x WorldObject) Number() protoreflect.EnumNumber {
+func (x Structure) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use WorldObject.Descriptor instead.
-func (WorldObject) EnumDescriptor() ([]byte, []int) {
+// Deprecated: Use Structure.Descriptor instead.
+func (Structure) EnumDescriptor() ([]byte, []int) {
 	return file_gongeons_proto_rawDescGZIP(), []int{2}
 }
 
@@ -272,14 +272,15 @@ func (x *Position) GetY() int32 {
 }
 
 // Tile is an atomic map cell. Used in Snapshot only — Events carry deltas,
-// not full tile replacements.
+// not full tile replacements. overlays is a bitmask of TileOverlay flag
+// values shared with the domain (river, road, bridge, path...).
 type Tile struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Terrain       Terrain                `protobuf:"varint,1,opt,name=terrain,proto3,enum=gongeons.v1.Terrain" json:"terrain,omitempty"`
 	Occupant      OccupantKind           `protobuf:"varint,2,opt,name=occupant,proto3,enum=gongeons.v1.OccupantKind" json:"occupant,omitempty"`
-	EntityId      string                 `protobuf:"bytes,3,opt,name=entity_id,json=entityId,proto3" json:"entity_id,omitempty"`           // occupant ID, empty if no occupant
-	River         bool                   `protobuf:"varint,4,opt,name=river,proto3" json:"river,omitempty"`                                // set on tiles the generator carved a river on
-	Object        WorldObject            `protobuf:"varint,5,opt,name=object,proto3,enum=gongeons.v1.WorldObject" json:"object,omitempty"` // village / castle overlay
+	EntityId      string                 `protobuf:"bytes,3,opt,name=entity_id,json=entityId,proto3" json:"entity_id,omitempty"`               // occupant ID, empty if no occupant
+	Overlays      uint32                 `protobuf:"varint,4,opt,name=overlays,proto3" json:"overlays,omitempty"`                              // bitmask of TileOverlay flag values
+	Structure     Structure              `protobuf:"varint,5,opt,name=structure,proto3,enum=gongeons.v1.Structure" json:"structure,omitempty"` // village / castle overlay
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -335,18 +336,18 @@ func (x *Tile) GetEntityId() string {
 	return ""
 }
 
-func (x *Tile) GetRiver() bool {
+func (x *Tile) GetOverlays() uint32 {
 	if x != nil {
-		return x.River
+		return x.Overlays
 	}
-	return false
+	return 0
 }
 
-func (x *Tile) GetObject() WorldObject {
+func (x *Tile) GetStructure() Structure {
 	if x != nil {
-		return x.Object
+		return x.Structure
 	}
-	return WorldObject_WORLD_OBJECT_UNSPECIFIED
+	return Structure_STRUCTURE_UNSPECIFIED
 }
 
 // Entity is a positioned actor in the world. Combat stats / monsters are
@@ -1245,13 +1246,13 @@ const file_gongeons_proto_rawDesc = "" +
 	"\x0egongeons.proto\x12\vgongeons.v1\"&\n" +
 	"\bPosition\x12\f\n" +
 	"\x01x\x18\x01 \x01(\x05R\x01x\x12\f\n" +
-	"\x01y\x18\x02 \x01(\x05R\x01y\"\xd2\x01\n" +
+	"\x01y\x18\x02 \x01(\x05R\x01y\"\xdc\x01\n" +
 	"\x04Tile\x12.\n" +
 	"\aterrain\x18\x01 \x01(\x0e2\x14.gongeons.v1.TerrainR\aterrain\x125\n" +
 	"\boccupant\x18\x02 \x01(\x0e2\x19.gongeons.v1.OccupantKindR\boccupant\x12\x1b\n" +
-	"\tentity_id\x18\x03 \x01(\tR\bentityId\x12\x14\n" +
-	"\x05river\x18\x04 \x01(\bR\x05river\x120\n" +
-	"\x06object\x18\x05 \x01(\x0e2\x18.gongeons.v1.WorldObjectR\x06object\"\x8e\x01\n" +
+	"\tentity_id\x18\x03 \x01(\tR\bentityId\x12\x1a\n" +
+	"\boverlays\x18\x04 \x01(\rR\boverlays\x124\n" +
+	"\tstructure\x18\x05 \x01(\x0e2\x16.gongeons.v1.StructureR\tstructure\"\x8e\x01\n" +
 	"\x06Entity\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12-\n" +
@@ -1327,11 +1328,11 @@ const file_gongeons_proto_rawDesc = "" +
 	"\fOccupantKind\x12\x18\n" +
 	"\x14OCCUPANT_UNSPECIFIED\x10\x00\x12\x13\n" +
 	"\x0fOCCUPANT_PLAYER\x10\x01\x12\x14\n" +
-	"\x10OCCUPANT_MONSTER\x10\x02*^\n" +
-	"\vWorldObject\x12\x1c\n" +
-	"\x18WORLD_OBJECT_UNSPECIFIED\x10\x00\x12\x18\n" +
-	"\x14WORLD_OBJECT_VILLAGE\x10\x01\x12\x17\n" +
-	"\x13WORLD_OBJECT_CASTLE\x10\x022Q\n" +
+	"\x10OCCUPANT_MONSTER\x10\x02*S\n" +
+	"\tStructure\x12\x19\n" +
+	"\x15STRUCTURE_UNSPECIFIED\x10\x00\x12\x15\n" +
+	"\x11STRUCTURE_VILLAGE\x10\x01\x12\x14\n" +
+	"\x10STRUCTURE_CASTLE\x10\x022Q\n" +
 	"\vGameService\x12B\n" +
 	"\x04Play\x12\x1a.gongeons.v1.ClientMessage\x1a\x1a.gongeons.v1.ServerMessage(\x010\x01B8Z6github.com/Rioverde/gongeons/internal/proto;gongeonspbb\x06proto3"
 
@@ -1352,7 +1353,7 @@ var file_gongeons_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
 var file_gongeons_proto_goTypes = []any{
 	(Terrain)(0),          // 0: gongeons.v1.Terrain
 	(OccupantKind)(0),     // 1: gongeons.v1.OccupantKind
-	(WorldObject)(0),      // 2: gongeons.v1.WorldObject
+	(Structure)(0),        // 2: gongeons.v1.Structure
 	(*Position)(nil),      // 3: gongeons.v1.Position
 	(*Tile)(nil),          // 4: gongeons.v1.Tile
 	(*Entity)(nil),        // 5: gongeons.v1.Entity
@@ -1372,7 +1373,7 @@ var file_gongeons_proto_goTypes = []any{
 var file_gongeons_proto_depIdxs = []int32{
 	0,  // 0: gongeons.v1.Tile.terrain:type_name -> gongeons.v1.Terrain
 	1,  // 1: gongeons.v1.Tile.occupant:type_name -> gongeons.v1.OccupantKind
-	2,  // 2: gongeons.v1.Tile.object:type_name -> gongeons.v1.WorldObject
+	2,  // 2: gongeons.v1.Tile.structure:type_name -> gongeons.v1.Structure
 	1,  // 3: gongeons.v1.Entity.kind:type_name -> gongeons.v1.OccupantKind
 	3,  // 4: gongeons.v1.Entity.position:type_name -> gongeons.v1.Position
 	7,  // 5: gongeons.v1.ClientMessage.join:type_name -> gongeons.v1.JoinRequest

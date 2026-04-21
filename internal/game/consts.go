@@ -3,15 +3,16 @@ package game
 type Slot string
 type Terrain string
 
-// ObjectKind identifies a point-of-interest structure that can appear on a tile as an
-// overlay. The zero value ObjectNone signals "no POI on this tile" and is omitted from
-// JSON thanks to the omitempty tag on Tile.Object.
-type ObjectKind string
+// StructureKind identifies a single built structure that can occupy a tile —
+// villages, castles and similar. Structures are mutually exclusive: a tile
+// holds at most one. The zero value StructureNone signals "no structure on
+// this tile".
+type StructureKind string
 
 const (
-	ObjectNone    ObjectKind = ""
-	ObjectVillage ObjectKind = "village"
-	ObjectCastle  ObjectKind = "castle"
+	StructureNone    StructureKind = ""
+	StructureVillage StructureKind = "village"
+	StructureCastle  StructureKind = "castle"
 )
 
 const (
@@ -49,10 +50,11 @@ const (
 	numberOfSlots        = 3
 )
 
-// AllObjectKinds returns every ObjectKind except ObjectNone in a stable order. Used by the
-// /api/meta endpoint to let the client pre-cache POI sprites.
-func AllObjectKinds() []ObjectKind {
-	return []ObjectKind{ObjectVillage, ObjectCastle}
+// AllStructureKinds returns every StructureKind except StructureNone in a stable
+// order. Used by the /api/meta endpoint to let the client pre-cache structure
+// sprites.
+func AllStructureKinds() []StructureKind {
+	return []StructureKind{StructureVillage, StructureCastle}
 }
 
 // AllTerrains lists every Terrain value in a stable order. Used by the /api/meta endpoint

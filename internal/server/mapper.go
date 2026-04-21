@@ -89,17 +89,17 @@ func positionPB(p game.Position) *pb.Position {
 	return &pb.Position{X: int32(p.X), Y: int32(p.Y)}
 }
 
-// objectPBMapping translates the domain ObjectKind enum to its wire
+// structurePBMapping translates the domain StructureKind enum to its wire
 // counterpart. Unknown values fall back to UNSPECIFIED.
-var objectPBMapping = map[game.ObjectKind]pb.WorldObject{
-	game.ObjectVillage: pb.WorldObject_WORLD_OBJECT_VILLAGE,
-	game.ObjectCastle:  pb.WorldObject_WORLD_OBJECT_CASTLE,
+var structurePBMapping = map[game.StructureKind]pb.Structure{
+	game.StructureVillage: pb.Structure_STRUCTURE_VILLAGE,
+	game.StructureCastle:  pb.Structure_STRUCTURE_CASTLE,
 }
 
-// objectToPB looks up k in objectPBMapping. ObjectNone maps implicitly to
-// UNSPECIFIED via the default return.
-func objectToPB(k game.ObjectKind) pb.WorldObject {
-	return lookupOr(objectPBMapping, k, pb.WorldObject_WORLD_OBJECT_UNSPECIFIED)
+// structureToPB looks up k in structurePBMapping. StructureNone maps
+// implicitly to UNSPECIFIED via the default return.
+func structureToPB(k game.StructureKind) pb.Structure {
+	return lookupOr(structurePBMapping, k, pb.Structure_STRUCTURE_UNSPECIFIED)
 }
 
 // terrainPBMapping is the 1:1 translation table from the domain Terrain
@@ -143,13 +143,14 @@ func clampViewport(w, h int) (int, int) {
 }
 
 // tileFromDomain builds a wire Tile from a domain tile, overlaying the
-// player occupant when present. The terrain / river / object conversions
-// all live in one spot.
+// player occupant when present. The terrain / overlays / structure
+// conversions all live in one spot. overlays is carried through as an
+// opaque bitmask — the domain and the client agree on flag values.
 func tileFromDomain(t game.Tile) *pb.Tile {
 	out := &pb.Tile{
-		Terrain: terrainToPB(t.Terrain),
-		River:   t.River,
-		Object:  objectToPB(t.Object),
+		Terrain:   terrainToPB(t.Terrain),
+		Overlays:  uint32(t.Overlays),
+		Structure: structureToPB(t.Structure),
 	}
 	if p, ok := t.Occupant.(*game.Player); ok && p != nil {
 		out.Occupant = pb.OccupantKind_OCCUPANT_PLAYER

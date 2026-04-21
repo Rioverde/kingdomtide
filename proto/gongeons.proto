@@ -51,22 +51,23 @@ enum OccupantKind {
   OCCUPANT_MONSTER     = 2;
 }
 
-// WorldObject is a static structure the procedural generator places on a tile.
-// Rendered below the player glyph but above the terrain.
-enum WorldObject {
-  WORLD_OBJECT_UNSPECIFIED = 0;
-  WORLD_OBJECT_VILLAGE     = 1;
-  WORLD_OBJECT_CASTLE      = 2;
+// Structure is a single built feature on a tile — mutually exclusive.
+// Binary overlay features (river, road, bridge...) go in Tile.overlays.
+enum Structure {
+  STRUCTURE_UNSPECIFIED = 0;
+  STRUCTURE_VILLAGE     = 1;
+  STRUCTURE_CASTLE      = 2;
 }
 
 // Tile is an atomic map cell. Used in Snapshot only — Events carry deltas,
-// not full tile replacements.
+// not full tile replacements. overlays is a bitmask of TileOverlay flag
+// values shared with the domain (river, road, bridge, path...).
 message Tile {
   Terrain      terrain   = 1;
   OccupantKind occupant  = 2;
   string       entity_id = 3; // occupant ID, empty if no occupant
-  bool         river     = 4; // set on tiles the generator carved a river on
-  WorldObject  object    = 5; // village / castle overlay
+  uint32       overlays  = 4; // bitmask of TileOverlay flag values
+  Structure    structure = 5; // village / castle overlay
 }
 
 // Entity is a positioned actor in the world. Combat stats / monsters are

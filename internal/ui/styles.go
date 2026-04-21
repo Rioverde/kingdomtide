@@ -44,11 +44,11 @@ var styles = struct {
 		BorderForeground(lipgloss.Color("9")).Foreground(lipgloss.Color("9")).Padding(1, 2),
 }
 
-// objectStyles pairs each wire WorldObject with its foreground style. Edit
-// alongside objectRunes to re-skin village/castle overlays.
-var objectStyles = map[pb.WorldObject]lipgloss.Style{
-	pb.WorldObject_WORLD_OBJECT_VILLAGE: lipgloss.NewStyle().Foreground(lipgloss.Color("208")).Bold(true),
-	pb.WorldObject_WORLD_OBJECT_CASTLE:  lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Bold(true),
+// structureStyles pairs each wire Structure with its foreground style.
+// Edit alongside structureRunes to re-skin village/castle overlays.
+var structureStyles = map[pb.Structure]lipgloss.Style{
+	pb.Structure_STRUCTURE_VILLAGE: lipgloss.NewStyle().Foreground(lipgloss.Color("208")).Bold(true),
+	pb.Structure_STRUCTURE_CASTLE:  lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Bold(true),
 }
 
 // terrainStyles pairs each biome with its foreground colour. Edit this
@@ -72,14 +72,13 @@ var terrainStyles = map[pb.Terrain]lipgloss.Style{
 	pb.Terrain_TERRAIN_DEEP_OCEAN: lipgloss.NewStyle().Foreground(lipgloss.Color("18")),
 }
 
-// lookTile returns the rune + style for a wire tile. Rivers override the
-// biome rune with a cyan stroke so water routes stand out against land.
+// lookTile returns the rune + style for a wire tile's terrain. Overlay
+// handling (river, road, bridge, ...) lives in renderCell — lookTile is a
+// pure terrain → (rune, style) lookup with a graceful fallback for
+// version-skew biomes the client doesn't know about.
 func lookTile(t *pb.Tile) (string, lipgloss.Style) {
 	if t == nil {
 		return runeUnspecified, styles.unknownTile
-	}
-	if t.GetRiver() {
-		return riverRune, styles.river
 	}
 	r, ok := terrainRunes[t.GetTerrain()]
 	if !ok {

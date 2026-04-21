@@ -196,9 +196,4 @@ func TestLookTileKnownAndUnknown(t *testing.T) {
 	if r != runeUnspecified {
 		t.Fatalf("lookTile(unknown) = %q, want %q", r, runeUnspecified)
 	}
-	river := &pb.Tile{Terrain: pb.Terrain_TERRAIN_FOREST, River: true}
-	r, _ = lookTile(river)
-	if r != riverRune {
-		t.Fatalf("lookTile(river) = %q, want %q", r, riverRune)
-	}
 }

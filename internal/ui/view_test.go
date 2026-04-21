@@ -4,19 +4,20 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Rioverde/gongeons/internal/game"
 	pb "github.com/Rioverde/gongeons/internal/proto"
 )
 
 // TestRenderCellLayerPrecedence exercises the documented rendering layers:
-// occupant > world-object (village / castle) > river > terrain. The table
-// keeps each case self-contained so a regression in one layer doesn't drag
-// the others down with it. Assertions use strings.Contains against the raw
-// output to avoid hand-rolling ANSI-escape comparisons.
+// occupant > structure (village / castle) > river overlay > terrain. The
+// table keeps each case self-contained so a regression in one layer doesn't
+// drag the others down with it. Assertions use strings.Contains against the
+// raw output to avoid hand-rolling ANSI-escape comparisons.
 func TestRenderCellLayerPrecedence(t *testing.T) {
 	t.Parallel()
 
 	plainsRune := terrainRunes[pb.Terrain_TERRAIN_PLAINS]
-	villageRune := objectRunes[pb.WorldObject_WORLD_OBJECT_VILLAGE]
+	villageRune := structureRunes[pb.Structure_STRUCTURE_VILLAGE]
 
 	cases := []struct {
 		name        string
@@ -33,24 +34,24 @@ func TestRenderCellLayerPrecedence(t *testing.T) {
 		},
 		{
 			name:        "river overrides terrain",
-			tile:        &pb.Tile{Terrain: pb.Terrain_TERRAIN_PLAINS, River: true},
+			tile:        &pb.Tile{Terrain: pb.Terrain_TERRAIN_PLAINS, Overlays: uint32(game.OverlayRiver)},
 			mustHave:    []string{riverRune},
 			mustNotHave: []string{plainsRune},
 		},
 		{
 			name: "village shows over plain terrain",
 			tile: &pb.Tile{
-				Terrain: pb.Terrain_TERRAIN_PLAINS,
-				Object:  pb.WorldObject_WORLD_OBJECT_VILLAGE,
+				Terrain:   pb.Terrain_TERRAIN_PLAINS,
+				Structure: pb.Structure_STRUCTURE_VILLAGE,
 			},
 			mustHave: []string{villageRune},
 		},
 		{
 			name: "village wins over river",
 			tile: &pb.Tile{
-				Terrain: pb.Terrain_TERRAIN_PLAINS,
-				River:   true,
-				Object:  pb.WorldObject_WORLD_OBJECT_VILLAGE,
+				Terrain:   pb.Terrain_TERRAIN_PLAINS,
+				Overlays:  uint32(game.OverlayRiver),
+				Structure: pb.Structure_STRUCTURE_VILLAGE,
 			},
 			mustHave:    []string{villageRune},
 			mustNotHave: []string{riverRune},
@@ -59,19 +60,19 @@ func TestRenderCellLayerPrecedence(t *testing.T) {
 			name: "self player wins over village",
 			myID: "me",
 			tile: &pb.Tile{
-				Terrain:  pb.Terrain_TERRAIN_PLAINS,
-				Object:   pb.WorldObject_WORLD_OBJECT_VILLAGE,
-				Occupant: pb.OccupantKind_OCCUPANT_PLAYER,
-				EntityId: "me",
+				Terrain:   pb.Terrain_TERRAIN_PLAINS,
+				Structure: pb.Structure_STRUCTURE_VILLAGE,
+				Occupant:  pb.OccupantKind_OCCUPANT_PLAYER,
+				EntityId:  "me",
 			},
 			mustHave:    []string{runeSelf},
 			mustNotHave: []string{villageRune, runeOther},
 		},
 		{
-			name: "unknown WorldObject falls back to unspecified rune",
+			name: "unknown Structure falls back to unspecified rune",
 			tile: &pb.Tile{
-				Terrain: pb.Terrain_TERRAIN_PLAINS,
-				Object:  pb.WorldObject(99),
+				Terrain:   pb.Terrain_TERRAIN_PLAINS,
+				Structure: pb.Structure(99),
 			},
 			mustHave:    []string{runeUnspecified},
 			mustNotHave: []string{plainsRune},

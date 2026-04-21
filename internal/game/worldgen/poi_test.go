@@ -6,14 +6,14 @@ import (
 	"github.com/Rioverde/gongeons/internal/game"
 )
 
-// TestObjectsInChunkDeterministic verifies that calling ObjectsInChunk twice with the same
-// seed and chunk coordinate produces identical results.
-func TestObjectsInChunkDeterministic(t *testing.T) {
+// TestStructuresInChunkDeterministic verifies that calling StructuresInChunk twice with
+// the same seed and chunk coordinate produces identical results.
+func TestStructuresInChunkDeterministic(t *testing.T) {
 	g := NewWorldGenerator(12345)
 	cc := ChunkCoord{X: 3, Y: -2}
 
-	a := g.ObjectsInChunk(cc)
-	b := g.ObjectsInChunk(cc)
+	a := g.StructuresInChunk(cc)
+	b := g.StructuresInChunk(cc)
 
 	if len(a) != len(b) {
 		t.Fatalf("non-deterministic: first call returned %d POIs, second returned %d", len(a), len(b))
@@ -42,7 +42,7 @@ func TestPOIMinDistance(t *testing.T) {
 		for cx := -2; cx <= 2; cx++ {
 			cc := ChunkCoord{X: cx, Y: cy}
 			minX, _, minY, _ := cc.Bounds()
-			for key := range g.ObjectsInChunk(cc) {
+			for key := range g.StructuresInChunk(cc) {
 				all = append(all, worldPOI{
 					x: minX + key[0],
 					y: minY + key[1],
@@ -71,17 +71,17 @@ func TestPOIRespectsBiome(t *testing.T) {
 		for cx := -5; cx <= 5; cx++ {
 			cc := ChunkCoord{X: cx, Y: cy}
 			minX, _, minY, _ := cc.Bounds()
-			for key, kind := range g.ObjectsInChunk(cc) {
+			for key, kind := range g.StructuresInChunk(cc) {
 				wx := minX + key[0]
 				wy := minY + key[1]
 				tile := g.TileAt(wx, wy)
 
 				switch kind {
-				case game.ObjectVillage:
+				case game.StructureVillage:
 					if tile.Terrain == game.TerrainOcean || tile.Terrain == game.TerrainDeepOcean {
 						t.Errorf("village at (%d,%d) on water terrain %q", wx, wy, tile.Terrain)
 					}
-				case game.ObjectCastle:
+				case game.StructureCastle:
 					if tile.Terrain == game.TerrainSnowyPeak {
 						t.Errorf("castle at (%d,%d) on snowy_peak terrain", wx, wy)
 					}
@@ -102,7 +102,7 @@ func TestChunkContainsSomePOIs(t *testing.T) {
 
 	for cy := -5; cy <= 5; cy++ {
 		for cx := -5; cx <= 5; cx++ {
-			total += len(g.ObjectsInChunk(ChunkCoord{X: cx, Y: cy}))
+			total += len(g.StructuresInChunk(ChunkCoord{X: cx, Y: cy}))
 		}
 	}
 
