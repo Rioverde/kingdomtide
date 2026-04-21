@@ -31,7 +31,7 @@ var moistureOpts = OctaveOpts{
 	Scale:       64.0,
 }
 
-// WorldGenerator is the deterministic pure function layer: given a (q, r) coordinate (or a
+// WorldGenerator is the deterministic pure function layer: given an (x, y) coordinate (or a
 // whole chunk coord) it returns the tile that would live there for this seed. It owns three
 // independent noise fields — elevation, temperature, moisture — sampled on global world
 // coordinates so that chunk borders stitch seamlessly.
@@ -61,43 +61,44 @@ func (g *WorldGenerator) Seed() int64 {
 }
 
 // TileAt is the canonical per-coord lookup. It samples the three noise fields at the given
-// global axial coordinate and hands them to the biome matrix. Same (seed, q, r) always
+// global grid coordinate and hands them to the biome matrix. Same (seed, x, y) always
 // yields the same tile, with or without the chunk cache in front.
-func (g *WorldGenerator) TileAt(q, r int) game.Tile {
-	x, y := float64(q), float64(r)
-	elev := g.elevation.Eval2Normalized(x, y)
-	temp := g.temperature.Eval2Normalized(x, y)
-	moist := g.moisture.Eval2Normalized(x, y)
+func (g *WorldGenerator) TileAt(x, y int) game.Tile {
+	fx, fy := float64(x), float64(y)
+	elev := g.elevation.Eval2Normalized(fx, fy)
+	temp := g.temperature.Eval2Normalized(fx, fy)
+	moist := g.moisture.Eval2Normalized(fx, fy)
 	return game.Tile{Terrain: Biome(elev, temp, moist)}
 }
 
 // Chunk fills an entire Chunk worth of tiles by calling TileAt for every coord in the chunk
-// bounds. After biome assignment it overlays river data: any tile whose axial coord appears
-// in RiverTilesInChunk has its River flag set to true. Biome is intentionally not altered
-// here — river-adjacent biome blending is a later tuning pass.
+// bounds. After biome assignment it overlays two layers in a single pass: any tile whose
+// grid coord appears in RiverTilesInChunk has its River flag set, and any tile matching a
+// POI entry from ObjectsInChunk gets its Object field populated. Biome is intentionally not
+// altered here — river-adjacent biome blending is a later tuning pass. A POI on a river
+// tile is intentional — the river flag stays true alongside the object.
 func (g *WorldGenerator) Chunk(cc ChunkCoord) Chunk {
 	chunk := Chunk{Coord: cc}
-	minQ, _, minR, _ := cc.Bounds()
-	for dr := range ChunkSize {
-		for dq := range ChunkSize {
-			chunk.Tiles[dr][dq] = g.TileAt(minQ+dq, minR+dr)
+	minX, _, minY, _ := cc.Bounds()
+	for dy := range ChunkSize {
+		for dx := range ChunkSize {
+			chunk.Tiles[dy][dx] = g.TileAt(minX+dx, minY+dy)
 		}
 	}
 
+	// Overlay rivers and POIs in a single pass. River keys are global grid coords;
+	// POI keys are chunk-local (dx, dy) offsets — preserve both contracts.
 	riverTiles := g.RiverTilesInChunk(cc)
-	for dr := range ChunkSize {
-		for dq := range ChunkSize {
-			if _, ok := riverTiles[[2]int{minQ + dq, minR + dr}]; ok {
-				chunk.Tiles[dr][dq].River = true
+	objects := g.ObjectsInChunk(cc)
+	for dy := range ChunkSize {
+		for dx := range ChunkSize {
+			if _, wet := riverTiles[[2]int{minX + dx, minY + dy}]; wet {
+				chunk.Tiles[dy][dx].River = true
+			}
+			if obj, ok := objects[[2]int{dx, dy}]; ok {
+				chunk.Tiles[dy][dx].Object = obj
 			}
 		}
-	}
-
-	// Overlay point-of-interest objects on top of the biome + river layer. A POI on a
-	// river tile is intentional — the river flag stays true alongside the object.
-	objects := g.ObjectsInChunk(cc)
-	for key, kind := range objects {
-		chunk.Tiles[key[1]][key[0]].Object = kind
 	}
 
 	return chunk

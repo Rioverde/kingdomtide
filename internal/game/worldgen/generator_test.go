@@ -6,17 +6,17 @@ func TestWorldGeneratorDeterministic(t *testing.T) {
 	a := NewWorldGenerator(42)
 	b := NewWorldGenerator(42)
 
-	coords := []struct{ q, r int }{
+	coords := []struct{ x, y int }{
 		{0, 0},
 		{7, -3},
 		{128, 256},
 		{-1000, 999},
 	}
 	for _, c := range coords {
-		ta := a.TileAt(c.q, c.r)
-		tb := b.TileAt(c.q, c.r)
+		ta := a.TileAt(c.x, c.y)
+		tb := b.TileAt(c.x, c.y)
 		if ta != tb {
-			t.Errorf("TileAt(%d, %d) not deterministic: %+v vs %+v", c.q, c.r, ta, tb)
+			t.Errorf("TileAt(%d, %d) not deterministic: %+v vs %+v", c.x, c.y, ta, tb)
 		}
 	}
 }
@@ -29,9 +29,9 @@ func TestWorldGeneratorDifferentSeedsDiffer(t *testing.T) {
 	// Biomes quantise continuous noise so many tiles may coincide by chance; a larger
 	// block makes the coincidence vanishingly unlikely for a correctly seeded generator.
 	sameEverywhere := true
-	for q := -20; q <= 20 && sameEverywhere; q += 4 {
-		for r := -20; r <= 20 && sameEverywhere; r += 4 {
-			if a.TileAt(q, r) != b.TileAt(q, r) {
+	for x := -20; x <= 20 && sameEverywhere; x += 4 {
+		for y := -20; y <= 20 && sameEverywhere; y += 4 {
+			if a.TileAt(x, y) != b.TileAt(x, y) {
 				sameEverywhere = false
 			}
 		}
@@ -50,17 +50,17 @@ func TestGeneratorChunkMatchesTileAt(t *testing.T) {
 		t.Fatalf("chunk.Coord = %+v, want %+v", chunk.Coord, cc)
 	}
 
-	minQ, _, minR, _ := cc.Bounds()
-	for dr := range ChunkSize {
-		for dq := range ChunkSize {
-			q, r := minQ+dq, minR+dr
+	minX, _, minY, _ := cc.Bounds()
+	for dy := range ChunkSize {
+		for dx := range ChunkSize {
+			x, y := minX+dx, minY+dy
 			// TileAt returns the raw biome tile without river or POI overlays. Chunk()
 			// enriches tiles with both layers, so only the Terrain field must agree.
-			want := g.TileAt(q, r)
-			got := chunk.Tiles[dr][dq]
+			want := g.TileAt(x, y)
+			got := chunk.Tiles[dy][dx]
 			if got.Terrain != want.Terrain {
 				t.Fatalf("chunk.Tiles[%d][%d].Terrain = %q, TileAt(%d,%d).Terrain = %q",
-					dr, dq, got.Terrain, q, r, want.Terrain)
+					dy, dx, got.Terrain, x, y, want.Terrain)
 			}
 		}
 	}
@@ -71,10 +71,10 @@ func TestGeneratorChunkAllTilesPopulated(t *testing.T) {
 	chunk := g.Chunk(ChunkCoord{X: 0, Y: 0})
 
 	count := 0
-	for dr := range ChunkSize {
-		for dq := range ChunkSize {
-			if chunk.Tiles[dr][dq].Terrain == "" {
-				t.Fatalf("chunk tile at [%d][%d] has empty terrain", dr, dq)
+	for dy := range ChunkSize {
+		for dx := range ChunkSize {
+			if chunk.Tiles[dy][dx].Terrain == "" {
+				t.Fatalf("chunk tile at [%d][%d] has empty terrain", dy, dx)
 			}
 			count++
 		}

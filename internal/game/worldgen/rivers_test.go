@@ -9,11 +9,11 @@ import (
 // tile that qualifies as a river source for g. It returns the coordinates and
 // true when found, or 0, 0, false when the search area contains no source.
 // A radius of 500 covers a 1001×1001 tile area — enough for any reasonable seed.
-func findRiverSource(g *WorldGenerator, radius int) (q, r int, found bool) {
-	for sq := -radius; sq <= radius; sq++ {
-		for sr := -radius; sr <= radius; sr++ {
-			if g.IsRiverSource(sq, sr) {
-				return sq, sr, true
+func findRiverSource(g *WorldGenerator, radius int) (x, y int, found bool) {
+	for sx := -radius; sx <= radius; sx++ {
+		for sy := -radius; sy <= radius; sy++ {
+			if g.IsRiverSource(sx, sy) {
+				return sx, sy, true
 			}
 		}
 	}
@@ -27,16 +27,16 @@ func findRiverSource(g *WorldGenerator, radius int) (q, r int, found bool) {
 func TestRiverPathDeterministic(t *testing.T) {
 	g := NewWorldGenerator(42)
 
-	q, r, found := findRiverSource(g, 500)
+	x, y, found := findRiverSource(g, 500)
 	if !found {
 		t.Skip("no river source found in search area — adjust radius or seed")
 	}
 
-	path1 := g.RiverPath(q, r)
-	path2 := g.RiverPath(q, r)
+	path1 := g.RiverPath(x, y)
+	path2 := g.RiverPath(x, y)
 
 	if !reflect.DeepEqual(path1, path2) {
-		t.Fatalf("RiverPath(%d, %d) returned different results on two calls", q, r)
+		t.Fatalf("RiverPath(%d, %d) returned different results on two calls", x, y)
 	}
 	if len(path1) == 0 {
 		t.Fatal("expected non-empty path from a valid river source")
@@ -49,12 +49,12 @@ func TestRiverPathDeterministic(t *testing.T) {
 func TestRiverPathStopsAtOcean(t *testing.T) {
 	g := NewWorldGenerator(99)
 
-	q, r, found := findRiverSource(g, 500)
+	x, y, found := findRiverSource(g, 500)
 	if !found {
 		t.Skip("no river source found in search area — adjust radius or seed")
 	}
 
-	path := g.RiverPath(q, r)
+	path := g.RiverPath(x, y)
 	if len(path) == 0 {
 		t.Fatal("expected non-empty path")
 	}
@@ -62,8 +62,8 @@ func TestRiverPathStopsAtOcean(t *testing.T) {
 	// Either the path hit the cap (acceptable) or the final tile is ocean/below ocean.
 	if len(path) < riverMaxLength {
 		last := path[len(path)-1]
-		lq, lr := last[0], last[1]
-		elev := g.elevation.Eval2Normalized(float64(lq), float64(lr))
+		lx, ly := last[0], last[1]
+		elev := g.elevation.Eval2Normalized(float64(lx), float64(ly))
 		// The path stopped early — either it reached ocean or a local minimum.
 		// Both are valid. We only require that if elevation is above ocean the
 		// tile must be a local minimum (no lower neighbour).
@@ -71,14 +71,14 @@ func TestRiverPathStopsAtOcean(t *testing.T) {
 			// Verify it is a local minimum by checking all neighbours.
 			isMin := true
 			for _, off := range hexNeighborOffsets {
-				ne := g.elevation.Eval2Normalized(float64(lq+off[0]), float64(lr+off[1]))
+				ne := g.elevation.Eval2Normalized(float64(lx+off[0]), float64(ly+off[1]))
 				if ne < elev {
 					isMin = false
 					break
 				}
 			}
 			if !isMin {
-				t.Errorf("path ended at (%d,%d) elev=%.3f but it is not a local minimum and not ocean", lq, lr, elev)
+				t.Errorf("path ended at (%d,%d) elev=%.3f but it is not a local minimum and not ocean", lx, ly, elev)
 			}
 		}
 	}
@@ -106,9 +106,9 @@ func chunkWindowHasRiver(gen *WorldGenerator, centerCC ChunkCoord) bool {
 		for dcy := -10; dcy <= 10; dcy++ {
 			cc := ChunkCoord{X: centerCC.X + dcx, Y: centerCC.Y + dcy}
 			chunk := gen.Chunk(cc)
-			for dr := range ChunkSize {
-				for dq := range ChunkSize {
-					if chunk.Tiles[dr][dq].River {
+			for dy := range ChunkSize {
+				for dx := range ChunkSize {
+					if chunk.Tiles[dy][dx].River {
 						return true
 					}
 				}
@@ -129,13 +129,13 @@ func TestChunkHasRivers(t *testing.T) {
 	for s := int64(1); s <= seedCount; s++ {
 		gen := NewWorldGenerator(s)
 
-		sq, sr, found := findRiverSource(gen, 500)
+		sx, sy, found := findRiverSource(gen, 500)
 		if !found {
 			// No source found in the search radius for this seed — try the next.
 			continue
 		}
 
-		if chunkWindowHasRiver(gen, WorldToChunk(sq, sr)) {
+		if chunkWindowHasRiver(gen, WorldToChunk(sx, sy)) {
 			return // feature is present; test passes
 		}
 	}

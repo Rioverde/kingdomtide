@@ -31,21 +31,21 @@ func TestObjectsInChunkDeterministic(t *testing.T) {
 }
 
 // TestPOIMinDistance collects all POIs from a 5x5 grid of chunks and checks that no two
-// POIs are closer than poiMinDistance hex tiles apart.
+// POIs are closer than poiMinDistance tiles apart.
 func TestPOIMinDistance(t *testing.T) {
 	g := NewWorldGenerator(99999)
 
-	type worldPOI struct{ q, r int }
+	type worldPOI struct{ x, y int }
 	var all []worldPOI
 
 	for cy := -2; cy <= 2; cy++ {
 		for cx := -2; cx <= 2; cx++ {
 			cc := ChunkCoord{X: cx, Y: cy}
-			minQ, _, minR, _ := cc.Bounds()
+			minX, _, minY, _ := cc.Bounds()
 			for key := range g.ObjectsInChunk(cc) {
 				all = append(all, worldPOI{
-					q: minQ + key[0],
-					r: minR + key[1],
+					x: minX + key[0],
+					y: minY + key[1],
 				})
 			}
 		}
@@ -53,10 +53,10 @@ func TestPOIMinDistance(t *testing.T) {
 
 	for i := range all {
 		for j := i + 1; j < len(all); j++ {
-			d := hexDistance(all[i].q, all[i].r, all[j].q, all[j].r)
+			d := hexDistance(all[i].x, all[i].y, all[j].x, all[j].y)
 			if d < poiMinDistance {
 				t.Errorf("POI at (%d,%d) and (%d,%d) are only %d apart (min %d)",
-					all[i].q, all[i].r, all[j].q, all[j].r, d, poiMinDistance)
+					all[i].x, all[i].y, all[j].x, all[j].y, d, poiMinDistance)
 			}
 		}
 	}
@@ -70,23 +70,23 @@ func TestPOIRespectsBiome(t *testing.T) {
 	for cy := -5; cy <= 5; cy++ {
 		for cx := -5; cx <= 5; cx++ {
 			cc := ChunkCoord{X: cx, Y: cy}
-			minQ, _, minR, _ := cc.Bounds()
+			minX, _, minY, _ := cc.Bounds()
 			for key, kind := range g.ObjectsInChunk(cc) {
-				wq := minQ + key[0]
-				wr := minR + key[1]
-				tile := g.TileAt(wq, wr)
+				wx := minX + key[0]
+				wy := minY + key[1]
+				tile := g.TileAt(wx, wy)
 
 				switch kind {
 				case game.ObjectVillage:
 					if tile.Terrain == game.TerrainOcean || tile.Terrain == game.TerrainDeepOcean {
-						t.Errorf("village at (%d,%d) on water terrain %q", wq, wr, tile.Terrain)
+						t.Errorf("village at (%d,%d) on water terrain %q", wx, wy, tile.Terrain)
 					}
 				case game.ObjectCastle:
 					if tile.Terrain == game.TerrainSnowyPeak {
-						t.Errorf("castle at (%d,%d) on snowy_peak terrain", wq, wr)
+						t.Errorf("castle at (%d,%d) on snowy_peak terrain", wx, wy)
 					}
 					if tile.Terrain == game.TerrainDeepOcean || tile.Terrain == game.TerrainOcean {
-						t.Errorf("castle at (%d,%d) on water terrain %q", wq, wr, tile.Terrain)
+						t.Errorf("castle at (%d,%d) on water terrain %q", wx, wy, tile.Terrain)
 					}
 				}
 			}

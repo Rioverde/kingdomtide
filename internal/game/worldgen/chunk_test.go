@@ -29,7 +29,7 @@ func TestFloorDiv(t *testing.T) {
 
 func TestWorldToChunk(t *testing.T) {
 	cases := []struct {
-		q, r int
+		x, y int
 		want ChunkCoord
 	}{
 		{0, 0, ChunkCoord{0, 0}},
@@ -41,26 +41,26 @@ func TestWorldToChunk(t *testing.T) {
 		{-17, -17, ChunkCoord{-2, -2}},
 	}
 	for _, tc := range cases {
-		if got := WorldToChunk(tc.q, tc.r); got != tc.want {
-			t.Errorf("WorldToChunk(%d, %d) = %+v, want %+v", tc.q, tc.r, got, tc.want)
+		if got := WorldToChunk(tc.x, tc.y); got != tc.want {
+			t.Errorf("WorldToChunk(%d, %d) = %+v, want %+v", tc.x, tc.y, got, tc.want)
 		}
 	}
 }
 
 func TestChunkBounds(t *testing.T) {
 	c := ChunkCoord{X: 2, Y: -1}
-	minQ, maxQ, minR, maxR := c.Bounds()
-	if minQ != 32 || maxQ != 48 || minR != -16 || maxR != 0 {
-		t.Errorf("Bounds() = [%d,%d) x [%d,%d), want [32,48) x [-16,0)", minQ, maxQ, minR, maxR)
+	minX, maxX, minY, maxY := c.Bounds()
+	if minX != 32 || maxX != 48 || minY != -16 || maxY != 0 {
+		t.Errorf("Bounds() = [%d,%d) x [%d,%d), want [32,48) x [-16,0)", minX, maxX, minY, maxY)
 	}
 }
 
 func TestChunkAtRoundTrip(t *testing.T) {
 	c := Chunk{Coord: ChunkCoord{X: 3, Y: -2}}
-	minQ, _, minR, _ := c.Bounds()
+	minX, _, minY, _ := c.Bounds()
 	tile := game.Tile{Terrain: game.TerrainJungle}
-	c.Set(minQ+5, minR+7, tile)
-	if got := c.At(minQ+5, minR+7); got != tile {
+	c.Set(minX+5, minY+7, tile)
+	if got := c.At(minX+5, minY+7); got != tile {
 		t.Fatalf("At/Set round trip: got %+v, want %+v", got, tile)
 	}
 }
