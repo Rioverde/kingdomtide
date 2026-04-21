@@ -39,16 +39,16 @@ help:
 build: build-client build-server
 
 build-client:
-	$(GO) build -o bin/$(CLIENT_BIN) ./cmd/gongeons
+	$(GO) build -o bin/$(CLIENT_BIN) ./cmd/client
 
 build-server:
-	$(GO) build -o bin/$(SERVER_BIN) ./cmd/gongeonsd
+	$(GO) build -o bin/$(SERVER_BIN) ./cmd/server
 
 run-server:
-	$(GO) run ./cmd/gongeonsd -addr $(SERVER_ADDR)
+	$(GO) run ./cmd/server -addr $(SERVER_ADDR)
 
 run-client:
-	$(GO) run ./cmd/gongeons -server $(CLIENT_ADDR)
+	$(GO) run ./cmd/client -server $(CLIENT_ADDR)
 
 test:
 	$(GO) test -race ./...
