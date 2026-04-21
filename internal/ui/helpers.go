@@ -5,9 +5,7 @@ package ui
 // Model stays in its original file; only pure utilities live here.
 
 import (
-	"cmp"
 	"fmt"
-	"slices"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -35,21 +33,6 @@ func renderPanel[T any](
 		b.WriteByte('\n')
 	}
 	return style.Render(strings.TrimRight(b.String(), "\n"))
-}
-
-// sortedMapValues returns the values of m as a slice, ordered by key.
-// Stable output for rendering; predictable for tests.
-func sortedMapValues[K cmp.Ordered, V any](m map[K]V) []V {
-	keys := make([]K, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	slices.Sort(keys)
-	out := make([]V, 0, len(keys))
-	for _, k := range keys {
-		out = append(out, m[k])
-	}
-	return out
 }
 
 // sendNonBlocking returns a tea.Cmd that tries to queue msg on outbox

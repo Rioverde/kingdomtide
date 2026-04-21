@@ -1,3 +1,6 @@
+// Package gongeonspb is the generated protobuf package for the Gongeons
+// wire protocol, plus hand-maintained error code constants shared between
+// server and client (see errorcodes.go).
 package gongeonspb
 
 // Error code constants for ErrorResponse.Code. These are part of the

@@ -49,7 +49,6 @@ const (
 	// horizontally. Two cells per tile corrects the ~2:1 tall:wide aspect
 	// ratio of a terminal cell so a game-tile reads as roughly square.
 	tileWidth = 2
-
 )
 
 // TODO(Rioverde): add a runtime zoom toggle (+/- keys) that changes

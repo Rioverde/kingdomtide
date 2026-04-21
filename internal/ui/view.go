@@ -169,7 +169,7 @@ func (m *Model) viewPlaying() string {
 //	└──────────────┘
 func (m *Model) renderStatsBox() string {
 	empty := locale.Tr(m.lang, locale.KeyStatsEmpty)
-	innerW := sidebarWidth - 6
+	innerW := sidebarWidth - gridBoxChrome
 	if innerW < 4 {
 		innerW = 4
 	}
@@ -263,7 +263,7 @@ func (m *Model) renderEventsBox() string {
 	leftColW := m.termWidth - sidebarWidth - columnGap
 	halfW := leftColW / 2
 	// Inner width: half column minus box chrome (1 border + 2 padding each side = 6 total).
-	innerW := halfW - 6
+	innerW := halfW - gridBoxChrome
 	if innerW < 10 {
 		innerW = 10
 	}
@@ -523,11 +523,6 @@ func logEntryStyle(e logEntry) lipgloss.Style {
 	default:
 		return styles.logDefault
 	}
-}
-
-// sortedPlayers returns the Model's players ordered by ID.
-func (m *Model) sortedPlayers() []playerInfo {
-	return sortedMapValues(m.players)
 }
 
 // selfPlayer returns the current player's info from the players map.
