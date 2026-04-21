@@ -44,11 +44,15 @@ func (m *Model) centeredBox(style lipgloss.Style, inner string) string {
 	)
 }
 
-// viewEnterName draws a bordered prompt asking for a nickname, centred
-// in the available terminal area.
+// viewEnterName draws the sword banner, game title, tagline, name input and
+// quit hint — all stacked and centred inside a bordered box, which is itself
+// centred on the terminal.
 func (m *Model) viewEnterName() string {
-	inner := lipgloss.JoinVertical(lipgloss.Left,
+	inner := lipgloss.JoinVertical(lipgloss.Center,
+		styles.title.Render(TitleArt),
+		"",
 		styles.title.Render(TitleText),
+		styles.prompt.Render(Tagline),
 		"",
 		styles.prompt.Render(NameInputLabel),
 		renderInput(m),

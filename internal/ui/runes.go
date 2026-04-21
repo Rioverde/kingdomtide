@@ -74,6 +74,21 @@ const (
 	QuitLongHint   = "press Enter to connect, q to quit"
 	PlayersHeader  = "Players"
 	EventsHeader   = "Events"
-	TitleText      = "Gongeons"
+	TitleText      = "G · O · N · G · E · O · N · S"
+	Tagline        = "Let the dice fall where they may."
 	DisconnectHint = "press q to quit"
 )
+
+// TitleArt is the ASCII sword shown above the title on the name-entry screen.
+// The shape is the original hand-drawn sword with a handful of glyphs swapped
+// to box-drawing and geometric Unicode so edges look sharp without changing
+// any column position — every swap is single-cell wide.
+const TitleArt = `              (◉)
+              <M
+   o          <M
+  ╱| ······  ╱:M╲────────────────────────────────────────────────,,,,,,
+(◉)[]XXXXXX[]I:K╬}═════◀{H}▶════════════════════════════────────────▶
+  ╲| ^^^^^^  ╲:W╱────────────────────────────────────────────────''''''
+   o          <W
+              <W
+              (◉)`
