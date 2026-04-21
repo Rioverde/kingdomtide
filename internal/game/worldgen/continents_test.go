@@ -180,7 +180,7 @@ func TestRiverDensityUnderContinents(t *testing.T) {
 
 // TestRiverThresholdCalibration is a diagnostic (not an assertion) that prints the
 // probability mass of raw-vs-blended elevation above several candidate thresholds.
-// The logged values inform tuning of flowAccumThreshold (drainage.go): knowing what
+// The logged values inform tuning of riverAccumThreshold (rivers.go): knowing what
 // fraction of tiles sit above a given elevation helps predict how many cells accumulate
 // enough upstream area to clear the threshold. Kept as a regular test so future tuners
 // can re-run it via `go test -run Calibration -v`.

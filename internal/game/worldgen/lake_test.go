@@ -60,7 +60,7 @@ func TestLakeOverlayAppearsOnRaisedCells(t *testing.T) {
 	t.Skip("no lake tiles found across 20 seeds × 8x8 chunks — depression topology is seed-dependent; acceptable skip")
 }
 
-// TestLakeOverlayPersistsThroughCache verifies the drainage cache does not
+// TestLakeOverlayPersistsThroughCache verifies the hydrology cache does not
 // drop lake bits between a fresh generation and a subsequent cached read.
 // Same (seed, coord) → same overlay bits, with or without cache in front.
 func TestLakeOverlayPersistsThroughCache(t *testing.T) {

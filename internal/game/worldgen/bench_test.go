@@ -45,13 +45,13 @@ func TestChunkPerformanceBudget(t *testing.T) {
 	}
 }
 
-// BenchmarkChunkWithDrainage measures the end-to-end cost of generating one
-// chunk with the full Phase-3 drainage pipeline (priority-flood + flow
-// accumulation + river tracing + lake overlay). Each iteration runs against
-// a fresh generator so the drainage cache cannot hide the real cost of a
-// cold buffer — the performance budget in the plan is < 5 ms per cold
-// Chunk() call on an 80×80 buffer.
-func BenchmarkChunkWithDrainage(b *testing.B) {
+// BenchmarkChunkWithHydrology measures the end-to-end cost of generating one
+// chunk with the full hydrology pipeline (Priority-Flood+ε + D8 flow
+// accumulation + river mask + lake overlay). Each iteration runs against a
+// fresh generator so the hydrology cache cannot hide the real cost of a cold
+// buffer — the performance budget is < 5 ms per cold Chunk() call on an 80×80
+// buffer.
+func BenchmarkChunkWithHydrology(b *testing.B) {
 	b.ReportAllocs()
 	for i := range b.N {
 		g := NewWorldGenerator(int64(i + 1))
@@ -59,14 +59,14 @@ func BenchmarkChunkWithDrainage(b *testing.B) {
 	}
 }
 
-// BenchmarkChunkWithDrainageWarm measures the warm-cache cost: same chunk
+// BenchmarkChunkWithHydrologyWarm measures the warm-cache cost: same chunk
 // generated repeatedly from the same generator. This is what the viewport
 // hot path sees — the first access pays the full fill, every subsequent
-// access is a straight chunk-cache hit.
-func BenchmarkChunkWithDrainageWarm(b *testing.B) {
+// access is a straight hydrology-cache hit.
+func BenchmarkChunkWithHydrologyWarm(b *testing.B) {
 	g := NewWorldGenerator(42)
 	cc := ChunkCoord{X: 3, Y: -1}
-	// Prime: first call fills, rest hit the drainage cache.
+	// Prime: first call fills, rest hit the hydrology cache.
 	_ = g.Chunk(cc)
 	b.ResetTimer()
 	b.ReportAllocs()

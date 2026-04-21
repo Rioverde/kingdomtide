@@ -7,204 +7,222 @@ import (
 	"github.com/Rioverde/gongeons/internal/game"
 )
 
-// findRiverSourceRadius is the search half-width in tiles. 500 covers a
-// 1001×1001 area — enough for any reasonable seed. A constant (not a
-// parameter) because all callers use the same value; keeping it a parameter
-// tripped the unparam linter and invited accidental tuning.
-const findRiverSourceRadius = 500
-
-// findRiverSource scans chunks in a region around the origin to locate the
-// first tile that qualifies as a river source for g. It returns the
-// coordinates and true when found, or 0, 0, false when the search area
-// contains no source.
-//
-// Phase-3: IsRiverSource now requires a drainage field, so the search iterates
-// chunk-by-chunk, materialising (or reusing) the drainage field per chunk and
-// scanning every tile inside. The radius (≈31 chunks per side) is enough
-// coverage for any reasonable seed.
-func findRiverSource(g *WorldGenerator) (x, y int, found bool) {
-	chunkRadius := findRiverSourceRadius/ChunkSize + 1
-	for cx := -chunkRadius; cx <= chunkRadius; cx++ {
-		for cy := -chunkRadius; cy <= chunkRadius; cy++ {
-			cc := ChunkCoord{X: cx, Y: cy}
-			field := g.drainageFor(cc)
-			minX, maxX, minY, maxY := cc.Bounds()
-			for sy := minY; sy < maxY; sy++ {
-				for sx := minX; sx < maxX; sx++ {
-					if sx < -findRiverSourceRadius || sx > findRiverSourceRadius ||
-						sy < -findRiverSourceRadius || sy > findRiverSourceRadius {
-						continue
-					}
-					if g.IsRiverSource(field, sx, sy) {
-						return sx, sy, true
-					}
-				}
-			}
-		}
-	}
-	return 0, 0, false
-}
-
-// TestRiverPathDeterministic verifies that two calls to RiverPath with the same
-// source and the same generator (identical seed) produce bit-for-bit identical
-// paths. This is the core correctness property: deterministic generation means
-// no seams between separately-computed chunks.
-func TestRiverPathDeterministic(t *testing.T) {
-	g := NewWorldGenerator(42)
-
-	x, y, found := findRiverSource(g)
-	if !found {
-		t.Skip("no river source found in search area — adjust radius or seed")
-	}
-
-	path1 := g.RiverPath(x, y)
-	path2 := g.RiverPath(x, y)
-
-	if !reflect.DeepEqual(path1, path2) {
-		t.Fatalf("RiverPath(%d, %d) returned different results on two calls", x, y)
-	}
-	if len(path1) == 0 {
-		t.Fatal("expected non-empty path from a valid river source")
-	}
-}
-
-// TestRiverPathStopsAtOcean checks that a river path terminates in one of three
-// legitimate ways after Phase 3: reached ocean on the filled surface, hit the
-// riverMaxLength cap, or left the drainage buffer ("scan window"). Priority-
-// flood guarantees there is no longer a "stopped at a mid-land local minimum"
-// case — that was the Phase-2 behaviour this phase was specifically built to
-// eliminate.
-func TestRiverPathStopsAtOcean(t *testing.T) {
-	g := NewWorldGenerator(99)
-
-	x, y, found := findRiverSource(g)
-	if !found {
-		t.Skip("no river source found in search area — adjust radius or seed")
-	}
-
-	path := g.RiverPath(x, y)
-	if len(path) == 0 {
-		t.Fatal("expected non-empty path")
-	}
-
-	// Hitting the cap is always acceptable — very long paths fall through.
-	if len(path) >= riverMaxLength {
-		return
-	}
-
-	last := path[len(path)-1]
-	lx, ly := last[0], last[1]
-
-	// Build the drainage field for the chunk owning the source so the
-	// termination check sees the same filled surface the tracer used.
-	sourceField := g.drainageFor(WorldToChunk(x, y))
-	if fillElev, inBuf := sourceField.elevationAt(lx, ly); inBuf {
-		if fillElev < elevationOcean {
-			return // reached ocean — fine
-		}
-		// Still in the buffer and above ocean on the filled surface — this
-		// would be a mid-land dead end, which Phase 3 is supposed to prevent.
-		t.Errorf("path ended at (%d,%d) fillElev=%.6f — mid-land stop on filled surface",
-			lx, ly, fillElev)
-		return
-	}
-	// Last tile is outside the original buffer — the tracer left the scan
-	// window. That is an acceptable termination per riverPathOnField's doc.
-}
-
 // TestRiverTilesInChunkDeterministic calls RiverTilesInChunk twice for the same
-// chunk and verifies the returned sets are equal. Determinism here ensures that
-// separate HTTP requests for the same chunk produce the same river layout.
+// chunk on the same generator and asserts the returned sets are identical.
+// Determinism here is what lets separate HTTP requests for the same chunk
+// produce the same river layout.
 func TestRiverTilesInChunkDeterministic(t *testing.T) {
 	g := NewWorldGenerator(7)
 	cc := ChunkCoord{X: 3, Y: -2}
 
-	set1 := g.RiverTilesInChunk(cc)
-	set2 := g.RiverTilesInChunk(cc)
+	s1 := g.RiverTilesInChunk(cc)
+	s2 := g.RiverTilesInChunk(cc)
 
-	if !reflect.DeepEqual(set1, set2) {
+	if !reflect.DeepEqual(s1, s2) {
 		t.Fatal("RiverTilesInChunk returned different sets on two calls for the same chunk")
 	}
 }
 
-// TestRiverPathOnFieldNoInfiniteLoop exercises the no-progress termination guard
-// in riverPathOnField. A synthetic drainageField is constructed with a flat
-// (zero) fillElev so that no neighbour is ever strictly lower than the current
-// cell — the loop must stop at step 1 rather than spinning forever. This proves
-// that removing the dead bestInBuf flag did not break the termination invariant:
-// the bestX == x && bestY == y check is the sole (and sufficient) guard.
-func TestRiverPathOnFieldNoInfiniteLoop(t *testing.T) {
-	g := NewWorldGenerator(1)
+// TestChunkHasRivers is a sanity floor: across a sweep of seeds some chunk in a
+// 21×21 window must contain at least one river tile. Catches a regression
+// where the accum threshold, moisture gate, or mountain-source propagation
+// accidentally suppresses all rivers.
+func TestChunkHasRivers(t *testing.T) {
+	const seedCount = 20
 
-	// Build a real drainage field but then zero all fillElev entries so every
-	// cell looks like a flat plateau — no strictly-lower neighbour anywhere.
-	cc := ChunkCoord{X: 0, Y: 0}
-	field := g.drainageFor(cc)
-
-	// Flatten the fill surface so the no-progress guard is always hit.
-	for y := range drainageBufferSide {
-		for x := range drainageBufferSide {
-			field.fillElev[y][x] = 0.5 // uniform elevation above ocean
-		}
-	}
-
-	// Pick the centre tile of the buffer as the source.
-	originX := field.originX + drainageBufferSide/2
-	originY := field.originY + drainageBufferSide/2
-
-	path := g.riverPathOnField(field, originX, originY)
-
-	// The path must contain exactly the source tile and then stop (no lower
-	// neighbour is available). If the loop spun without the guard we would hit
-	// riverMaxLength; here we want exactly 1 step.
-	if len(path) != 1 {
-		t.Errorf("expected path length 1 on flat surface, got %d — no-progress guard may be broken", len(path))
-	}
-	if path[0][0] != originX || path[0][1] != originY {
-		t.Errorf("first path step is (%d,%d), want (%d,%d)", path[0][0], path[0][1], originX, originY)
-	}
-}
-
-// chunkWindowHasRiver reports whether any tile within a 21×21 chunk window
-// centred on centerCC contains a river tile for the given generator.
-func chunkWindowHasRiver(gen *WorldGenerator, centerCC ChunkCoord) bool {
-	for dcx := -10; dcx <= 10; dcx++ {
-		for dcy := -10; dcy <= 10; dcy++ {
-			cc := ChunkCoord{X: centerCC.X + dcx, Y: centerCC.Y + dcy}
-			chunk := gen.Chunk(cc)
-			for dy := range ChunkSize {
-				for dx := range ChunkSize {
-					if chunk.Tiles[dy][dx].Overlays.Has(game.OverlayRiver) {
-						return true
+	for s := int64(1); s <= seedCount; s++ {
+		g := NewWorldGenerator(s)
+		for cx := -10; cx <= 10; cx++ {
+			for cy := -10; cy <= 10; cy++ {
+				c := g.Chunk(ChunkCoord{X: cx, Y: cy})
+				for dy := range ChunkSize {
+					for dx := range ChunkSize {
+						if c.Tiles[dy][dx].Overlays.Has(game.OverlayRiver) {
+							return
+						}
 					}
 				}
 			}
 		}
 	}
+
+	t.Fatal("no river tiles found across 20 seeds × 21×21 chunk windows — river generation likely broken")
+}
+
+// TestRiverTilesFlowToSink asserts the "rivers end in ocean or lake" property:
+// every river tile walked along D8 steepest descent terminates at an ocean
+// cell, a lake cell, or the buffer boundary within hydrologyBufferSide steps.
+// The buffer-boundary termination is acceptable because a river crossing out
+// of the buffer is another chunk's responsibility to render (its own buffer
+// covers that cell).
+func TestRiverTilesFlowToSink(t *testing.T) {
+	g := NewWorldGenerator(42)
+
+	for cx := -4; cx <= 4; cx++ {
+		for cy := -4; cy <= 4; cy++ {
+			cc := ChunkCoord{X: cx, Y: cy}
+			f := g.hydrologyFor(cc)
+			for y := range hydrologyBufferSide {
+				for x := range hydrologyBufferSide {
+					if !f.river[y][x] {
+						continue
+					}
+					if !walkReachesSink(f, x, y) {
+						t.Errorf("chunk (%d,%d) buf (%d,%d): river tile never reached ocean/lake/boundary",
+							cx, cy, x, y)
+					}
+				}
+			}
+		}
+	}
+}
+
+// walkReachesSink follows steepest descent from (x, y) on f for at most
+// hydrologyBufferSide steps and returns true if the walk ends at an ocean
+// cell, a lake cell, or the buffer boundary (dx=dy=0 from bestDownhill).
+func walkReachesSink(f *hydrologyField, x, y int) bool {
+	for range hydrologyBufferSide {
+		if f.fillElev[y][x] < elevationOcean {
+			return true
+		}
+		if f.wasRaised[y][x] {
+			return true
+		}
+		dx, dy := f.bestDownhill(x, y)
+		if dx == 0 && dy == 0 {
+			return true
+		}
+		x += int(dx)
+		y += int(dy)
+	}
 	return false
 }
 
-// TestChunkHasRivers is a sanity check that river generation produces at least
-// one river tile somewhere across a broad sweep of seeds and chunks. It tries
-// seeds 1–20 and for each seed scans a 21×21 chunk window centred on the first
-// discovered river source. The test passes as soon as any chunk in any seed
-// contains a river tile, so it is not coupled to the topology of a single seed.
-func TestChunkHasRivers(t *testing.T) {
-	const seedCount = 20
-
-	for s := int64(1); s <= seedCount; s++ {
-		gen := NewWorldGenerator(s)
-
-		sx, sy, found := findRiverSource(gen)
-		if !found {
-			// No source found in the search radius for this seed — try the next.
-			continue
-		}
-
-		if chunkWindowHasRiver(gen, WorldToChunk(sx, sy)) {
-			return // feature is present; test passes
+// TestNoRiverWithoutMountainSource builds a synthetic field with zero mountain
+// sources and verifies no cell is classified as a river — even where
+// accumulation would otherwise pass the threshold. This pins the headline
+// rule: rivers must originate in mountains.
+func TestNoRiverWithoutMountainSource(t *testing.T) {
+	var raw [hydrologyBufferSide][hydrologyBufferSide]float64
+	for y := range hydrologyBufferSide {
+		for x := range hydrologyBufferSide {
+			raw[y][x] = 0.55 - float64(x)*0.0005
 		}
 	}
 
-	t.Fatal("no river tiles found across 20 seeds in 21×21 chunk windows — river generation likely broken")
+	var zeroSource [hydrologyBufferSide][hydrologyBufferSide]bool
+	f := buildSyntheticField(&raw, &zeroSource)
+
+	highAccum := false
+	for y := range hydrologyBufferSide {
+		for x := range hydrologyBufferSide {
+			if f.accum[y][x] >= riverAccumThreshold {
+				highAccum = true
+			}
+			if f.river[y][x] {
+				t.Errorf("river tile at (%d,%d) despite zero mountain-sourced cells", x, y)
+			}
+		}
+	}
+	if !highAccum {
+		t.Fatal("test preconditions broken: no cell accumulated past threshold, so the "+
+			"no-rivers assertion is vacuous — adjust the ramp gradient")
+	}
+}
+
+// TestRiverRequiresSourceToProduceRiver is the complement to
+// TestNoRiverWithoutMountainSource: the same topology with at least one
+// mountain-sourced cell upstream MUST produce river tiles where accum passes
+// the threshold. Together the two tests pin the source gate as necessary and
+// (given accum) sufficient.
+func TestRiverRequiresSourceToProduceRiver(t *testing.T) {
+	var raw [hydrologyBufferSide][hydrologyBufferSide]float64
+	for y := range hydrologyBufferSide {
+		for x := range hydrologyBufferSide {
+			raw[y][x] = 0.55 - float64(x)*0.0005
+		}
+	}
+
+	var source [hydrologyBufferSide][hydrologyBufferSide]bool
+	source[hydrologyBufferSide/2][1] = true
+
+	f := buildSyntheticField(&raw, &source)
+
+	found := false
+	for y := range hydrologyBufferSide {
+		for x := range hydrologyBufferSide {
+			if f.river[y][x] {
+				found = true
+			}
+		}
+	}
+	if !found {
+		t.Error("no river tiles despite a mountain-sourced cell upstream of a descending ramp")
+	}
+}
+
+// TestRiverDoesNotOverpaintLake asserts rivers and lakes are mutually exclusive
+// on the overlay layer — a lake cell is never also marked as river.
+func TestRiverDoesNotOverpaintLake(t *testing.T) {
+	g := NewWorldGenerator(42)
+	for cx := -4; cx <= 4; cx++ {
+		for cy := -4; cy <= 4; cy++ {
+			cc := ChunkCoord{X: cx, Y: cy}
+			f := g.hydrologyFor(cc)
+			for y := range hydrologyBufferSide {
+				for x := range hydrologyBufferSide {
+					if f.river[y][x] && f.wasRaised[y][x] {
+						t.Errorf("chunk (%d,%d) buf (%d,%d): cell marked both river and lake",
+							cx, cy, x, y)
+					}
+				}
+			}
+		}
+	}
+}
+
+// TestRiverDensityRealistic calibrates the accum threshold + source gate: over
+// 8 seeds × 16×16 chunks the fraction of river tiles among land tiles must
+// sit in a realistic band. The ceiling catches an over-wet map (every creek
+// is a river); the floor catches a gate that suppresses all rivers.
+func TestRiverDensityRealistic(t *testing.T) {
+	var totalLand, totalRiver int
+
+	for s := int64(1); s <= 8; s++ {
+		g := NewWorldGenerator(s)
+		for cx := -8; cx < 8; cx++ {
+			for cy := -8; cy < 8; cy++ {
+				c := g.Chunk(ChunkCoord{X: cx, Y: cy})
+				for dy := range ChunkSize {
+					for dx := range ChunkSize {
+						tile := c.Tiles[dy][dx]
+						if isLandTerrain(tile.Terrain) {
+							totalLand++
+							if tile.Overlays.Has(game.OverlayRiver) {
+								totalRiver++
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	if totalLand == 0 {
+		t.Fatal("no land tiles sampled")
+	}
+	density := float64(totalRiver) / float64(totalLand)
+	t.Logf("river density = %.4f (%d rivers / %d land)", density, totalRiver, totalLand)
+	if density < 0.001 {
+		t.Errorf("river density %.4f below 0.1%% floor — threshold too strict or source gate over-blocks",
+			density)
+	}
+	if density > 0.04 {
+		t.Errorf("river density %.4f above 4%% ceiling — threshold too loose", density)
+	}
+}
+
+// isLandTerrain reports whether a terrain is on land (not ocean).
+func isLandTerrain(t game.Terrain) bool {
+	return t != game.TerrainDeepOcean && t != game.TerrainOcean
 }
