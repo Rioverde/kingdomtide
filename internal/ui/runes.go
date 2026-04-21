@@ -22,6 +22,12 @@ const (
 // a river. It sits over the underlying biome.
 const riverRune = "≈"
 
+// lakeRune is painted on tiles the worldgen drainage pass marked as standing
+// water (OverlayLake). Triple tilde — the same glyph as deep ocean — signals
+// "still water" visually: no flow, no wavelets. The underlying biome is
+// preserved under the bit so a drained lakebed still reads correctly.
+const lakeRune = "≋"
+
 // structureRunes maps village / castle / etc. to the glyph drawn in place
 // of the terrain rune. Rendered below players but above rivers and terrain.
 var structureRunes = map[pb.Structure]string{

@@ -1,24 +1,16 @@
 package worldgen
 
-// riverSourceThreshold is the minimum normalised elevation for a tile to be
-// considered a river source. Tiles at or above this value sit in the high
-// hills / mountain band — water accumulates there and flows downhill.
-const riverSourceThreshold = 0.72
-
 // riverMoistureThreshold gates river spawning by moisture. Arid tiles (below
 // this value) do not produce rivers regardless of their elevation, preventing
-// implausible mountain streams in the middle of deserts.
+// implausible mountain streams in the middle of deserts. Retained from
+// Phase 2 — the Phase-3 flow-accumulation gate replaces elevation/sparsity
+// but the moisture climate gate still has teeth.
 const riverMoistureThreshold = 0.55
 
 // riverMaxLength caps how many steps a single river trace may take. The limit
 // keeps generation bounded and prevents degenerate cycles in flat terrain from
 // running forever. At ChunkSize=16 a cap of 128 crosses eight chunks at most.
 const riverMaxLength = 128
-
-// riverSourceSparsity is the modulus used to thin out sources. Only coordinates
-// whose hash lands on zero survive, so roughly 1-in-N eligible mountain tiles
-// become sources.
-const riverSourceSparsity = 7
 
 // hexNeighborOffsets lists six step directions for river flow. Six directions
 // (rather than the square grid's four) give the path tracer enough freedom to
@@ -38,6 +30,10 @@ var hexNeighborOffsets = [6][2]int{
 // constants are arbitrary large primes; XOR-ing them produces good bit
 // diffusion without a full cryptographic hash. The result is platform-stable
 // because all arithmetic is on unsigned 64-bit values.
+//
+// Retained post-Phase-3 for seedJitter01 (generator.go) which still needs a
+// deterministic 64-bit mixer. River-source selection itself no longer uses
+// this hash — flow accumulation provides natural sparsity.
 func riverSourceHash(x, y int, seed int64) uint64 {
 	a := uint64(x)*0x9e3779b97f4a7c15 ^ uint64(y)*0x6c62272e07bb0142 ^ uint64(seed)*0xbf58476d1ce4e5b9
 	a ^= a >> 30
@@ -49,59 +45,101 @@ func riverSourceHash(x, y int, seed int64) uint64 {
 }
 
 // IsRiverSource reports whether tile (x, y) is a river source for this world.
-// Three conditions must all hold: the tile must be high enough (≥ riverSourceThreshold),
-// moist enough (≥ riverMoistureThreshold), and its hash must land on zero modulo
-// riverSourceSparsity so that sources remain sparse but fully deterministic.
-func (g *WorldGenerator) IsRiverSource(x, y int) bool {
+// Phase 3 semantics: a source exists where flow accumulation clears
+// flowAccumThreshold AND the tile is above ocean AND the local moisture climate
+// is not arid. The caller must already hold the drainage field for a buffer
+// containing (x, y) — use drainageFor(cc) on the chunk owning the coord.
+//
+// The signature takes the drainage field as an explicit parameter instead of
+// re-building one from g.drainage. This keeps RiverTilesInChunk O(buffer) and
+// lets tests exercise the source gate on a synthetic field.
+func (g *WorldGenerator) IsRiverSource(field *drainageField, x, y int) bool {
+	accum, inBuf := field.accumAt(x, y)
+	if !inBuf {
+		return false
+	}
+	if accum < flowAccumThreshold {
+		return false
+	}
+	elev, _ := field.elevationAt(x, y)
+	if elev < elevationOcean {
+		return false
+	}
 	fx, fy := float64(x), float64(y)
-	elev := g.elevation.Eval2Normalized(fx, fy)
-	if elev < riverSourceThreshold {
-		return false
-	}
 	moist := g.moisture.Eval2Normalized(fx, fy)
-	if moist < riverMoistureThreshold {
-		return false
-	}
-	return riverSourceHash(x, y, g.seed)%riverSourceSparsity == 0
+	return moist >= riverMoistureThreshold
 }
 
 // RiverPath traces a river starting at (sourceX, sourceY) and returns the
 // ordered slice of grid coordinates the river passes through, including the
-// source itself. The trace picks the neighbour with the lowest elevation at
-// each step, mimicking gravity-driven flow. It terminates when:
-//   - the current tile is ocean (deep ocean or ocean) — water has reached the sea,
-//   - no strictly-lower neighbour exists (local minimum / plateau), or
-//   - the path length exceeds riverMaxLength.
+// source itself. The trace picks the neighbour with the lowest filled
+// elevation at each step, mimicking gravity-driven flow on the
+// depression-filled surface produced by priority-flood.
 //
-// The result is deterministic: identical (source, seed) pairs always produce
-// identical paths.
+// Termination:
+//   - Current tile is below elevationOcean (on the filled surface) — reached the sea.
+//   - Stepping would leave the drainage buffer — documented as "left the scan window".
+//   - Path length reaches riverMaxLength.
+//
+// Post-Phase-3 the "local minimum on land" termination is gone: priority-flood
+// guarantees every interior cell has a strictly-lower neighbour (or hits the
+// boundary), so a mid-land dead end can no longer happen on the filled field.
+//
+// The result is deterministic: identical (field, source) pairs always produce
+// identical paths. Two callers sharing one drainage field will see identical
+// tributary paths once they converge, which is what flow accumulation needs
+// for correct merging.
 func (g *WorldGenerator) RiverPath(sourceX, sourceY int) [][2]int {
+	// Convenience wrapper: build the drainage field for the chunk owning the
+	// source on the fly. Hot-path callers inside Chunk() use
+	// riverPathOnField to reuse the field already materialised there.
+	cc := WorldToChunk(sourceX, sourceY)
+	field := g.drainageFor(cc)
+	return g.riverPathOnField(field, sourceX, sourceY)
+}
+
+// riverPathOnField is the inner trace that consumes a caller-supplied
+// drainage field. Extracted so RiverTilesInChunk can trace every source in
+// the 5×5 buffer against one shared field — which is what lets flow
+// accumulation's shared-tributary dedup work at the tile-set level.
+func (g *WorldGenerator) riverPathOnField(field *drainageField, sourceX, sourceY int) [][2]int {
 	path := make([][2]int, 0, riverMaxLength)
 	x, y := sourceX, sourceY
 
 	for len(path) < riverMaxLength {
 		path = append(path, [2]int{x, y})
 
-		// Stop if we have reached ocean — the river has found the sea.
-		elev := g.elevation.Eval2Normalized(float64(x), float64(y))
+		elev, inBuf := field.elevationAt(x, y)
+		if !inBuf {
+			// Left the scan window — stop. The path up to here is still
+			// valid; the continuation is some downstream chunk's problem.
+			break
+		}
 		if elev < elevationOcean {
+			// Reached the sea on the filled surface.
 			break
 		}
 
-		// Find the neighbour with the lowest elevation.
 		bestX, bestY := x, y
 		bestElev := elev
 		for _, off := range hexNeighborOffsets {
 			nx, ny := x+off[0], y+off[1]
-			ne := g.elevation.Eval2Normalized(float64(nx), float64(ny))
+			ne, inNeighbour := field.elevationAt(nx, ny)
+			if !inNeighbour {
+				// Out-of-buffer neighbours are skipped; only in-buffer tiles
+				// are candidates, so bestInBuf is implied by any improvement.
+				continue
+			}
 			if ne < bestElev {
 				bestElev = ne
 				bestX, bestY = nx, ny
 			}
 		}
 
-		// No strictly lower neighbour — we are at a local minimum; stop here.
 		if bestX == x && bestY == y {
+			// No strictly-lower in-buffer neighbour found. After priority-flood
+			// this cannot happen on interior cells; on the boundary it means the
+			// path has reached the edge of the scan window — stop gracefully.
 			break
 		}
 
@@ -113,24 +151,28 @@ func (g *WorldGenerator) RiverPath(sourceX, sourceY int) [][2]int {
 
 // riverBufferChunks is the number of chunks to expand the scan region around cc on each
 // side when collecting river sources. A buffer of 2 catches rivers whose source lies up to
-// 2 chunks away and whose path enters cc — a 1-chunk buffer missed these. Rivers sourced
-// more than 2 chunks away are still unsupported but are rarer given source sparsity.
+// 2 chunks away and whose path enters cc — a 1-chunk buffer missed these. The drainage
+// field uses the same buffer radius so the fill and the tracer agree on the scan window.
 const riverBufferChunks = 2
 
 // RiverTilesInChunk returns the set of world-space grid coordinates inside
-// chunk cc that belong to a river. To achieve cross-chunk coherence without a
-// global pre-pass, the function scans a two-chunk-wide buffer ring around cc
-// (a 5×5 region of chunks): for every tile in that enlarged region that qualifies
-// as a river source it traces the full path and collects any coordinate that falls
-// inside cc.Bounds(). Rivers whose source lies more than 2 chunks away and that
-// still enter cc via a very long trace are out of scope — riverMaxLength + source
-// sparsity make this an acceptable rare edge case.
+// chunk cc that belong to a river. Phase-3 implementation: scan the 5×5
+// buffer for flow-accumulation river sources, trace each on the shared
+// drainage field, and collect the intersection with cc.Bounds(). Tributary
+// merging is automatic — two upstream sources whose paths converge produce
+// overlapping tile sets, and the map-set dedup handles the overlap.
 func (g *WorldGenerator) RiverTilesInChunk(cc ChunkCoord) map[[2]int]struct{} {
+	field := g.drainageFor(cc)
+	return g.riverTilesInChunkOnField(cc, field)
+}
+
+// riverTilesInChunkOnField is the field-aware variant used internally by
+// Chunk() — which already materialised the drainage field and should not pay
+// for a second cache lookup.
+func (g *WorldGenerator) riverTilesInChunkOnField(cc ChunkCoord, field *drainageField) map[[2]int]struct{} {
 	result := make(map[[2]int]struct{})
 
 	minX, maxX, minY, maxY := cc.Bounds()
-
-	// Expand the scan region by riverBufferChunks chunks on each side.
 	scanMinX := minX - riverBufferChunks*ChunkSize
 	scanMaxX := maxX + riverBufferChunks*ChunkSize
 	scanMinY := minY - riverBufferChunks*ChunkSize
@@ -138,10 +180,10 @@ func (g *WorldGenerator) RiverTilesInChunk(cc ChunkCoord) map[[2]int]struct{} {
 
 	for sx := scanMinX; sx < scanMaxX; sx++ {
 		for sy := scanMinY; sy < scanMaxY; sy++ {
-			if !g.IsRiverSource(sx, sy) {
+			if !g.IsRiverSource(field, sx, sy) {
 				continue
 			}
-			for _, coord := range g.RiverPath(sx, sy) {
+			for _, coord := range g.riverPathOnField(field, sx, sy) {
 				x, y := coord[0], coord[1]
 				if x >= minX && x < maxX && y >= minY && y < maxY {
 					result[[2]int{x, y}] = struct{}{}
