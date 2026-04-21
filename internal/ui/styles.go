@@ -24,6 +24,14 @@ var styles = struct {
 	log     lipgloss.Style
 	playerL lipgloss.Style
 	errBox  lipgloss.Style
+
+	// logJoin and logLeave style typed event entries in the events panel.
+	// logJoin uses ANSI green (#5fd75f) for join events; logLeave uses a
+	// muted grey (#d0d0d0) for leave events. logDefault is the uncoloured
+	// fallback for all other log lines.
+	logJoin    lipgloss.Style
+	logLeave   lipgloss.Style
+	logDefault lipgloss.Style
 }{
 	selfPlayer:  lipgloss.NewStyle().Foreground(lipgloss.Color("15")).Bold(true),
 	otherPlayer: lipgloss.NewStyle().Foreground(lipgloss.Color("13")).Bold(true),
@@ -42,6 +50,10 @@ var styles = struct {
 		BorderForeground(lipgloss.Color("8")).Padding(0, 1),
 	errBox: lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("9")).Foreground(lipgloss.Color("9")).Padding(1, 2),
+
+	logJoin:    lipgloss.NewStyle().Foreground(lipgloss.Color("#5fd75f")),
+	logLeave:   lipgloss.NewStyle().Foreground(lipgloss.Color("#d0d0d0")),
+	logDefault: lipgloss.NewStyle(),
 }
 
 // structureStyles pairs each wire Structure with its foreground style.

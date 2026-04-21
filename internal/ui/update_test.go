@@ -170,8 +170,6 @@ func TestMoveKeysAllDirections(t *testing.T) {
 		{"d right", keyRunes('d'), 1, 0},
 		{"arrow up", tea.KeyMsg{Type: tea.KeyUp}, 0, -1},
 		{"arrow right", tea.KeyMsg{Type: tea.KeyRight}, 1, 0},
-		{"k up", keyRunes('k'), 0, -1},
-		{"h left", keyRunes('h'), -1, 0},
 	}
 	for _, tc := range cases {
 		tc := tc

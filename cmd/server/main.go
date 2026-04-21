@@ -15,6 +15,7 @@ import (
 
 	"google.golang.org/grpc"
 
+	"github.com/Rioverde/gongeons/internal/game"
 	"github.com/Rioverde/gongeons/internal/game/worldgen"
 	pb "github.com/Rioverde/gongeons/internal/proto"
 	"github.com/Rioverde/gongeons/internal/server"
@@ -55,7 +56,7 @@ func run() error {
 	}
 
 	grpcSrv := grpc.NewServer()
-	svc := server.NewService(worldgen.NewWorld(seed), logger)
+	svc := server.NewService(buildWorld(seed), logger)
 	pb.RegisterGameServiceServer(grpcSrv, svc)
 
 	serveErr := make(chan error, 1)
@@ -81,6 +82,18 @@ func run() error {
 	grpcSrv.GracefulStop()
 	logger.Info("graceful shutdown complete")
 	return nil
+}
+
+// buildWorld constructs the production world: a procedural tile source
+// keyed on seed, a matching NoiseRegionSource for Voronoi regions, and the
+// seed itself threaded through so AnchorAt stays deterministic. Split out
+// of run for testability and so the wiring is visible at a glance.
+func buildWorld(seed int64) *game.World {
+	return game.NewWorld(
+		worldgen.NewChunkedSource(seed),
+		game.WithSeed(seed),
+		game.WithRegionSource(worldgen.NewNoiseRegionSource(seed)),
+	)
 }
 
 // newLogger builds a text-handler slog.Logger at the requested level. Unknown

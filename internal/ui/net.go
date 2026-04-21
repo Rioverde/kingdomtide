@@ -6,7 +6,9 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 
 	pb "github.com/Rioverde/gongeons/internal/proto"
 )
@@ -31,9 +33,14 @@ type connectedMsg struct {
 	outbox chan *pb.ClientMessage
 }
 
-// acceptedMsg is the JoinAccepted reply — carries the server-assigned ID.
+// acceptedMsg is the JoinAccepted reply — carries the server-assigned ID and
+// the authoritative world seed. The seed is stored read-only on the Model so
+// the client can construct a local NoiseRegionSource for cosmetic per-tile
+// tint sampling; gameplay identity (region name, character) always travels
+// on the wire inside Snapshot.Region.
 type acceptedMsg struct {
-	PlayerID string
+	PlayerID  string
+	WorldSeed int64
 }
 
 // snapshotMsg is the full world snapshot, sent once on join.
@@ -54,8 +61,13 @@ type netErrorMsg struct {
 // serverErrorMsg is a non-fatal rule violation the server returned for a
 // specific command (e.g. "destination blocked"). The stream stays open; the
 // client just shows the message in the log and carries on.
+//
+// Err is the reconstructed gRPC Status error extracted from the wire
+// ErrorResponse. renderServerError (in errors.go) extracts the attached
+// LocalizedMessage detail from Err so the player sees a localized string
+// while the raw Status.Message stays in developer logs.
 type serverErrorMsg struct {
-	Message string
+	Err error
 }
 
 // connectCmd dials the server, opens the Play stream, and installs the
@@ -138,13 +150,16 @@ func listenCmd(stream pb.GameService_PlayClient) tea.Cmd {
 		}
 		switch payload := msg.GetPayload().(type) {
 		case *pb.ServerMessage_Accepted:
-			return acceptedMsg{PlayerID: payload.Accepted.GetPlayerId()}
+			return acceptedMsg{
+				PlayerID:  payload.Accepted.GetPlayerId(),
+				WorldSeed: payload.Accepted.GetWorldSeed(),
+			}
 		case *pb.ServerMessage_Snapshot:
 			return snapshotMsg{Snapshot: payload.Snapshot}
 		case *pb.ServerMessage_Event:
 			return eventMsg{Event: payload.Event}
 		case *pb.ServerMessage_Error:
-			return serverErrorMsg{Message: payload.Error.GetMessage()}
+			return serverErrorMsg{Err: errorResponseToErr(payload.Error)}
 		default:
 			// Unknown payload — keep listening rather than killing the
 			// session. Returning a non-fatal "continue" is a problem for
@@ -155,14 +170,18 @@ func listenCmd(stream pb.GameService_PlayClient) tea.Cmd {
 }
 
 // sendJoinCmd queues a Join message on the outbox, tagged with the
-// client's requested viewport size. The server uses that size when
-// building Snapshot responses for this client. Non-blocking; a full
-// outbox means the writer goroutine is dead and the session is doomed.
-func sendJoinCmd(outbox chan<- *pb.ClientMessage, name string, viewW, viewH int) tea.Cmd {
+// client's requested viewport size and BCP-47 language tag. The server
+// uses the viewport size when building Snapshot responses for this client;
+// the language is stored on the session so future server-generated
+// LocalizedMessage payloads can route through the right catalog. Non-
+// blocking; a full outbox means the writer goroutine is dead and the
+// session is doomed.
+func sendJoinCmd(outbox chan<- *pb.ClientMessage, name, lang string, viewW, viewH int) tea.Cmd {
 	return sendNonBlocking(outbox, &pb.ClientMessage{
 		Payload: &pb.ClientMessage_Join{
 			Join: &pb.JoinRequest{
 				Name:           name,
+				Language:       lang,
 				ViewportWidth:  int32(viewW),
 				ViewportHeight: int32(viewH),
 			},
@@ -178,6 +197,51 @@ func sendMoveCmd(outbox chan<- *pb.ClientMessage, dx, dy int) tea.Cmd {
 			Move: &pb.MoveCmd{Dx: int32(dx), Dy: int32(dy)},
 		},
 	}, "move")
+}
+
+// errorResponseToErr reconstructs a gRPC Status error from a wire
+// ErrorResponse so the client can run it through renderServerError for
+// localization. The ErrorResponse carries two string fields: Message (English
+// developer text) and Code (a short string tag such as "rule_violation"). We
+// map Code to a grpc codes.Code for the Status and, when the ErrorResponse
+// includes a recognized LocalizedMessage-style code, attach a LocalizedMessage
+// detail so renderServerError can do a catalog lookup.
+//
+// Since the current server's sendError path (service.go) attaches only a plain
+// ErrorResponse (not a full gRPC Status with Details), we synthesize a
+// LocalizedMessage from the Code field: "error.<code>" is used as the message
+// ID. If the catalog has that key the player sees a localized string; if not,
+// renderServerError falls back to error.unknown. This round-trip is lossless:
+// the server log already has the English Message; the player sees the
+// localized version.
+func errorResponseToErr(e *pb.ErrorResponse) error {
+	if e == nil {
+		return nil
+	}
+	msg := e.GetMessage()
+	code := e.GetCode()
+
+	// Build a LocalizedMessage detail so renderServerError can do a catalog
+	// lookup. We derive the message_id as "error.<code>" and pass no args —
+	// the current rule-violation errors are short phrases with no placeholders.
+	messageID := "error.unknown"
+	if code != "" {
+		messageID = "error." + code
+	}
+	detail := &pb.LocalizedMessage{
+		MessageId: messageID,
+		Args:      map[string]string{},
+	}
+
+	grpcCode := codes.FailedPrecondition
+	st := status.New(grpcCode, msg)
+	enriched, err := st.WithDetails(detail)
+	if err != nil {
+		// WithDetails only fails for non-marshallable messages; fallback to
+		// a plain status so the caller still gets a non-nil error.
+		return st.Err()
+	}
+	return enriched.Err()
 }
 
 // sendViewportCmd tells the server this client wants a differently-sized

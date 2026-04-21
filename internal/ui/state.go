@@ -15,24 +15,24 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/worldgen"
 	pb "github.com/Rioverde/gongeons/internal/proto"
+	"github.com/Rioverde/gongeons/internal/ui/locale"
 )
 
 // UI sizing and formatting constants. Named so call sites stay expressive and
 // the linter stops complaining about magic numbers.
 const (
 	// logLinesCap bounds the rolling event-log panel in the playing phase.
-	logLinesCap = 6
+	// The wide bottom-strip layout can show up to eventsRows lines minus
+	// the box chrome, so we keep roughly twice that in memory to allow
+	// scrollback without losing events on resize.
+	logLinesCap = 20
 
 	// nameInputMaxLen is the longest name a player can type in the
 	// enter-name screen. 24 rune-cells fits comfortably inside the menu box
 	// on any sane terminal.
 	nameInputMaxLen = 24
-
-	// NameInputLabel is the prompt shown above the name-entry box. Rendered
-	// separately from the bubbles textinput's own Prompt field (which we
-	// suppress) so lipgloss styling stays under our control.
-	NameInputLabel = "Your name:"
 )
 
 // phase is the top-level UI state machine of the client.
@@ -52,10 +52,28 @@ type playerInfo struct {
 	Pos  game.Position
 }
 
+// logKind classifies an event-log entry so renderEventsBox can apply
+// per-kind colour styles. The zero value is logKindDefault.
+type logKind int
+
+const (
+	logKindDefault logKind = iota
+	logKindJoin
+	logKindLeave
+)
+
+// logEntry is one line in the rolling event log. Text is the rendered
+// string (already includes bullet and localised message); Kind drives
+// the lipgloss style applied in renderEventsBox.
+type logEntry struct {
+	Text string
+	Kind logKind
+}
+
 // newNameInput returns a focused, empty textinput.Model sized for the
 // enter-name screen. The bubbles model renders its own cursor and prompt;
-// we suppress its Prompt and render the "Your name:" label separately in
-// view.go so lipgloss styling stays in our hands.
+// we suppress its Prompt and render the localized name label (input.name_label)
+// separately in view.go so lipgloss styling stays in our hands.
 func newNameInput() textinput.Model {
 	ti := textinput.New()
 	ti.CharLimit = nameInputMaxLen
@@ -100,7 +118,35 @@ type Model struct {
 	origin   game.Position // world coord of tiles[0]
 	tiles    []*pb.Tile
 	players  map[string]playerInfo
-	logLines []string
+	logLines []logEntry
+
+	// Region tracking. region is the latest anchor-resolved Region sent in
+	// the most recent Snapshot; lastRegionCoord is its SuperChunkCoord, used
+	// for crossing-detection comparisons without relying on the region name
+	// (which a Phase-5 history event could mutate without the player moving).
+	// initialised guards the first snapshot so joining a world does not emit
+	// a spurious "you enter X" log line.
+	region          *pb.Region
+	lastRegionCoord game.SuperChunkCoord
+	initialised     bool
+
+	// World seed delivered by JoinAccepted. Stored read-only; used to drive
+	// the local influenceSource for per-tile tint sampling and the same
+	// Voronoi-anchor queries the server ran authoritatively. Zero means we
+	// have not joined yet (the server always sends a non-zero seed even for
+	// seed=0 worlds because JoinAccepted arrives strictly after dial).
+	worldSeed int64
+
+	// influenceSource is the client's local copy of the region noise pipeline,
+	// used exclusively for cosmetic per-tile tint sampling in renderCell.
+	// Identity (name/character) always comes from the server-authoritative
+	// Region in the Snapshot — the client never rederives those.
+	influenceSource *worldgen.NoiseRegionSource
+
+	// Localization. lang is the BCP-47 short tag the client renders UI in
+	// and sends to the server via JoinRequest.Language. Derived once at
+	// construction from locale.Detect.
+	lang string
 
 	// Network plumbing.
 	ctx    context.Context
@@ -131,6 +177,7 @@ func New(ctx context.Context, addr string) *Model {
 		serverAddr: addr,
 		players:    make(map[string]playerInfo),
 		ctx:        ctx,
+		lang:       locale.Detect(),
 	}
 }
 
@@ -145,15 +192,32 @@ func (m *Model) setPhase(p phase) {
 	m.phase = p
 }
 
-// appendLog pushes a human-readable line into the rolling log, trimming
-// from the head if it would exceed logLinesCap.
-func (m *Model) appendLog(line string) {
-	m.logLines = append(m.logLines, line)
+// appendLog pushes a typed log entry into the rolling log, trimming from
+// the head if it would exceed logLinesCap.
+func (m *Model) appendLog(line string, kind logKind) {
+	m.logLines = append(m.logLines, logEntry{Text: line, Kind: kind})
 	if len(m.logLines) > logLinesCap {
 		// Drop the oldest. Copy into a new slice so we don't keep a large
 		// backing array pinned when a player spams moves.
-		trimmed := make([]string, logLinesCap)
+		trimmed := make([]logEntry, logLinesCap)
 		copy(trimmed, m.logLines[len(m.logLines)-logLinesCap:])
 		m.logLines = trimmed
 	}
+}
+
+// appendLogDefault appends a default-styled log entry. Used by all call
+// sites except join/leave so they remain one-liners without repeating the
+// kind argument.
+func (m *Model) appendLogDefault(line string) {
+	m.appendLog(line, logKindDefault)
+}
+
+// appendLogJoin appends a green-styled join event entry.
+func (m *Model) appendLogJoin(line string) {
+	m.appendLog(line, logKindJoin)
+}
+
+// appendLogLeave appends a grey-styled leave event entry.
+func (m *Model) appendLogLeave(line string) {
+	m.appendLog(line, logKindLeave)
 }

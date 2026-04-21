@@ -4,7 +4,9 @@ import (
 	"fmt"
 
 	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/worldgen"
 	pb "github.com/Rioverde/gongeons/internal/proto"
+	"github.com/Rioverde/gongeons/internal/ui/locale"
 )
 
 // positionFromPB converts a proto Position to the domain value type. A nil
@@ -17,9 +19,25 @@ func positionFromPB(p *pb.Position) game.Position {
 	return game.Position{X: int(p.GetX()), Y: int(p.GetY())}
 }
 
+// applyJoinAccepted folds the JoinAccepted reply into the Model. The player
+// ID anchors "me" on every subsequent snapshot; the world seed spins up a
+// local NoiseRegionSource whose only job is per-tile tint sampling in
+// renderCell. Region identity — the name and character shown in the status
+// bar, and the SuperChunkCoord used for crossing detection — always arrives
+// via Snapshot.Region, never derived client-side. Keeping the two flows
+// separate means a Phase-5 history mutation of a region reaches the UI
+// without the client needing a new pipeline.
+func applyJoinAccepted(m *Model, v acceptedMsg) {
+	m.myID = v.PlayerID
+	m.worldSeed = v.WorldSeed
+	m.influenceSource = worldgen.NewNoiseRegionSource(v.WorldSeed)
+}
+
 // applySnapshot replaces the local world state with a full server snapshot.
 // Origin is recorded so world-space event coordinates can be translated to
-// local tile-array indices.
+// local tile-array indices. The region is compared against the previously
+// observed anchor coord; a change emits one localized crossing log entry
+// (suppressed on the very first snapshot so joining doesn't announce itself).
 func applySnapshot(m *Model, s *pb.Snapshot) {
 	if s == nil {
 		return
@@ -44,6 +62,60 @@ func applySnapshot(m *Model, s *pb.Snapshot) {
 			Pos:  positionFromPB(e.GetPosition()),
 		}
 	}
+
+	applyRegion(m, s.GetRegion())
+}
+
+// applyRegion folds the per-player region field from Snapshot into the
+// Model. A change in anchor SuperChunkCoord relative to the previous value
+// emits a localized crossing log line; identical-coord snapshots and the
+// very first snapshot after join produce no log line.
+func applyRegion(m *Model, r *pb.Region) {
+	if r == nil {
+		return
+	}
+	sc := regionCoord(r)
+	if m.initialised && m.lastRegionCoord != sc {
+		key := locale.CharacterCrossingKey(regionCharacterKey(r.GetCharacter()))
+		msg := locale.Tr(m.lang, key, "Region", r.GetName())
+		m.appendLogDefault(msg)
+	}
+	m.lastRegionCoord = sc
+	m.region = r
+	m.initialised = true
+}
+
+// regionCoord extracts the anchor's SuperChunkCoord from a wire Region.
+// Equivalent to constructing the value inline but named for readability at
+// call sites.
+func regionCoord(r *pb.Region) game.SuperChunkCoord {
+	return game.SuperChunkCoord{
+		X: int(r.GetSuperChunkX()),
+		Y: int(r.GetSuperChunkY()),
+	}
+}
+
+// regionCharacterKey maps a wire RegionCharacter to the lowercase catalog
+// suffix used for crossing keys. Unknown values fall back to "normal" so a
+// version-skewed enum still renders something grammatical.
+func regionCharacterKey(c pb.RegionCharacter) string {
+	switch c {
+	case pb.RegionCharacter_REGION_CHARACTER_NORMAL:
+		return "normal"
+	case pb.RegionCharacter_REGION_CHARACTER_BLIGHTED:
+		return "blighted"
+	case pb.RegionCharacter_REGION_CHARACTER_FEY:
+		return "fey"
+	case pb.RegionCharacter_REGION_CHARACTER_ANCIENT:
+		return "ancient"
+	case pb.RegionCharacter_REGION_CHARACTER_SAVAGE:
+		return "savage"
+	case pb.RegionCharacter_REGION_CHARACTER_HOLY:
+		return "holy"
+	case pb.RegionCharacter_REGION_CHARACTER_WILD:
+		return "wild"
+	}
+	return "normal"
 }
 
 // applyEvent folds one server event into the local model. Each branch also
@@ -63,16 +135,16 @@ func applyEvent(m *Model, ev *pb.Event) {
 		pos := positionFromPB(ent.GetPosition())
 		m.players[id] = playerInfo{ID: id, Name: ent.GetName(), Pos: pos}
 		m.setOccupant(pos, id, pb.OccupantKind_OCCUPANT_PLAYER)
-		m.appendLog(fmt.Sprintf(LogBullet+" %s joined", displayName(ent.GetName(), id)))
+		m.logJoinEvent(locale.KeyLogJoined, displayName(ent.GetName(), id))
 	case *pb.Event_PlayerLeft:
 		id := payload.PlayerLeft.GetPlayerId()
 		if info, ok := m.players[id]; ok {
 			m.clearOccupantAt(info.Pos, id)
 			delete(m.players, id)
-			m.appendLog(fmt.Sprintf(LogBullet+" %s left", displayName(info.Name, id)))
+			m.logLeaveEvent(locale.KeyLogLeft, displayName(info.Name, id))
 			return
 		}
-		m.appendLog(fmt.Sprintf(LogBullet+" %s left", displayName("", id)))
+		m.logLeaveEvent(locale.KeyLogLeft, displayName("", id))
 	case *pb.Event_EntityMoved:
 		id := payload.EntityMoved.GetEntityId()
 		from := positionFromPB(payload.EntityMoved.GetFrom())
@@ -85,8 +157,28 @@ func applyEvent(m *Model, ev *pb.Event) {
 		}
 		info.Pos = to
 		m.players[id] = info
-		m.appendLog(fmt.Sprintf(LogBullet+" %s moved", displayName(info.Name, id)))
+		m.logEvent(locale.KeyLogMoved, displayName(info.Name, id))
 	}
+}
+
+// logEvent appends a default-styled bulleted, localized event-log entry.
+// Centralising the bullet + locale.Tr call keeps every event branch in
+// applyEvent one line.
+func (m *Model) logEvent(messageID, name string) {
+	msg := locale.Tr(m.lang, messageID, "Name", name)
+	m.appendLogDefault(fmt.Sprintf("%s %s", LogBullet, msg))
+}
+
+// logJoinEvent appends a green-styled join log entry.
+func (m *Model) logJoinEvent(messageID, name string) {
+	msg := locale.Tr(m.lang, messageID, "Name", name)
+	m.appendLogJoin(fmt.Sprintf("%s %s", LogBullet, msg))
+}
+
+// logLeaveEvent appends a grey-styled leave log entry.
+func (m *Model) logLeaveEvent(messageID, name string) {
+	msg := locale.Tr(m.lang, messageID, "Name", name)
+	m.appendLogLeave(fmt.Sprintf("%s %s", LogBullet, msg))
 }
 
 // displayIDPrefixLen is the number of leading ID characters shown when the

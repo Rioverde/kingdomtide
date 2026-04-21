@@ -21,7 +21,7 @@ SERVER_BIN  := gongeonsd
 SERVER_ADDR ?= :50051
 CLIENT_ADDR ?= localhost:50051
 
-.PHONY: help build build-client build-server run-server run-client test tidy proto clean tools
+.PHONY: help build build-client build-server run-server run-client test check check-locale check-error-codes tidy proto clean tools
 
 help:
 	@echo "Gongeons make targets:"
@@ -30,7 +30,10 @@ help:
 	@echo "  build-server  - build $(SERVER_BIN)"
 	@echo "  run-server    - run server on $(SERVER_ADDR)"
 	@echo "  run-client    - run client against $(CLIENT_ADDR)"
-	@echo "  test          - go test -race ./..."
+	@echo "  test          - check then go test -race ./..."
+	@echo "  check         - run all static checks (check-locale, check-error-codes)"
+	@echo "  check-locale  - fail if any locale.Tr call uses a string literal"
+	@echo "  check-error-codes - fail if any sendError call uses a string literal code"
 	@echo "  proto         - regenerate pb.go from $(PROTO_FILE)"
 	@echo "  tidy          - go mod tidy"
 	@echo "  tools         - install protoc-gen-go + protoc-gen-go-grpc"
@@ -50,8 +53,16 @@ run-server:
 run-client:
 	$(GO) run ./cmd/client -server $(CLIENT_ADDR)
 
-test:
+test: check
 	$(GO) test -race ./...
+
+check: check-locale check-error-codes
+
+check-locale:
+	scripts/check-locale-keys.sh
+
+check-error-codes:
+	scripts/check-error-codes.sh
 
 tidy:
 	$(GO) mod tidy

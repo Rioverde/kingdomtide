@@ -24,13 +24,13 @@ func (k KeyMap) FullHelp() [][]key.Binding {
 }
 
 // Keys is the single source of truth for every binding the client reacts to.
-// WASD is the documented scheme; hjkl and the arrow keys are aliased in
-// because the cost is zero and "w to go up but arrows don't work" is a
-// frustration readers should never feel.
+// WASD is the documented scheme; arrow keys are aliased in because the cost
+// is zero and "w to go up but arrows don't work" is a frustration readers
+// should never feel.
 var Keys = KeyMap{
-	Up:    key.NewBinding(key.WithKeys("w", "k", "up"), key.WithHelp("w/k/↑", "north")),
-	Down:  key.NewBinding(key.WithKeys("s", "j", "down"), key.WithHelp("s/j/↓", "south")),
-	Left:  key.NewBinding(key.WithKeys("a", "h", "left"), key.WithHelp("a/h/←", "west")),
-	Right: key.NewBinding(key.WithKeys("d", "l", "right"), key.WithHelp("d/l/→", "east")),
+	Up:    key.NewBinding(key.WithKeys("w", "up"), key.WithHelp("w/↑", "north")),
+	Down:  key.NewBinding(key.WithKeys("s", "down"), key.WithHelp("s/↓", "south")),
+	Left:  key.NewBinding(key.WithKeys("a", "left"), key.WithHelp("a/←", "west")),
+	Right: key.NewBinding(key.WithKeys("d", "right"), key.WithHelp("d/→", "east")),
 	Quit:  key.NewBinding(key.WithKeys("q", "ctrl+c", "esc"), key.WithHelp("q/esc", "quit")),
 }

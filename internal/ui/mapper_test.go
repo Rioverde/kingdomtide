@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/Rioverde/gongeons/internal/game"
@@ -52,7 +53,7 @@ func TestApplySnapshotResetsState(t *testing.T) {
 	t.Parallel()
 	m := newTestModel()
 	m.players["stale"] = playerInfo{ID: "stale"}
-	m.logLines = []string{"old"}
+	m.logLines = []logEntry{{Text: "old", Kind: logKindDefault}}
 
 	snap := &pb.Snapshot{
 		Width:  2,
@@ -177,10 +178,154 @@ func TestAppendLogCap(t *testing.T) {
 	t.Parallel()
 	m := &Model{}
 	for range logLinesCap + 3 {
-		m.appendLog("line")
+		m.appendLog("line", logKindDefault)
 	}
 	if len(m.logLines) != logLinesCap {
 		t.Fatalf("log len = %d, want %d", len(m.logLines), logLinesCap)
+	}
+}
+
+// snapshotWithRegion builds a bare-minimum snapshot carrying just a Region,
+// enough to exercise applyRegion without forcing tests to fill width/height
+// and the tiles array.
+func snapshotWithRegion(r *pb.Region) *pb.Snapshot {
+	return &pb.Snapshot{Region: r}
+}
+
+// regionFixture builds a wire Region at the given anchor with the named
+// character. Name/Character/Coord are the only fields applyRegion reads.
+func regionFixture(scX, scY int32, character pb.RegionCharacter, name string) *pb.Region {
+	return &pb.Region{
+		SuperChunkX: scX,
+		SuperChunkY: scY,
+		Name:        name,
+		Character:   character,
+	}
+}
+
+func TestCrossingSuppressedOnFirstSnapshot(t *testing.T) {
+	t.Parallel()
+	m := &Model{
+		players: make(map[string]playerInfo),
+		lang:    "en",
+	}
+	snap := snapshotWithRegion(
+		regionFixture(0, 0, pb.RegionCharacter_REGION_CHARACTER_BLIGHTED, "The Elmwolds"))
+	applySnapshot(m, snap)
+
+	if len(m.logLines) != 0 {
+		t.Fatalf("first snapshot emitted %d log lines, want 0: %v", len(m.logLines), m.logLines)
+	}
+	if !m.initialised {
+		t.Fatal("initialised flag not set after first snapshot")
+	}
+	if m.region == nil || m.region.GetName() != "The Elmwolds" {
+		t.Fatalf("region not stored on model: %+v", m.region)
+	}
+}
+
+func TestCrossingNoLogOnSameRegion(t *testing.T) {
+	t.Parallel()
+	m := &Model{
+		players: make(map[string]playerInfo),
+		lang:    "en",
+	}
+	reg := regionFixture(1, 1, pb.RegionCharacter_REGION_CHARACTER_FEY, "The Glaemora")
+	applySnapshot(m, snapshotWithRegion(reg))
+	applySnapshot(m, snapshotWithRegion(reg))
+
+	if len(m.logLines) != 0 {
+		t.Fatalf("identical regions emitted %d log lines, want 0: %v", len(m.logLines), m.logLines)
+	}
+}
+
+func TestCrossingEmitsLocalizedLogLineEn(t *testing.T) {
+	t.Parallel()
+	m := &Model{
+		players: make(map[string]playerInfo),
+		lang:    "en",
+	}
+	a := regionFixture(0, 0, pb.RegionCharacter_REGION_CHARACTER_NORMAL, "Elmbrook")
+	b := regionFixture(1, 0, pb.RegionCharacter_REGION_CHARACTER_BLIGHTED, "The Elmwolds")
+	applySnapshot(m, snapshotWithRegion(a))
+	applySnapshot(m, snapshotWithRegion(b))
+
+	if len(m.logLines) != 1 {
+		t.Fatalf("log len = %d, want 1: %v", len(m.logLines), m.logLines)
+	}
+	got := m.logLines[0].Text
+	if !strings.Contains(got, "You feel the weight of") || !strings.Contains(got, "The Elmwolds") {
+		t.Fatalf("crossing log = %q, want English Blighted verb with region name", got)
+	}
+}
+
+func TestCrossingEmitsLocalizedLogLineRu(t *testing.T) {
+	t.Parallel()
+	m := &Model{
+		players: make(map[string]playerInfo),
+		lang:    "ru",
+	}
+	a := regionFixture(0, 0, pb.RegionCharacter_REGION_CHARACTER_NORMAL, "Эльмбрук")
+	b := regionFixture(1, 0, pb.RegionCharacter_REGION_CHARACTER_BLIGHTED, "Седолесье")
+	applySnapshot(m, snapshotWithRegion(a))
+	applySnapshot(m, snapshotWithRegion(b))
+
+	if len(m.logLines) != 1 {
+		t.Fatalf("log len = %d, want 1: %v", len(m.logLines), m.logLines)
+	}
+	got := m.logLines[0].Text
+	if !strings.Contains(got, "тяжесть") || !strings.Contains(got, "Седолесье") {
+		t.Fatalf("crossing log = %q, want Russian Blighted verb with region name", got)
+	}
+}
+
+func TestCrossingCharacterCoverage(t *testing.T) {
+	t.Parallel()
+	// Walk every character; each must produce a log line and the line must
+	// not be the bare catalog key (that would signal a missing entry).
+	chars := []pb.RegionCharacter{
+		pb.RegionCharacter_REGION_CHARACTER_NORMAL,
+		pb.RegionCharacter_REGION_CHARACTER_BLIGHTED,
+		pb.RegionCharacter_REGION_CHARACTER_FEY,
+		pb.RegionCharacter_REGION_CHARACTER_ANCIENT,
+		pb.RegionCharacter_REGION_CHARACTER_SAVAGE,
+		pb.RegionCharacter_REGION_CHARACTER_HOLY,
+		pb.RegionCharacter_REGION_CHARACTER_WILD,
+	}
+	for i, c := range chars {
+		c := c
+		t.Run(c.String(), func(t *testing.T) {
+			t.Parallel()
+			m := &Model{
+				players: make(map[string]playerInfo),
+				lang:    "en",
+			}
+			first := regionFixture(0, 0, pb.RegionCharacter_REGION_CHARACTER_NORMAL, "origin")
+			second := regionFixture(int32(i+1), 0, c, "Target")
+			applySnapshot(m, snapshotWithRegion(first))
+			applySnapshot(m, snapshotWithRegion(second))
+			if len(m.logLines) != 1 {
+				t.Fatalf("log len = %d, want 1", len(m.logLines))
+			}
+			line := m.logLines[0].Text
+			key := "crossing." + regionCharacterKey(c)
+			if line == key {
+				t.Fatalf("log line is raw catalog key %q — catalog entry missing", key)
+			}
+			if !strings.Contains(line, "Target") {
+				t.Fatalf("log line %q missing region name", line)
+			}
+		})
+	}
+}
+
+func TestRegionCoordDerivesFromProto(t *testing.T) {
+	t.Parallel()
+	r := regionFixture(-3, 7, pb.RegionCharacter_REGION_CHARACTER_NORMAL, "")
+	got := regionCoord(r)
+	want := game.SuperChunkCoord{X: -3, Y: 7}
+	if got != want {
+		t.Fatalf("regionCoord = %+v, want %+v", got, want)
 	}
 }
 

@@ -50,6 +50,25 @@ linters:
           - gocognit
           - gocyclo
           - cyclop
+      # superchunk.go uses splitmix64 / golden-ratio hash constants and
+      # AnchorOf bit-extraction (shift by 32) — all are documented algorithm
+      # parameters, not arbitrary literals.
+      - path: internal/game/superchunk\.go$
+        linters:
+          - mnd
+      # region_source.go uses per-influence hex seed salts and float32 noise
+      # persistence/lacunarity values that are tuning parameters, not magic.
+      - path: internal/game/worldgen/region_source\.go$
+        linters:
+          - mnd
+      # L1 WIP test files are user's in-progress work — not part of Phase 1
+      # deliverables, excluded to keep lint output focused on shipped code.
+      - path: internal/game/worldgen/(rivers|ridges|continents|lake|bench|drainage).*_test\.go$
+        linters:
+          - gofmt
+          - staticcheck
+          - intrange
+          - mnd
     paths:
       - .cache
       - .artifacts
@@ -106,6 +125,14 @@ formatters:
   enable:
     - gofmt
     - goimports
+  exclusions:
+    paths:
+      # L1 WIP test files — user's in-progress work, not Phase 1 deliverables.
+      - internal/game/worldgen/rivers_test\.go
+      - internal/game/worldgen/ridges_test\.go
+      - internal/game/worldgen/continents_test\.go
+      - internal/game/worldgen/lake_test\.go
+      - internal/game/worldgen/bench_test\.go
   settings:
     gofmt:
       rewrite-rules:

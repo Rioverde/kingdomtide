@@ -1,0 +1,229 @@
+# Russian catalog. Every key in active.en.toml must have a counterpart
+# here, enforced by TestBundleKeyCoverage.
+
+[crossing.normal]
+other = "Ты входишь в {{.Region}}."
+
+[crossing.blighted]
+other = "Ты чувствуешь тяжесть {{.Region}}."
+
+[crossing.fey]
+other = "{{.Region}} затягивает тебя."
+
+[crossing.ancient]
+other = "Ты вступаешь в {{.Region}}."
+
+[crossing.savage]
+other = "Ты вторгаешься в {{.Region}}."
+
+[crossing.holy]
+other = "Ты входишь в благословенный {{.Region}}."
+
+[crossing.wild]
+other = "Ты прорываешься в {{.Region}}."
+
+[region_header.format]
+other = "─ {{.Name}} ─"
+
+[status.you]
+other = "ты"
+
+[status.server]
+other = "сервер"
+
+[status.keybindings]
+other = "wasd ходить · q выход · ? справка"
+
+[status.connecting]
+other = "подключение к {{.Address}}..."
+
+[status.connected_joining]
+other = "подключено, вход в игру..."
+
+[status.disconnected]
+other = "отключено"
+
+[status.disconnected_with_error]
+other = "отключено: {{.Error}}"
+
+[error.connection_lost]
+other = "соединение потеряно"
+
+[error.server_closed]
+other = "сервер закрыт"
+
+[error.unknown]
+other = "неизвестная ошибка"
+
+[error.outbox_full]
+other = "очередь переполнена: {{.Label}}"
+
+[error.dial]
+other = "не удалось подключиться к {{.Address}}: {{.Error}}"
+
+[error.open_play_stream]
+other = "не удалось открыть поток игры: {{.Error}}"
+
+[error.stream_recv]
+other = "ошибка чтения потока: {{.Error}}"
+
+[error.invalid_argument]
+other = "Неверная команда."
+
+[error.invalid_protocol]
+other = "Ошибка протокола."
+
+[error.rule_violation]
+other = "Нарушение правил."
+
+[input.name_label]
+other = "Твоё имя:"
+
+[input.prompt]
+other = "❯ "
+
+[hint.quit_short]
+other = "q — выход"
+
+[hint.quit_long]
+other = "Enter — подключиться, q — выход"
+
+[hint.disconnect]
+other = "нажми q чтобы выйти"
+
+[panel.players_header]
+other = "Игроки"
+
+[panel.stats_header]
+other = "Статы"
+
+[stats.empty]
+other = "(параметров пока нет)"
+
+[panel.events_header]
+other = "События"
+
+[panel.empty_log]
+other = "(тишина)"
+
+[panel.empty_map]
+other = "(карта ещё не получена)"
+
+[panel.empty_list]
+other = "(пусто)"
+
+[title.text]
+other = "G · O · N · G · E · O · N · S"
+
+[title.tagline]
+other = "Пусть кости лягут как лягут."
+
+[log.joined]
+other = "{{.Name}} вошёл в игру"
+
+[log.left]
+other = "{{.Name}} покинул игру"
+
+[log.moved]
+other = "{{.Name}} сделал ход"
+
+[character.normal]
+other = "Обычный"
+
+[character.blighted]
+other = "Проклятый"
+
+[character.fey]
+other = "Чародейский"
+
+[character.ancient]
+other = "Древний"
+
+[character.savage]
+other = "Дикий"
+
+[character.holy]
+other = "Святой"
+
+[character.wild]
+other = "Нетронутый"
+
+# Geo terms — 1-to-1 with active.en.toml indices.
+
+[geo.forest.0]
+other = "Чаща"
+
+[geo.forest.1]
+other = "Пуща"
+
+[geo.forest.2]
+other = "Лес"
+
+[geo.forest.3]
+other = "Поляна"
+
+[geo.forest.4]
+other = "Роща"
+
+[geo.plain.0]
+other = "Пустошь"
+
+[geo.plain.1]
+other = "Степь"
+
+[geo.plain.2]
+other = "Равнина"
+
+[geo.plain.3]
+other = "Луг"
+
+[geo.plain.4]
+other = "Долина"
+
+[geo.mountain.0]
+other = "Пики"
+
+[geo.mountain.1]
+other = "Гребни"
+
+[geo.mountain.2]
+other = "Скалы"
+
+[geo.mountain.3]
+other = "Высоты"
+
+[geo.water.0]
+other = "Топь"
+
+[geo.water.1]
+other = "Болото"
+
+[geo.water.2]
+other = "Пролив"
+
+[geo.water.3]
+other = "Плавни"
+
+[geo.desert.0]
+other = "Пустоши"
+
+[geo.desert.1]
+other = "Дюны"
+
+[geo.desert.2]
+other = "Барханы"
+
+[geo.desert.3]
+other = "Пески"
+
+[geo.tundra.0]
+other = "Тундра"
+
+[geo.tundra.1]
+other = "Степь"
+
+[geo.tundra.2]
+other = "Пустошь"
+
+[geo.unknown.0]
+other = "Край"
