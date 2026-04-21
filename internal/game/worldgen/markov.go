@@ -1,6 +1,7 @@
 package worldgen
 
 import (
+	"fmt"
 	"math/rand/v2"
 	"strings"
 	"unicode"
@@ -60,10 +61,11 @@ type markovChain struct {
 // newMarkovChain builds a chain from corpus. Each entry is lowercased and
 // stripped of characters that are not letters or apostrophes; entries that
 // fall outside [markovMinWord, markovMaxWord] after cleaning are skipped.
-// The function panics when fewer than markovMinCorpusSize entries survive
-// cleaning, because a chain that small cannot generate varied output and
-// the caller should learn about the bad corpus at startup.
-func newMarkovChain(corpus []string) *markovChain {
+// Returns an error when fewer than markovMinCorpusSize entries survive
+// cleaning — a chain that small cannot generate varied output and the caller
+// should skip that (language, character) combination rather than serving
+// degenerate names.
+func newMarkovChain(corpus []string) (*markovChain, error) {
 	cleaned := make([]string, 0, len(corpus))
 	for _, raw := range corpus {
 		w := cleanMarkovWord(raw)
@@ -74,7 +76,7 @@ func newMarkovChain(corpus []string) *markovChain {
 	}
 
 	if len(cleaned) < markovMinCorpusSize {
-		panic("markov corpus: need at least 5 usable entries")
+		return nil, fmt.Errorf("markov corpus: need at least %d usable entries, got %d", markovMinCorpusSize, len(cleaned))
 	}
 
 	// Dedup starts while preserving insertion order so the resulting slice
@@ -93,7 +95,7 @@ func newMarkovChain(corpus []string) *markovChain {
 		transitions:  transitions,
 		starts:       starts,
 		maxPrefixLen: markovMaxPrefixLen,
-	}
+	}, nil
 }
 
 // cleanMarkovWord lowercases the input and drops every rune that is not a

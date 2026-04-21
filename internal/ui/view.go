@@ -430,7 +430,7 @@ func (m *Model) tintForTile(base lipgloss.Style, worldX, worldY int) lipgloss.St
 	_, sc := game.AnchorAt(m.worldSeed, worldX, worldY)
 	anchor := game.AnchorOf(m.worldSeed, sc)
 	dist := distanceFalloff(worldX, worldY, anchor, m.worldSeed, sc)
-	strength := math.Min(float64(infl.Sum())*tintStrengthFactor*dist, tintCap)
+	strength := math.Min(float64(infl.Max())*tintStrengthFactor*dist, tintCap)
 	return tintedStyle(base, accent, strength)
 }
 

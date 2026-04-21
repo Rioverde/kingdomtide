@@ -125,6 +125,37 @@ func TestRegionInfluenceSum(t *testing.T) {
 	}
 }
 
+func TestRegionInfluenceMax(t *testing.T) {
+	cases := []struct {
+		name string
+		in   RegionInfluence
+		want float32
+	}{
+		{"zero vector", RegionInfluence{}, 0},
+		{"single Blight", RegionInfluence{Blight: 0.7}, 0.7},
+		{"single Wild", RegionInfluence{Wild: 0.5}, 0.5},
+		{"all one", RegionInfluence{Blight: 1, Fae: 1, Ancient: 1, Savage: 1, Holy: 1, Wild: 1}, 1},
+		{"Fae dominates", RegionInfluence{Blight: 0.3, Fae: 0.9, Ancient: 0.5}, 0.9},
+		{"Holy max", RegionInfluence{Blight: 0.1, Fae: 0.2, Ancient: 0.3, Savage: 0.4, Holy: 0.95, Wild: 0.6}, 0.95},
+		{"all equal", RegionInfluence{Blight: 0.5, Fae: 0.5, Ancient: 0.5, Savage: 0.5, Holy: 0.5, Wild: 0.5}, 0.5},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := tc.in.Max()
+			if diff := got - tc.want; diff < -1e-6 || diff > 1e-6 {
+				t.Fatalf("Max() = %v, want %v", got, tc.want)
+			}
+			// Max must never exceed Sum, and must never exceed 1.
+			if got > 1.0+1e-6 {
+				t.Fatalf("Max() = %v exceeds 1.0", got)
+			}
+			if got > tc.in.Sum()+1e-6 {
+				t.Fatalf("Max() = %v exceeds Sum() = %v", got, tc.in.Sum())
+			}
+		})
+	}
+}
+
 func TestWorldToSuperChunkNegative(t *testing.T) {
 	cases := []struct {
 		x, y int
