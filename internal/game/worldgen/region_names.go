@@ -157,9 +157,11 @@ func RegionName(
 
 // loadNamingChains reads every per-language/per-character corpus file out
 // of the embedded FS and builds a Markov chain for each one. Called at
-// most once per process via sync.Once. A failure bubbles through
-// namingChainsErr rather than a direct panic so the server can degrade
-// to fallback names instead of crashing at first region lookup.
+// most once per process via sync.Once. Per-language and per-character
+// failures are logged and skipped so a partial corpus (e.g. a missing
+// language directory) yields working chains for the languages that did
+// load. namingChainsErr is set only when every language directory failed,
+// i.e. nothing at all is usable.
 func loadNamingChains() {
 	langs, err := nameCorpora.ReadDir(namingCorporaRoot)
 	if err != nil {
@@ -168,6 +170,7 @@ func loadNamingChains() {
 	}
 
 	chains := make(map[string]map[game.RegionCharacter]*markovChain, len(langs))
+	var langErrors []string
 	for _, entry := range langs {
 		if !entry.IsDir() {
 			continue
@@ -177,14 +180,37 @@ func loadNamingChains() {
 		for character, file := range characterCorpusFile {
 			corpus, err := readEmbeddedCorpus(path.Join(namingCorporaRoot, lang, file))
 			if err != nil {
-				namingChainsErr = fmt.Errorf("read corpus %s/%s: %w", lang, file, err)
-				return
+				// Log and skip this (lang, character) pair; other chars in this
+				// language still load normally.
+				langErrors = append(langErrors, fmt.Sprintf("%s/%s: %v", lang, file, err))
+				continue
 			}
-			byChar[character] = newMarkovChain(corpus)
+			chain, err := newMarkovChain(corpus)
+			if err != nil {
+				langErrors = append(langErrors, fmt.Sprintf("%s/%s: %v", lang, file, err))
+				continue
+			}
+			byChar[character] = chain
 		}
-		chains[lang] = byChar
+		if len(byChar) > 0 {
+			chains[lang] = byChar
+		} else {
+			langErrors = append(langErrors, fmt.Sprintf("%s: no characters loaded", lang))
+		}
 	}
+
+	// Assign whatever we managed to load. Partial coverage (some languages or
+	// characters missing) is always better than zero coverage.
 	namingChains = chains
+
+	// Only signal a hard error when nothing at all loaded successfully.
+	if len(chains) == 0 {
+		if len(langErrors) > 0 {
+			namingChainsErr = fmt.Errorf("all naming corpora failed to load: %s", strings.Join(langErrors, "; "))
+		} else {
+			namingChainsErr = fmt.Errorf("no language directories found under %s", namingCorporaRoot)
+		}
+	}
 }
 
 // readEmbeddedCorpus reads one corpus file and returns its non-empty

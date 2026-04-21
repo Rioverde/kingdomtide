@@ -103,11 +103,39 @@ func (r RegionInfluence) Dominant() RegionCharacter {
 	return best
 }
 
-// Sum returns the total influence magnitude across all six components. Used
-// by the client tint formula to modulate tint intensity — higher sum yields
-// a stronger visible accent.
+// Sum returns the total influence magnitude across all six components. The
+// result is in [0, N] where N is the number of influence components (currently
+// 6), because each component is individually clamped to [0, 1] and all six
+// can be non-zero simultaneously.
 func (r RegionInfluence) Sum() float32 {
 	return r.Blight + r.Fae + r.Ancient + r.Savage + r.Holy + r.Wild
+}
+
+// Max returns the largest single influence component. The result is always
+// in [0, 1] by construction — each component is individually clamped to
+// [0, 1] — making Max a well-bounded strength signal regardless of how many
+// sub-dominant components overlap at a point. Used by the client tint
+// formula so the dominant-character intensity drives the accent strength
+// without the sum of overlapping characters inflating the value past the
+// cap on every tile.
+func (r RegionInfluence) Max() float32 {
+	m := r.Blight
+	if r.Fae > m {
+		m = r.Fae
+	}
+	if r.Ancient > m {
+		m = r.Ancient
+	}
+	if r.Savage > m {
+		m = r.Savage
+	}
+	if r.Holy > m {
+		m = r.Holy
+	}
+	if r.Wild > m {
+		m = r.Wild
+	}
+	return m
 }
 
 // Region is the server-facing read-only snapshot of one Voronoi cell of the

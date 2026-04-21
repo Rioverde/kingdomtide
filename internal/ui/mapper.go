@@ -30,7 +30,7 @@ func positionFromPB(p *pb.Position) game.Position {
 func applyJoinAccepted(m *Model, v acceptedMsg) {
 	m.myID = v.PlayerID
 	m.worldSeed = v.WorldSeed
-	m.influenceSource = worldgen.NewNoiseRegionSource(v.WorldSeed)
+	m.influenceSource = worldgen.NewInfluenceSampler(v.WorldSeed)
 }
 
 // applySnapshot replaces the local world state with a full server snapshot.
@@ -95,27 +95,33 @@ func regionCoord(r *pb.Region) game.SuperChunkCoord {
 	}
 }
 
-// regionCharacterKey maps a wire RegionCharacter to the lowercase catalog
-// suffix used for crossing keys. Unknown values fall back to "normal" so a
-// version-skewed enum still renders something grammatical.
-func regionCharacterKey(c pb.RegionCharacter) string {
+// fromPBCharacter converts a wire RegionCharacter to the domain value type.
+// Unknown wire values map to RegionNormal so version-skewed enums degrade
+// gracefully. This is the single authoritative pb→domain mapping; the
+// reverse (domain→pb) lives in view.go's pbCharacter function.
+func fromPBCharacter(c pb.RegionCharacter) game.RegionCharacter {
 	switch c {
-	case pb.RegionCharacter_REGION_CHARACTER_NORMAL:
-		return "normal"
 	case pb.RegionCharacter_REGION_CHARACTER_BLIGHTED:
-		return "blighted"
+		return game.RegionBlighted
 	case pb.RegionCharacter_REGION_CHARACTER_FEY:
-		return "fey"
+		return game.RegionFey
 	case pb.RegionCharacter_REGION_CHARACTER_ANCIENT:
-		return "ancient"
+		return game.RegionAncient
 	case pb.RegionCharacter_REGION_CHARACTER_SAVAGE:
-		return "savage"
+		return game.RegionSavage
 	case pb.RegionCharacter_REGION_CHARACTER_HOLY:
-		return "holy"
+		return game.RegionHoly
 	case pb.RegionCharacter_REGION_CHARACTER_WILD:
-		return "wild"
+		return game.RegionWild
 	}
-	return "normal"
+	return game.RegionNormal
+}
+
+// regionCharacterKey maps a wire RegionCharacter to the lowercase catalog
+// suffix used for crossing keys. Delegates to fromPBCharacter + Key so the
+// string mapping is maintained in a single place (game.regionCharacterNames).
+func regionCharacterKey(c pb.RegionCharacter) string {
+	return fromPBCharacter(c).Key()
 }
 
 // applyEvent folds one server event into the local model. Each branch also

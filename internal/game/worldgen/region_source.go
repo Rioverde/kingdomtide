@@ -43,6 +43,59 @@ func regionToInt64(u uint64) int64 { return int64(u) }
 // world.
 const regionInfluenceFloor float32 = 0.35
 
+// InfluenceSampler is the narrow interface the client needs for per-tile tint
+// sampling. It exposes only InfluenceAt so callers do not need to depend on
+// the full NoiseRegionSource (which carries an LRU WorldGenerator for server-
+// side terrain sampling that the client never uses).
+type InfluenceSampler interface {
+	InfluenceAt(worldX, worldY int) game.RegionInfluence
+}
+
+// influenceSampler is the lightweight client-side implementation of
+// InfluenceSampler. It owns only the six noise fields required for tint
+// sampling and skips the WorldGenerator that NoiseRegionSource carries for
+// server-side terrain lookup.
+type influenceSampler struct {
+	blight  OctaveNoise
+	fae     OctaveNoise
+	ancient OctaveNoise
+	savage  OctaveNoise
+	holy    OctaveNoise
+	wild    OctaveNoise
+}
+
+// NewInfluenceSampler returns an InfluenceSampler seeded from seed. The
+// returned sampler is safe for concurrent read; it is allocation-free per
+// call once constructed. Use this on the client where only per-tile tint
+// sampling is required — it skips the WorldGenerator and its LRU river
+// cache that NoiseRegionSource builds for the server-side terrain pipeline.
+func NewInfluenceSampler(seed int64) InfluenceSampler {
+	return &influenceSampler{
+		blight:  NewOctaveNoise(seed^seedSaltRegionBlight, regionBlightOpts),
+		fae:     NewOctaveNoise(seed^seedSaltRegionFae, regionFaeOpts),
+		ancient: NewOctaveNoise(seed^seedSaltRegionAncient, regionAncientOpts),
+		savage:  NewOctaveNoise(seed^seedSaltRegionSavage, regionSavageOpts),
+		holy:    NewOctaveNoise(seed^seedSaltRegionHoly, regionHolyOpts),
+		wild:    NewOctaveNoise(seed^seedSaltRegionWild, regionWildOpts),
+	}
+}
+
+// InfluenceAt implements InfluenceSampler for the lightweight client sampler.
+func (s *influenceSampler) InfluenceAt(worldX, worldY int) game.RegionInfluence {
+	fx, fy := float64(worldX), float64(worldY)
+	return game.RegionInfluence{
+		Blight:  rescaleInfluence(s.blight.Eval2Normalized(fx, fy)),
+		Fae:     rescaleInfluence(s.fae.Eval2Normalized(fx, fy)),
+		Ancient: rescaleInfluence(s.ancient.Eval2Normalized(fx, fy)),
+		Savage:  rescaleInfluence(s.savage.Eval2Normalized(fx, fy)),
+		Holy:    rescaleInfluence(s.holy.Eval2Normalized(fx, fy)),
+		Wild:    rescaleInfluence(s.wild.Eval2Normalized(fx, fy)),
+	}
+}
+
+// Compile-time assertion: influenceSampler satisfies InfluenceSampler.
+var _ InfluenceSampler = (*influenceSampler)(nil)
+
 // NoiseRegionSource implements game.RegionSource on top of six independent
 // fBm noise fields. Determined entirely by seed.
 //

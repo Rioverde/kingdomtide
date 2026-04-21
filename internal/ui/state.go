@@ -141,7 +141,7 @@ type Model struct {
 	// used exclusively for cosmetic per-tile tint sampling in renderCell.
 	// Identity (name/character) always comes from the server-authoritative
 	// Region in the Snapshot — the client never rederives those.
-	influenceSource *worldgen.NoiseRegionSource
+	influenceSource worldgen.InfluenceSampler
 
 	// Localization. lang is the BCP-47 short tag the client renders UI in
 	// and sends to the server via JoinRequest.Language. Derived once at

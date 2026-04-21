@@ -43,8 +43,14 @@ func loadCorpusFile(t *testing.T, rel string) []string {
 func TestMarkovChainDeterminism(t *testing.T) {
 	corpus := loadCorpusFile(t, "en/blighted.txt")
 
-	chainA := newMarkovChain(corpus)
-	chainB := newMarkovChain(corpus)
+	chainA, err := newMarkovChain(corpus)
+	if err != nil {
+		t.Fatalf("newMarkovChain: %v", err)
+	}
+	chainB, err := newMarkovChain(corpus)
+	if err != nil {
+		t.Fatalf("newMarkovChain: %v", err)
+	}
 
 	rngA := rand.New(rand.NewPCG(1, 1))
 	rngB := rand.New(rand.NewPCG(1, 1))
@@ -64,7 +70,10 @@ func TestMarkovChainDeterminism(t *testing.T) {
 // is flake resistance, not a distribution test.
 func TestMarkovChainUniqueness(t *testing.T) {
 	corpus := loadCorpusFile(t, "en/blighted.txt")
-	chain := newMarkovChain(corpus)
+	chain, err := newMarkovChain(corpus)
+	if err != nil {
+		t.Fatalf("newMarkovChain: %v", err)
+	}
 
 	const total = 10000
 	const minUnique = 500
@@ -91,7 +100,10 @@ func TestMarkovChainUniqueness(t *testing.T) {
 // exists to catch "rksthr"-level garbage, not to enforce linguistics.
 func TestMarkovChainPronounceability(t *testing.T) {
 	corpus := loadCorpusFile(t, "en/fey.txt")
-	chain := newMarkovChain(corpus)
+	chain, err := newMarkovChain(corpus)
+	if err != nil {
+		t.Fatalf("newMarkovChain: %v", err)
+	}
 
 	const total = 1000
 	for i := range total {
@@ -114,7 +126,10 @@ func TestMarkovChainPronounceability(t *testing.T) {
 // broke.
 func TestMarkovChainLength(t *testing.T) {
 	corpus := loadCorpusFile(t, "en/holy.txt")
-	chain := newMarkovChain(corpus)
+	chain, err := newMarkovChain(corpus)
+	if err != nil {
+		t.Fatalf("newMarkovChain: %v", err)
+	}
 
 	const minLen, maxLen = 5, 11
 	const lo, hi = minLen - 2, maxLen + 2
@@ -129,9 +144,9 @@ func TestMarkovChainLength(t *testing.T) {
 	}
 }
 
-// TestMarkovChainEmptyCorpusPanics locks in the documented panic contract:
-// fewer than markovMinCorpusSize usable entries is a startup-time error.
-func TestMarkovChainEmptyCorpusPanics(t *testing.T) {
+// TestMarkovChainSmallCorpusErrors locks in the documented error contract:
+// fewer than markovMinCorpusSize usable entries returns a non-nil error.
+func TestMarkovChainSmallCorpusErrors(t *testing.T) {
 	cases := []struct {
 		name   string
 		corpus []string
@@ -143,12 +158,13 @@ func TestMarkovChainEmptyCorpusPanics(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			defer func() {
-				if r := recover(); r == nil {
-					t.Fatalf("newMarkovChain(%v) did not panic", tc.corpus)
-				}
-			}()
-			_ = newMarkovChain(tc.corpus)
+			chain, err := newMarkovChain(tc.corpus)
+			if err == nil {
+				t.Fatalf("newMarkovChain(%v) returned nil error, want non-nil", tc.corpus)
+			}
+			if chain != nil {
+				t.Fatalf("newMarkovChain(%v) returned non-nil chain with error", tc.corpus)
+			}
 		})
 	}
 }
@@ -173,7 +189,10 @@ func TestMarkovChainNonASCIICorpusFilter(t *testing.T) {
 		"пустошь",
 		"скверна",
 	}
-	chain := newMarkovChain(corpus)
+	chain, err := newMarkovChain(corpus)
+	if err != nil {
+		t.Fatalf("newMarkovChain: %v", err)
+	}
 
 	allowed := make(map[rune]struct{})
 	for _, w := range corpus {
