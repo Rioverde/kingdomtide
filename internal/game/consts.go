@@ -50,15 +50,15 @@ const (
 	numberOfSlots        = 3
 )
 
-// AllStructureKinds returns every StructureKind except StructureNone in a stable
-// order. Used by the /api/meta endpoint to let the client pre-cache structure
-// sprites.
+// AllStructureKinds returns every StructureKind except StructureNone in a
+// stable order. Useful when a client needs to enumerate all structures
+// (for example, to pre-load sprite assets).
 func AllStructureKinds() []StructureKind {
 	return []StructureKind{StructureVillage, StructureCastle}
 }
 
-// AllTerrains lists every Terrain value in a stable order. Used by the /api/meta endpoint
-// and anywhere that needs to enumerate the full biome set.
+// AllTerrains lists every Terrain value in a stable order. Useful when a client
+// needs to enumerate the full biome set (for example, to pre-load sprite assets).
 func AllTerrains() []Terrain {
 	return []Terrain{
 		TerrainDeepOcean,

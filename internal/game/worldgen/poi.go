@@ -110,9 +110,12 @@ func (g *WorldGenerator) StructuresInChunk(cc ChunkCoord) map[[2]int]game.Struct
 // poiCandidatesIn collects raw POI candidates from the 3x3 chunk neighbourhood around cc.
 // For each of the nine chunks it evaluates poiCandidatesPerChunk hashed slots, derives a
 // kind from the top 16 bits of the hash, and hashes again to pick a local position. The
-// resulting world tile is checked against river and biome rules; surviving slots become
-// candidates. Candidates from neighbouring chunks are included so the downstream
-// min-distance filter can prevent POIs from clumping across chunk borders.
+// resulting world tile is checked against biome rules; surviving slots become candidates.
+// River tiles are intentionally allowed — castles-guarding-rivers and riverside villages
+// are thematically desirable, and the renderer's structure > river > terrain precedence
+// makes the composition display correctly. Candidates from neighbouring chunks are
+// included so the downstream min-distance filter can prevent POIs from clumping across
+// chunk borders.
 func (g *WorldGenerator) poiCandidatesIn(cc ChunkCoord) []poiCandidate {
 	// res is a typed float64 variable (not a constant) so the compiler treats the product
 	// as a runtime expression and allows truncation to uint64.
@@ -156,9 +159,6 @@ func (g *WorldGenerator) poiCandidatesIn(cc ChunkCoord) []poiCandidate {
 				wy := minY + dy
 
 				tile := g.TileAt(wx, wy)
-				if tile.Overlays.Has(game.OverlayRiver) {
-					continue
-				}
 				switch kind {
 				case game.StructureVillage:
 					if !villageAllowed(tile.Terrain) {

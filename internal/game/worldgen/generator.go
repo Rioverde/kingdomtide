@@ -54,8 +54,9 @@ func NewWorldGenerator(seed int64) *WorldGenerator {
 	}
 }
 
-// Seed returns the base seed used to construct the generator. Useful for the JSON meta API
-// and for reproducing a world elsewhere.
+// Seed returns the base seed used to construct the generator. Useful for
+// reproducing a world elsewhere (seed + same version of gongeons yields the
+// same map).
 func (g *WorldGenerator) Seed() int64 {
 	return g.seed
 }

@@ -274,13 +274,30 @@ func (x *Position) GetY() int32 {
 // Tile is an atomic map cell. Used in Snapshot only — Events carry deltas,
 // not full tile replacements. overlays is a bitmask of TileOverlay flag
 // values shared with the domain (river, road, bridge, path...).
+//
+// Historical: fields 4 and 5 previously held `bool river` and
+// `WorldObject object`. They were re-typed to uint32 + Structure during
+// the overlay-bitmask refactor; the slot numbers were deliberately
+// reused. Do not reintroduce the old field names on different slots —
+// future overlays should get fresh numbers (6, 7, ...).
 type Tile struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Terrain       Terrain                `protobuf:"varint,1,opt,name=terrain,proto3,enum=gongeons.v1.Terrain" json:"terrain,omitempty"`
-	Occupant      OccupantKind           `protobuf:"varint,2,opt,name=occupant,proto3,enum=gongeons.v1.OccupantKind" json:"occupant,omitempty"`
-	EntityId      string                 `protobuf:"bytes,3,opt,name=entity_id,json=entityId,proto3" json:"entity_id,omitempty"`               // occupant ID, empty if no occupant
-	Overlays      uint32                 `protobuf:"varint,4,opt,name=overlays,proto3" json:"overlays,omitempty"`                              // bitmask of TileOverlay flag values
-	Structure     Structure              `protobuf:"varint,5,opt,name=structure,proto3,enum=gongeons.v1.Structure" json:"structure,omitempty"` // village / castle overlay
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	Terrain  Terrain                `protobuf:"varint,1,opt,name=terrain,proto3,enum=gongeons.v1.Terrain" json:"terrain,omitempty"`
+	Occupant OccupantKind           `protobuf:"varint,2,opt,name=occupant,proto3,enum=gongeons.v1.OccupantKind" json:"occupant,omitempty"`
+	EntityId string                 `protobuf:"bytes,3,opt,name=entity_id,json=entityId,proto3" json:"entity_id,omitempty"` // occupant ID, empty if no occupant
+	// overlays is a bitmask of yes/no tile features (river, road, bridge,
+	// path...). Bit values are defined in Go as TileOverlay constants in
+	// internal/game/overlay.go:
+	//
+	//	bit 0 (value 1)  = OverlayRiver
+	//	bit 1 (value 2)  = OverlayRoad
+	//	bit 2 (value 4)  = OverlayBridge
+	//	bit 3 (value 8)  = OverlayPath
+	//
+	// Bits 4-31 are reserved for future overlays. Keep overlay.go and this
+	// comment in lockstep when adding a new flag.
+	Overlays      uint32    `protobuf:"varint,4,opt,name=overlays,proto3" json:"overlays,omitempty"`
+	Structure     Structure `protobuf:"varint,5,opt,name=structure,proto3,enum=gongeons.v1.Structure" json:"structure,omitempty"` // village / castle overlay
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }

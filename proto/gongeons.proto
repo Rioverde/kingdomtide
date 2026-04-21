@@ -62,11 +62,26 @@ enum Structure {
 // Tile is an atomic map cell. Used in Snapshot only — Events carry deltas,
 // not full tile replacements. overlays is a bitmask of TileOverlay flag
 // values shared with the domain (river, road, bridge, path...).
+//
+// Historical: fields 4 and 5 previously held `bool river` and
+// `WorldObject object`. They were re-typed to uint32 + Structure during
+// the overlay-bitmask refactor; the slot numbers were deliberately
+// reused. Do not reintroduce the old field names on different slots —
+// future overlays should get fresh numbers (6, 7, ...).
 message Tile {
   Terrain      terrain   = 1;
   OccupantKind occupant  = 2;
   string       entity_id = 3; // occupant ID, empty if no occupant
-  uint32       overlays  = 4; // bitmask of TileOverlay flag values
+  // overlays is a bitmask of yes/no tile features (river, road, bridge,
+  // path...). Bit values are defined in Go as TileOverlay constants in
+  // internal/game/overlay.go:
+  //   bit 0 (value 1)  = OverlayRiver
+  //   bit 1 (value 2)  = OverlayRoad
+  //   bit 2 (value 4)  = OverlayBridge
+  //   bit 3 (value 8)  = OverlayPath
+  // Bits 4-31 are reserved for future overlays. Keep overlay.go and this
+  // comment in lockstep when adding a new flag.
+  uint32       overlays  = 4;
   Structure    structure = 5; // village / castle overlay
 }
 
