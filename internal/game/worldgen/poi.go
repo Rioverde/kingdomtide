@@ -1,6 +1,10 @@
-package game
+package worldgen
 
-import "sort"
+import (
+	"sort"
+
+	"github.com/Rioverde/gongeons/internal/game"
+)
 
 // POI placement constants. poiCandidatesPerChunk is the number of candidate slots
 // evaluated inside each chunk; the generator hashes (cx, cy, slot, seed) to pick a
@@ -17,7 +21,7 @@ const (
 // poiCandidate holds a tentative POI before the min-distance filter is applied.
 type poiCandidate struct {
 	q, r    int
-	kind    ObjectKind
+	kind    game.ObjectKind
 	sortKey uint64 // raw hash used for stable ordering in the greedy filter
 }
 
@@ -58,9 +62,9 @@ func abs(x int) int {
 // villageAllowed reports whether a village may be placed on a tile with the given terrain.
 // Villages prefer cultivated / coastal / temperate biomes and are rejected on water,
 // extreme elevations, and hostile biomes.
-func villageAllowed(t Terrain) bool {
+func villageAllowed(t game.Terrain) bool {
 	switch t {
-	case TerrainPlains, TerrainGrassland, TerrainMeadow, TerrainBeach, TerrainSavanna:
+	case game.TerrainPlains, game.TerrainGrassland, game.TerrainMeadow, game.TerrainBeach, game.TerrainSavanna:
 		return true
 	default:
 		return false
@@ -70,9 +74,9 @@ func villageAllowed(t Terrain) bool {
 // castleAllowed reports whether a castle may be placed on a tile with the given terrain.
 // Castles suit defensible high ground and open land; they are rejected on water,
 // deep jungle, swamp-like biomes, and snow-heavy terrain.
-func castleAllowed(t Terrain) bool {
+func castleAllowed(t game.Terrain) bool {
 	switch t {
-	case TerrainHills, TerrainPlains, TerrainGrassland, TerrainMeadow:
+	case game.TerrainHills, game.TerrainPlains, game.TerrainGrassland, game.TerrainMeadow:
 		return true
 	default:
 		return false
@@ -89,7 +93,7 @@ func castleAllowed(t Terrain) bool {
 // candidates are sorted by their raw hash and filtered greedily: a candidate is kept
 // only if it is at least poiMinDistance hex tiles away from every previously accepted
 // POI. Only placements whose world coordinates fall inside cc.Bounds() are returned.
-func (g *WorldGenerator) ObjectsInChunk(cc ChunkCoord) map[[2]int]ObjectKind {
+func (g *WorldGenerator) ObjectsInChunk(cc ChunkCoord) map[[2]int]game.ObjectKind {
 	// poiThresholdResolution is the fixed-point denominator for spawn-chance comparisons.
 	// Using the top 16 bits of the hash (range [0, 65536)) avoids the float64 precision
 	// loss that arises when multiplying spawn chances by ^uint64(0). The resolution of
@@ -116,12 +120,12 @@ func (g *WorldGenerator) ObjectsInChunk(cc ChunkCoord) map[[2]int]ObjectKind {
 				// Determine kind from the top 16 bits of the hash so the comparison
 				// aligns with the fixed-point thresholds computed above.
 				topBits := h >> 48
-				var kind ObjectKind
+				var kind game.ObjectKind
 				switch {
 				case topBits < castleThreshold:
-					kind = ObjectCastle
+					kind = game.ObjectCastle
 				case topBits < villageThreshold:
-					kind = ObjectVillage
+					kind = game.ObjectVillage
 				default:
 					continue // no POI for this slot
 				}
@@ -142,11 +146,11 @@ func (g *WorldGenerator) ObjectsInChunk(cc ChunkCoord) map[[2]int]ObjectKind {
 					continue
 				}
 				switch kind {
-				case ObjectVillage:
+				case game.ObjectVillage:
 					if !villageAllowed(tile.Terrain) {
 						continue
 					}
-				case ObjectCastle:
+				case game.ObjectCastle:
 					if !castleAllowed(tile.Terrain) {
 						continue
 					}
@@ -186,7 +190,7 @@ func (g *WorldGenerator) ObjectsInChunk(cc ChunkCoord) map[[2]int]ObjectKind {
 
 	// Collect placements that fall inside cc's own bounds.
 	minQ, maxQ, minR, maxR := cc.Bounds()
-	result := make(map[[2]int]ObjectKind)
+	result := make(map[[2]int]game.ObjectKind)
 	for _, a := range accepted {
 		if a.q >= minQ && a.q < maxQ && a.r >= minR && a.r < maxR {
 			dq := a.q - minQ

@@ -1,6 +1,10 @@
-package game
+package worldgen
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/Rioverde/gongeons/internal/game"
+)
 
 func TestFloorDiv(t *testing.T) {
 	cases := []struct {
@@ -54,7 +58,7 @@ func TestChunkBounds(t *testing.T) {
 func TestChunkAtRoundTrip(t *testing.T) {
 	c := Chunk{Coord: ChunkCoord{X: 3, Y: -2}}
 	minQ, _, minR, _ := c.Bounds()
-	tile := Tile{Terrain: TerrainJungle}
+	tile := game.Tile{Terrain: game.TerrainJungle}
 	c.Set(minQ+5, minR+7, tile)
 	if got := c.At(minQ+5, minR+7); got != tile {
 		t.Fatalf("At/Set round trip: got %+v, want %+v", got, tile)

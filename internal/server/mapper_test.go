@@ -8,6 +8,7 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/worldgen"
 	pb "github.com/Rioverde/gongeons/internal/proto"
 )
 
@@ -208,7 +209,7 @@ func TestSnapshotOfIncludesObjects(t *testing.T) {
 }
 
 func TestSnapshotOfShape(t *testing.T) {
-	w := game.NewWorld(42)
+	w := worldgen.NewWorld(42)
 	events, err := w.ApplyCommand(game.JoinCmd{PlayerID: "p1", Name: "alice"})
 	if err != nil {
 		t.Fatalf("apply join: %v", err)

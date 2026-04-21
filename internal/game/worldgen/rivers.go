@@ -1,4 +1,4 @@
-package game
+package worldgen
 
 // riverSourceThreshold is the minimum normalised elevation for a tile to be
 // considered a river source. Tiles at or above this value sit in the high

@@ -1,4 +1,6 @@
-package game
+package worldgen
+
+import "github.com/Rioverde/gongeons/internal/game"
 
 // Seed salts for per-layer noise decorrelation. Independent layers must see different
 // underlying noise fields, otherwise elevation and temperature would look visually
@@ -61,12 +63,12 @@ func (g *WorldGenerator) Seed() int64 {
 // TileAt is the canonical per-coord lookup. It samples the three noise fields at the given
 // global axial coordinate and hands them to the biome matrix. Same (seed, q, r) always
 // yields the same tile, with or without the chunk cache in front.
-func (g *WorldGenerator) TileAt(q, r int) Tile {
+func (g *WorldGenerator) TileAt(q, r int) game.Tile {
 	x, y := float64(q), float64(r)
 	elev := g.elevation.Eval2Normalized(x, y)
 	temp := g.temperature.Eval2Normalized(x, y)
 	moist := g.moisture.Eval2Normalized(x, y)
-	return Tile{Terrain: Biome(elev, temp, moist)}
+	return game.Tile{Terrain: Biome(elev, temp, moist)}
 }
 
 // Chunk fills an entire Chunk worth of tiles by calling TileAt for every coord in the chunk

@@ -1,4 +1,4 @@
-package game
+package worldgen
 
 import (
 	opensimplex "github.com/ojrac/opensimplex-go"

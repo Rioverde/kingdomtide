@@ -9,33 +9,6 @@ type TileSource interface {
 	TileAt(x, y int) Tile
 }
 
-// chunkedSource is the procedural, infinite TileSource: a WorldGenerator
-// plus an LRU chunk cache in front of it. Determined fully by seed.
-type chunkedSource struct {
-	gen   *WorldGenerator
-	cache *ChunkCache
-}
-
-// newChunkedSource wires a fresh generator and cache around the given seed.
-func newChunkedSource(seed int64) *chunkedSource {
-	return &chunkedSource{
-		gen:   NewWorldGenerator(seed),
-		cache: NewChunkCache(DefaultChunkCacheCapacity),
-	}
-}
-
-// TileAt returns the procedurally-generated tile at (x, y), memoised at the
-// chunk level so repeated reads inside the same chunk are cheap.
-func (s *chunkedSource) TileAt(x, y int) Tile {
-	cc := WorldToChunk(x, y)
-	if cached, ok := s.cache.Get(cc); ok {
-		return cached.At(x, y)
-	}
-	c := s.gen.Chunk(cc)
-	s.cache.Put(cc, &c)
-	return c.At(x, y)
-}
-
 // World is the authoritative in-memory state of a single match. It combines
 // an immutable, pluggable TileSource with mutable runtime overlays — the
 // player registry and the occupancy map. World is NOT safe for concurrent
@@ -49,10 +22,12 @@ type World struct {
 	occupants map[Position]*Player
 }
 
-// NewWorld constructs an infinite, procedural World seeded from the given
-// value. Two worlds built with the same seed yield identical terrain.
-func NewWorld(seed int64) *World {
-	return NewWorldFromSource(newChunkedSource(seed))
+// NewWorld constructs an infinite World around the given TileSource. Use
+// worldgen.NewChunkedSource for the procedural production source, or
+// NewWorldFromSource with a test-painted source for deterministic unit
+// tests.
+func NewWorld(source TileSource) *World {
+	return NewWorldFromSource(source)
 }
 
 // NewWorldFromSource wraps the given TileSource in a World. Production code

@@ -2,28 +2,15 @@ package game
 
 import "testing"
 
-func TestNewWorldDeterministic(t *testing.T) {
-	// Same seed → same tile at the same coord, every call.
-	w1 := NewWorld(42)
-	w2 := NewWorld(42)
-	for _, p := range []Position{{0, 0}, {10, 10}, {-5, 7}, {100, -100}} {
-		a, _ := w1.TileAt(p)
-		b, _ := w2.TileAt(p)
-		if a.Terrain != b.Terrain {
-			t.Fatalf("seed-determinism broken at %+v: %q vs %q", p, a.Terrain, b.Terrain)
-		}
-	}
-}
-
 func TestNewWorldInBoundsAlwaysTrue(t *testing.T) {
-	w := NewWorld(1)
+	w := newTestWorld(testTiles{})
 	if !w.InBounds(Position{X: -1e6, Y: 1e6}) {
 		t.Fatalf("expected infinite world to report InBounds for any coord")
 	}
 }
 
 func TestPlayersDefensiveCopyAndSort(t *testing.T) {
-	w := NewWorld(42)
+	w := newTestWorld(testTiles{})
 	for _, id := range []string{"charlie", "alice", "bob"} {
 		if _, err := w.ApplyCommand(JoinCmd{PlayerID: id, Name: id}); err != nil {
 			t.Fatalf("join %q: %v", id, err)
