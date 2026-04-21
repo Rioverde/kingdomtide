@@ -13,25 +13,25 @@ import pb "github.com/Rioverde/gongeons/internal/proto"
 // Occupant overlay runes. Occupants win over terrain when a tile is
 // rendered — they sit "on top of" the biome glyph.
 const (
-	RuneSelf        = "@" // classic roguelike player — universal, unambiguous
-	RuneOther       = "𐙬" // hanja-ish "person", single-width in most monospace
-	RuneUnspecified = "?"
+	runeSelf        = "@" // classic roguelike player — universal, unambiguous
+	runeOther       = "♟" // BMP U+265F BLACK CHESS PAWN, single-cell, pairs with castle rook
+	runeUnspecified = "?"
 )
 
-// RiverRune is painted on tiles the procedural generator marked as part of
+// riverRune is painted on tiles the procedural generator marked as part of
 // a river. It sits over the underlying biome.
-const RiverRune = "≈"
+const riverRune = "≈"
 
-// ObjectRunes maps village / castle / etc. to the glyph drawn in place of
+// objectRunes maps village / castle / etc. to the glyph drawn in place of
 // the terrain rune. Rendered below players but above rivers and terrain.
-var ObjectRunes = map[pb.WorldObject]string{
+var objectRunes = map[pb.WorldObject]string{
 	pb.WorldObject_WORLD_OBJECT_VILLAGE: "⌂", // BMP U+2302 HOUSE
 	pb.WorldObject_WORLD_OBJECT_CASTLE:  "♜", // BMP U+265C BLACK CHESS ROOK
 }
 
-// TerrainRunes maps every wire-level Terrain value to the rune shown for
-// that biome. Missing keys fall back to RuneUnspecified in the renderer.
-var TerrainRunes = map[pb.Terrain]string{
+// terrainRunes maps every wire-level Terrain value to the rune shown for
+// that biome. Missing keys fall back to runeUnspecified in the renderer.
+var terrainRunes = map[pb.Terrain]string{
 	// Grass family: progressively denser vegetation.
 	pb.Terrain_TERRAIN_PLAINS:    "·", // middle dot
 	pb.Terrain_TERRAIN_GRASSLAND: "„", // low double comma

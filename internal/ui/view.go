@@ -10,8 +10,8 @@ import (
 	pb "github.com/Rioverde/gongeons/internal/proto"
 )
 
-// Every glyph this file renders comes from runes.go — RuneSelf / RuneOther /
-// RuneUnspecified / RiverRune / TerrainRunes for the map, plus the
+// Every glyph this file renders comes from runes.go — runeSelf / runeOther /
+// runeUnspecified / riverRune / terrainRunes for the map, plus the
 // chrome constants (InputPrompt, LogBullet, etc.) for the surrounding UI.
 
 // View renders the full screen for the current phase.
@@ -90,7 +90,7 @@ func (m *Model) renderGrid() string {
 		for x := range m.width {
 			idx := y*m.width + x
 			if idx >= len(m.tiles) {
-				b.WriteString(styles.unknownTile.Render(RuneUnspecified))
+				b.WriteString(styles.unknownTile.Render(runeUnspecified))
 				continue
 			}
 			b.WriteString(m.renderCell(m.tiles[idx]))
@@ -107,25 +107,24 @@ func (m *Model) renderGrid() string {
 // other player is decided by myID.
 func (m *Model) renderCell(t *pb.Tile) string {
 	if t == nil {
-		return styles.unknownTile.Render(RuneUnspecified)
+		return styles.unknownTile.Render(runeUnspecified)
 	}
 	if t.GetOccupant() == pb.OccupantKind_OCCUPANT_PLAYER && t.GetEntityId() != "" {
 		if t.GetEntityId() == m.myID {
-			return styles.selfPlayer.Render(RuneSelf)
+			return styles.selfPlayer.Render(runeSelf)
 		}
-		return styles.otherPlayer.Render(RuneOther)
+		return styles.otherPlayer.Render(runeOther)
 	}
 	if obj := t.GetObject(); obj != pb.WorldObject_WORLD_OBJECT_UNSPECIFIED {
-		if glyph, ok := ObjectRunes[obj]; ok {
-			switch obj {
-			case pb.WorldObject_WORLD_OBJECT_VILLAGE:
-				return styles.village.Render(glyph)
-			case pb.WorldObject_WORLD_OBJECT_CASTLE:
-				return styles.castle.Render(glyph)
-			case pb.WorldObject_WORLD_OBJECT_UNSPECIFIED:
-				// unreachable — guarded by outer if
-			}
+		glyph, gOK := objectRunes[obj]
+		style, sOK := objectStyles[obj]
+		if gOK && sOK && glyph != "" {
+			return style.Render(glyph)
 		}
+		// Unknown / version-skew object from the server: render the "what is this"
+		// marker so the player SEES something is there, rather than silently
+		// falling through to the terrain underneath.
+		return styles.unknownTile.Render(runeUnspecified)
 	}
 	r, s := lookTile(t)
 	return s.Render(r)

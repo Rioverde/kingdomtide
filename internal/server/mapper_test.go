@@ -112,6 +112,56 @@ func TestTerrainToPBMapping(t *testing.T) {
 	}
 }
 
+func TestObjectToPBMapping(t *testing.T) {
+	cases := map[game.ObjectKind]pb.WorldObject{
+		game.ObjectVillage:     pb.WorldObject_WORLD_OBJECT_VILLAGE,
+		game.ObjectCastle:      pb.WorldObject_WORLD_OBJECT_CASTLE,
+		game.ObjectNone:        pb.WorldObject_WORLD_OBJECT_UNSPECIFIED,
+		game.ObjectKind("xyz"): pb.WorldObject_WORLD_OBJECT_UNSPECIFIED,
+	}
+	for in, want := range cases {
+		if got := objectToPB(in); got != want {
+			t.Errorf("objectToPB(%q): want %v, got %v", string(in), want, got)
+		}
+	}
+}
+
+// villageTileSource is a TileSource that paints a village over plains at a
+// fixed target coordinate and plain plains everywhere else. Used by
+// TestSnapshotOfIncludesObjects to assert the wire Snapshot carries the
+// object field through.
+type villageTileSource struct {
+	target game.Position
+}
+
+func (s villageTileSource) TileAt(x, y int) game.Tile {
+	if (game.Position{X: x, Y: y}) == s.target {
+		return game.Tile{Terrain: game.TerrainPlains, Object: game.ObjectVillage}
+	}
+	return game.Tile{Terrain: game.TerrainPlains}
+}
+
+func TestSnapshotOfIncludesObjects(t *testing.T) {
+	target := game.Position{X: 3, Y: 4}
+	w := game.NewWorldFromSource(villageTileSource{target: target})
+
+	// Centre the viewport on the target so the local index is trivially
+	// computable from the viewport dimensions.
+	snap := snapshotOf(w, target, DefaultViewportWidth, DefaultViewportHeight)
+	localX := int(snap.GetWidth()) / 2
+	localY := int(snap.GetHeight()) / 2
+	idx := localY*int(snap.GetWidth()) + localX
+
+	tiles := snap.GetTiles()
+	if idx >= len(tiles) {
+		t.Fatalf("target index %d out of range (%d tiles)", idx, len(tiles))
+	}
+	if got := tiles[idx].GetObject(); got != pb.WorldObject_WORLD_OBJECT_VILLAGE {
+		t.Fatalf("centre tile object = %v, want %v",
+			got, pb.WorldObject_WORLD_OBJECT_VILLAGE)
+	}
+}
+
 func TestSnapshotOfShape(t *testing.T) {
 	w := game.NewWorld(42)
 	events, err := w.ApplyCommand(game.JoinCmd{PlayerID: "p1", Name: "alice"})

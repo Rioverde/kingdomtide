@@ -13,8 +13,6 @@ var styles = struct {
 	selfPlayer  lipgloss.Style
 	otherPlayer lipgloss.Style
 	river       lipgloss.Style
-	village     lipgloss.Style
-	castle      lipgloss.Style
 	unknownTile lipgloss.Style
 
 	title   lipgloss.Style
@@ -30,8 +28,6 @@ var styles = struct {
 	selfPlayer:  lipgloss.NewStyle().Foreground(lipgloss.Color("15")).Bold(true),
 	otherPlayer: lipgloss.NewStyle().Foreground(lipgloss.Color("13")).Bold(true),
 	river:       lipgloss.NewStyle().Foreground(lipgloss.Color("45")),
-	village:     lipgloss.NewStyle().Foreground(lipgloss.Color("208")).Bold(true), // warm orange
-	castle:      lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Bold(true), // red
 	unknownTile: lipgloss.NewStyle().Foreground(lipgloss.Color("240")),
 
 	title:  lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("12")).Padding(0, 1),
@@ -46,6 +42,13 @@ var styles = struct {
 		BorderForeground(lipgloss.Color("8")).Padding(0, 1),
 	errBox: lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("9")).Foreground(lipgloss.Color("9")).Padding(1, 2),
+}
+
+// objectStyles pairs each wire WorldObject with its foreground style. Edit
+// alongside objectRunes to re-skin village/castle overlays.
+var objectStyles = map[pb.WorldObject]lipgloss.Style{
+	pb.WorldObject_WORLD_OBJECT_VILLAGE: lipgloss.NewStyle().Foreground(lipgloss.Color("208")).Bold(true),
+	pb.WorldObject_WORLD_OBJECT_CASTLE:  lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Bold(true),
 }
 
 // terrainStyles pairs each biome with its foreground colour. Edit this
@@ -73,14 +76,14 @@ var terrainStyles = map[pb.Terrain]lipgloss.Style{
 // biome rune with a cyan stroke so water routes stand out against land.
 func lookTile(t *pb.Tile) (string, lipgloss.Style) {
 	if t == nil {
-		return RuneUnspecified, styles.unknownTile
+		return runeUnspecified, styles.unknownTile
 	}
 	if t.GetRiver() {
-		return RiverRune, styles.river
+		return riverRune, styles.river
 	}
-	r, ok := TerrainRunes[t.GetTerrain()]
+	r, ok := terrainRunes[t.GetTerrain()]
 	if !ok {
-		return RuneUnspecified, styles.unknownTile
+		return runeUnspecified, styles.unknownTile
 	}
 	style, ok := terrainStyles[t.GetTerrain()]
 	if !ok {

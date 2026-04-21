@@ -188,17 +188,17 @@ func TestLookTileKnownAndUnknown(t *testing.T) {
 	t.Parallel()
 	known := &pb.Tile{Terrain: pb.Terrain_TERRAIN_FOREST}
 	r, _ := lookTile(known)
-	if r == RuneUnspecified {
+	if r == runeUnspecified {
 		t.Fatalf("lookTile(known biome) returned unspecified rune")
 	}
 	unknown := &pb.Tile{Terrain: pb.Terrain(999)}
 	r, _ = lookTile(unknown)
-	if r != RuneUnspecified {
-		t.Fatalf("lookTile(unknown) = %q, want %q", r, RuneUnspecified)
+	if r != runeUnspecified {
+		t.Fatalf("lookTile(unknown) = %q, want %q", r, runeUnspecified)
 	}
 	river := &pb.Tile{Terrain: pb.Terrain_TERRAIN_FOREST, River: true}
 	r, _ = lookTile(river)
-	if r != RiverRune {
-		t.Fatalf("lookTile(river) = %q, want %q", r, RiverRune)
+	if r != riverRune {
+		t.Fatalf("lookTile(river) = %q, want %q", r, riverRune)
 	}
 }
