@@ -105,14 +105,17 @@ func NewNoiseLandmarkSource(
 }
 
 // LandmarksIn returns up to four landmarks — one per sub-cell in fixed
-// NW, NE, SW, SE order — with water-dominant sub-cells omitted. Landmarks
-// never spawn on ocean, deep-ocean, or lake tiles: a sub-cell whose
-// candidates are all water simply returns no landmark, and the output
-// slice is shorter than four. Deterministic: same (seed, sc) always
-// yields the same slice.
+// NW, NE, SW, SE order — with water-dominant sub-cells omitted.
+// Landmarks never spawn on ocean, deep-ocean, or lake tiles: a sub-cell
+// whose candidates are all water simply returns no landmark, and the
+// output slice is shorter than four. Deterministic: same (seed, sc)
+// always yields the same slice. Landmark names ship as structured,
+// language-agnostic Parts records.
 func (s *NoiseLandmarkSource) LandmarksIn(sc game.SuperChunkCoord) []game.Landmark {
 	out := make([]game.Landmark, 0, landmarkSubCellsPerSC)
 
+	// Only Character is consumed below; the returned Region.Name is
+	// discarded.
 	region := s.regions.RegionAt(sc)
 	minX := sc.X * game.SuperChunkSize
 	minY := sc.Y * game.SuperChunkSize
@@ -129,11 +132,11 @@ func (s *NoiseLandmarkSource) LandmarksIn(sc game.SuperChunkCoord) []game.Landma
 
 // landmarkForSubCell scatters candidate positions inside the sub-cell,
 // skips any candidate whose tile is water (ocean / deep-ocean / lake —
-// see isWaterTile), picks the first non-water candidate that fits a kind
-// under the terrain + region-bias matrix, and falls back to a Shrine at
-// the first non-water candidate if no kind fits. Returns ok == false
-// when every candidate is water, signalling the caller to omit this
-// sub-cell.
+// see isWaterTile), picks the first non-water candidate that fits a
+// kind under the terrain + region-bias matrix, and falls back to a
+// Shrine at the first non-water candidate if no kind fits. Returns
+// ok == false when every candidate is water, signalling the caller to
+// omit this sub-cell.
 func (s *NoiseLandmarkSource) landmarkForSubCell(
 	sc game.SuperChunkCoord,
 	subID, scMinX, scMinY int,
@@ -163,7 +166,8 @@ func (s *NoiseLandmarkSource) landmarkForSubCell(
 		if !ok {
 			continue
 		}
-		return game.Landmark{Coord: cand, Kind: kind}, true
+		name := LandmarkName(kind, character, s.seed, cand)
+		return game.Landmark{Coord: cand, Kind: kind, Name: name}, true
 	}
 
 	if !firstDryFound {
@@ -172,7 +176,8 @@ func (s *NoiseLandmarkSource) landmarkForSubCell(
 	// Shrine fallback on the first non-water candidate — keeps landmark
 	// density high in mixed land/water sub-cells while still honouring
 	// the no-water-spawn invariant.
-	return game.Landmark{Coord: firstDry, Kind: game.LandmarkShrine}, true
+	name := LandmarkName(game.LandmarkShrine, character, s.seed, firstDry)
+	return game.Landmark{Coord: firstDry, Kind: game.LandmarkShrine, Name: name}, true
 }
 
 // isWaterTile reports whether a tile's terrain or overlay puts it

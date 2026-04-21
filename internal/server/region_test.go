@@ -36,9 +36,8 @@ func testRegionWorld() *game.World {
 }
 
 // startRegionTestServer mirrors startTestServer but swaps in testRegionWorld
-// so region-aware assertions see a fully-wired Service. Returning the
-// service alongside the client lets tests poke its internal language map
-// directly without a second round-trip.
+// so region-aware assertions see a fully-wired Service. The Service pointer
+// is returned for completeness; callers that do not need it use _.
 func startRegionTestServer(t *testing.T) (pb.GameServiceClient, *Service, func()) {
 	t.Helper()
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
@@ -101,8 +100,12 @@ func TestSnapshotRegionPopulated(t *testing.T) {
 	if region == nil {
 		t.Fatal("Snapshot.Region: want non-nil, got nil")
 	}
-	if region.GetName() == "" {
-		t.Fatalf("Region.Name: want non-empty, got %+v", region)
+	name := region.GetName()
+	if name == nil {
+		t.Fatalf("Region.Name: want non-nil NameParts, got %+v", region)
+	}
+	if name.GetCharacter() == "" {
+		t.Fatalf("Region.Name.Character: want non-empty, got %+v", name)
 	}
 	if region.GetCharacter() < pb.RegionCharacter_REGION_CHARACTER_NORMAL ||
 		region.GetCharacter() > pb.RegionCharacter_REGION_CHARACTER_WILD {
@@ -140,79 +143,6 @@ func TestJoinAcceptedCarriesWorldSeed(t *testing.T) {
 	}
 	if got := accepted.GetWorldSeed(); got != testRegionSeed {
 		t.Fatalf("JoinAccepted.WorldSeed: want %d, got %d", testRegionSeed, got)
-	}
-}
-
-func TestJoinRequestLanguageStored(t *testing.T) {
-	client, svc, cleanup := startRegionTestServer(t)
-	defer cleanup()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-
-	stream, err := client.Play(ctx)
-	if err != nil {
-		t.Fatalf("Play: %v", err)
-	}
-	if err := stream.Send(&pb.ClientMessage{Payload: &pb.ClientMessage_Join{
-		Join: &pb.JoinRequest{Name: "alice", Language: "ru"},
-	}}); err != nil {
-		t.Fatalf("send join: %v", err)
-	}
-
-	first, err := stream.Recv()
-	if err != nil {
-		t.Fatalf("recv: %v", err)
-	}
-	accepted := first.GetAccepted()
-	if accepted == nil {
-		t.Fatalf("first message: want JoinAccepted, got %v", first)
-	}
-	id := accepted.GetPlayerId()
-	if id == "" {
-		t.Fatalf("JoinAccepted.PlayerId: empty")
-	}
-
-	// Drain the initial snapshot so the test does not leave pending frames
-	// on the stream when the deferred cleanup tears down the server.
-	recvUntil(t, stream, func(m *pb.ServerMessage) bool {
-		return m.GetSnapshot() != nil
-	})
-
-	if got := svc.LanguageOf(id); got != "ru" {
-		t.Fatalf("LanguageOf(%q): want %q, got %q", id, "ru", got)
-	}
-}
-
-func TestJoinRequestLanguageDefaultsToEnglish(t *testing.T) {
-	client, svc, cleanup := startRegionTestServer(t)
-	defer cleanup()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-
-	stream, err := client.Play(ctx)
-	if err != nil {
-		t.Fatalf("Play: %v", err)
-	}
-	if err := stream.Send(&pb.ClientMessage{Payload: &pb.ClientMessage_Join{
-		Join: &pb.JoinRequest{Name: "alice"},
-	}}); err != nil {
-		t.Fatalf("send join: %v", err)
-	}
-	first, err := stream.Recv()
-	if err != nil {
-		t.Fatalf("recv: %v", err)
-	}
-	id := first.GetAccepted().GetPlayerId()
-	if id == "" {
-		t.Fatalf("JoinAccepted.PlayerId: empty (%v)", first)
-	}
-	recvUntil(t, stream, func(m *pb.ServerMessage) bool {
-		return m.GetSnapshot() != nil
-	})
-	if got := svc.LanguageOf(id); got != defaultClientLanguage {
-		t.Fatalf("LanguageOf(%q): want %q, got %q", id, defaultClientLanguage, got)
 	}
 }
 

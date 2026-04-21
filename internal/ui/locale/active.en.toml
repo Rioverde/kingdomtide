@@ -248,3 +248,300 @@ other = "Wastes"
 
 [geo.unknown.0]
 other = "Reach"
+
+# -----------------------------------------------------------------------------
+# Region name composition (Phase 3). The Parts record produced by the naming
+# package carries a Body, a Format tag, and two catalog indices. The client
+# resolves region.name.* and region.prefix.* to turn those into display text.
+# Counts match worldgen.regionBounds — any change here MUST update that map.
+# -----------------------------------------------------------------------------
+
+# FormatCharacterPrefix template: "<prefix> <body>".
+[region.name.character_prefix]
+other = "{{.Prefix}} {{.Body}}"
+
+# Character prefix catalogs — 5 entries per character. Indexed by PrefixIndex
+# via region.prefix.<character>.<index>. Values are adjectives that read well
+# in front of a Markov-generated geographic noun.
+[region.prefix.normal.0]
+other = "The Old"
+[region.prefix.normal.1]
+other = "Greater"
+[region.prefix.normal.2]
+other = "Lesser"
+[region.prefix.normal.3]
+other = "Upper"
+[region.prefix.normal.4]
+other = "Lower"
+
+[region.prefix.blighted.0]
+other = "Grim"
+[region.prefix.blighted.1]
+other = "Rotted"
+[region.prefix.blighted.2]
+other = "Withered"
+[region.prefix.blighted.3]
+other = "Fell"
+[region.prefix.blighted.4]
+other = "Cursed"
+
+[region.prefix.fey.0]
+other = "Silver"
+[region.prefix.fey.1]
+other = "Twilight"
+[region.prefix.fey.2]
+other = "Hidden"
+[region.prefix.fey.3]
+other = "Whispered"
+[region.prefix.fey.4]
+other = "Dreaming"
+
+[region.prefix.ancient.0]
+other = "Elder"
+[region.prefix.ancient.1]
+other = "Forgotten"
+[region.prefix.ancient.2]
+other = "Primal"
+[region.prefix.ancient.3]
+other = "Hollow"
+[region.prefix.ancient.4]
+other = "Sunken"
+
+[region.prefix.savage.0]
+other = "Broken"
+[region.prefix.savage.1]
+other = "Wrathful"
+[region.prefix.savage.2]
+other = "Bloodied"
+[region.prefix.savage.3]
+other = "Feral"
+[region.prefix.savage.4]
+other = "Jagged"
+
+[region.prefix.holy.0]
+other = "Blessed"
+[region.prefix.holy.1]
+other = "Hallowed"
+[region.prefix.holy.2]
+other = "Gilded"
+[region.prefix.holy.3]
+other = "Sacred"
+[region.prefix.holy.4]
+other = "Radiant"
+
+[region.prefix.wild.0]
+other = "Untamed"
+[region.prefix.wild.1]
+other = "Wandering"
+[region.prefix.wild.2]
+other = "Tangled"
+[region.prefix.wild.3]
+other = "Pathless"
+[region.prefix.wild.4]
+other = "Open"
+
+# Kind-pattern catalogs — one family per biome. The template substitutes
+# {{.Body}} (the Markov body) to compose a display name that feels native to
+# the biome. Counts match worldgen.regionBounds PatternCount entries.
+[region.name.forest.kind_pattern.0]
+other = "{{.Body}} Thicket"
+[region.name.forest.kind_pattern.1]
+other = "{{.Body}} Weald"
+[region.name.forest.kind_pattern.2]
+other = "{{.Body}} Wood"
+[region.name.forest.kind_pattern.3]
+other = "{{.Body}} Glade"
+[region.name.forest.kind_pattern.4]
+other = "{{.Body}} Holt"
+
+[region.name.plain.kind_pattern.0]
+other = "{{.Body}} Wolds"
+[region.name.plain.kind_pattern.1]
+other = "{{.Body}} Downs"
+[region.name.plain.kind_pattern.2]
+other = "{{.Body}} Reach"
+[region.name.plain.kind_pattern.3]
+other = "{{.Body}} Heath"
+[region.name.plain.kind_pattern.4]
+other = "{{.Body}} Moor"
+
+[region.name.mountain.kind_pattern.0]
+other = "{{.Body}} Peaks"
+[region.name.mountain.kind_pattern.1]
+other = "{{.Body}} Crags"
+[region.name.mountain.kind_pattern.2]
+other = "{{.Body}} Spurs"
+[region.name.mountain.kind_pattern.3]
+other = "{{.Body}} Heights"
+
+[region.name.water.kind_pattern.0]
+other = "{{.Body}} Mere"
+[region.name.water.kind_pattern.1]
+other = "{{.Body}} Fen"
+[region.name.water.kind_pattern.2]
+other = "{{.Body}} Sound"
+[region.name.water.kind_pattern.3]
+other = "{{.Body}} Marshes"
+
+[region.name.desert.kind_pattern.0]
+other = "{{.Body}} Wastes"
+[region.name.desert.kind_pattern.1]
+other = "{{.Body}} Dunes"
+[region.name.desert.kind_pattern.2]
+other = "{{.Body}} Barrens"
+[region.name.desert.kind_pattern.3]
+other = "{{.Body}} Sands"
+
+[region.name.tundra.kind_pattern.0]
+other = "{{.Body}} Barrens"
+[region.name.tundra.kind_pattern.1]
+other = "{{.Body}} Steppes"
+[region.name.tundra.kind_pattern.2]
+other = "{{.Body}} Wastes"
+
+[region.name.unknown.kind_pattern.0]
+other = "{{.Body}} Reach"
+
+# -----------------------------------------------------------------------------
+# Landmark name composition (Phase 3). Same shape as region.name.* but keyed
+# by LandmarkKind. Counts match worldgen.landmarkBounds PatternCount entries.
+# -----------------------------------------------------------------------------
+
+# FormatCharacterPrefix template for landmarks.
+[landmark.name.character_prefix]
+other = "{{.Prefix}} {{.Body}}"
+
+# Character prefix catalogs — 5 entries per character, same count as region.
+[landmark.prefix.normal.0]
+other = "Old"
+[landmark.prefix.normal.1]
+other = "Grey"
+[landmark.prefix.normal.2]
+other = "Stone"
+[landmark.prefix.normal.3]
+other = "Lone"
+[landmark.prefix.normal.4]
+other = "Long"
+
+[landmark.prefix.blighted.0]
+other = "Broken"
+[landmark.prefix.blighted.1]
+other = "Grim"
+[landmark.prefix.blighted.2]
+other = "Cursed"
+[landmark.prefix.blighted.3]
+other = "Fallen"
+[landmark.prefix.blighted.4]
+other = "Rotted"
+
+[landmark.prefix.fey.0]
+other = "Silver"
+[landmark.prefix.fey.1]
+other = "Whispered"
+[landmark.prefix.fey.2]
+other = "Hidden"
+[landmark.prefix.fey.3]
+other = "Moonlit"
+[landmark.prefix.fey.4]
+other = "Starlit"
+
+[landmark.prefix.ancient.0]
+other = "Elder"
+[landmark.prefix.ancient.1]
+other = "Forgotten"
+[landmark.prefix.ancient.2]
+other = "Silent"
+[landmark.prefix.ancient.3]
+other = "Sunken"
+[landmark.prefix.ancient.4]
+other = "Lost"
+
+[landmark.prefix.savage.0]
+other = "Bloodied"
+[landmark.prefix.savage.1]
+other = "Wrathful"
+[landmark.prefix.savage.2]
+other = "Jagged"
+[landmark.prefix.savage.3]
+other = "Savage"
+[landmark.prefix.savage.4]
+other = "Scarred"
+
+[landmark.prefix.holy.0]
+other = "Blessed"
+[landmark.prefix.holy.1]
+other = "Hallowed"
+[landmark.prefix.holy.2]
+other = "Sacred"
+[landmark.prefix.holy.3]
+other = "Gilded"
+[landmark.prefix.holy.4]
+other = "Radiant"
+
+[landmark.prefix.wild.0]
+other = "Twisted"
+[landmark.prefix.wild.1]
+other = "Creeping"
+[landmark.prefix.wild.2]
+other = "Untamed"
+[landmark.prefix.wild.3]
+other = "Tangled"
+[landmark.prefix.wild.4]
+other = "Thorned"
+
+# Kind-pattern catalogs per LandmarkKind. Counts match landmarkBounds.
+[landmark.name.tower.kind_pattern.0]
+other = "{{.Body}} Tower"
+[landmark.name.tower.kind_pattern.1]
+other = "Tower of {{.Body}}"
+[landmark.name.tower.kind_pattern.2]
+other = "{{.Body}} Keep"
+
+[landmark.name.giant_tree.kind_pattern.0]
+other = "{{.Body}} Tree"
+[landmark.name.giant_tree.kind_pattern.1]
+other = "Great {{.Body}}"
+
+[landmark.name.standing_stones.kind_pattern.0]
+other = "{{.Body}} Stones"
+[landmark.name.standing_stones.kind_pattern.1]
+other = "Stones of {{.Body}}"
+
+[landmark.name.obelisk.kind_pattern.0]
+other = "{{.Body}} Obelisk"
+[landmark.name.obelisk.kind_pattern.1]
+other = "Obelisk of {{.Body}}"
+
+[landmark.name.chasm.kind_pattern.0]
+other = "{{.Body}} Chasm"
+[landmark.name.chasm.kind_pattern.1]
+other = "Chasm of {{.Body}}"
+[landmark.name.chasm.kind_pattern.2]
+other = "{{.Body}} Rift"
+
+[landmark.name.shrine.kind_pattern.0]
+other = "{{.Body}} Shrine"
+[landmark.name.shrine.kind_pattern.1]
+other = "Shrine of {{.Body}}"
+[landmark.name.shrine.kind_pattern.2]
+other = "{{.Body}} Altar"
+
+# Approach messages — one per landmark kind. Fired when the player steps
+# within approach range; carries the landmark's display name via {{.Name}}.
+[landmark.approach.tower]
+other = "A tower looms ahead — {{.Name}}."
+
+[landmark.approach.giant_tree]
+other = "An immense tree spreads over the land — {{.Name}}."
+
+[landmark.approach.standing_stones]
+other = "Rough-hewn stones stand watch — {{.Name}}."
+
+[landmark.approach.obelisk]
+other = "A solitary obelisk breaks the horizon — {{.Name}}."
+
+[landmark.approach.chasm]
+other = "The ground splits open before you — {{.Name}}."
+
+[landmark.approach.shrine]
+other = "A quiet shrine waits by the path — {{.Name}}."

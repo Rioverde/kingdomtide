@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/naming/parts"
 	pb "github.com/Rioverde/gongeons/internal/proto"
 )
 
@@ -164,16 +165,51 @@ func regionInfluencePB(r game.RegionInfluence) *pb.RegionInfluence {
 	}
 }
 
-// regionPB converts a domain Region to its wire form. The anchor position
-// is intentionally not sent — clients derive it locally from the world
-// seed via game.AnchorOf to keep Snapshot region payload compact.
+// regionPB converts a domain Region to its wire form. The anchor
+// position is intentionally not sent — clients derive it locally from
+// the world seed via game.AnchorOf to keep the Snapshot region payload
+// compact. Name ships as structured, language-agnostic NameParts; the
+// client composes the display string locally.
 func regionPB(r game.Region) *pb.Region {
 	return &pb.Region{
 		SuperChunkX: int32(r.Coord.X),
 		SuperChunkY: int32(r.Coord.Y),
-		Name:        r.Name,
+		Name:        namePartsPB(r.Name),
 		Character:   regionCharacterPB(r.Character),
 		Influence:   regionInfluencePB(r.Influence),
+	}
+}
+
+// nameFormatPBMapping translates the leaf parts.Format enum to its wire
+// counterpart. Kept as a map so adding a new format stays a one-line
+// change and the zero value (UNSPECIFIED) surfaces any out-of-range
+// domain value.
+var nameFormatPBMapping = map[parts.Format]pb.NameFormat{
+	parts.FormatBodyOnly:        pb.NameFormat_NAME_FORMAT_BODY_ONLY,
+	parts.FormatCharacterPrefix: pb.NameFormat_NAME_FORMAT_CHARACTER_PREFIX,
+	parts.FormatKindPattern:     pb.NameFormat_NAME_FORMAT_KIND_PATTERN,
+}
+
+// namePartsPB converts a naming Parts record to its wire form. Only the
+// structured fields travel the wire — Body text is produced client-side
+// from body_seed against the client's embedded Markov corpus.
+func namePartsPB(p parts.Parts) *pb.NameParts {
+	return &pb.NameParts{
+		Character:    p.Character,
+		SubKind:      p.SubKind,
+		Format:       lookupOr(nameFormatPBMapping, p.Format, pb.NameFormat_NAME_FORMAT_UNSPECIFIED),
+		PrefixIndex:  uint32(p.PrefixIndex),
+		PatternIndex: uint32(p.PatternIndex),
+		BodySeed:     p.BodySeed,
+	}
+}
+
+// landmarkPB converts a domain Landmark to its wire form. Kind maps via
+// the existing table; Name is a structured NameParts.
+func landmarkPB(l game.Landmark) *pb.Landmark {
+	return &pb.Landmark{
+		Kind: landmarkKindPB(l.Kind),
+		Name: namePartsPB(l.Name),
 	}
 }
 
@@ -211,18 +247,20 @@ func landmarkKindPB(k game.LandmarkKind) pb.LandmarkKind {
 }
 
 // tileFromDomain builds a wire Tile from a domain tile, overlaying the
-// player occupant when present and stamping the landmark kind onto the
-// tile. The terrain / overlays / structure conversions all live in one
-// spot. overlays is carried through as an opaque bitmask — the domain
-// and the client agree on flag values. landmark is LandmarkNone when no
-// landmark occupies this tile, which maps to the proto zero value
-// LANDMARK_KIND_NONE and is therefore omitted from the wire encoding.
-func tileFromDomain(t game.Tile, landmark game.LandmarkKind) *pb.Tile {
+// player occupant when present and stamping the landmark onto the tile.
+// The terrain / overlays / structure conversions all live in one spot.
+// overlays is carried through as an opaque bitmask — the domain and
+// the client agree on flag values. A zero-value Landmark (Kind ==
+// LandmarkNone) yields a nil wire landmark and is therefore omitted
+// from the encoding.
+func tileFromDomain(t game.Tile, landmark game.Landmark) *pb.Tile {
 	out := &pb.Tile{
 		Terrain:   terrainToPB(t.Terrain),
 		Overlays:  uint32(t.Overlays),
 		Structure: structureToPB(t.Structure),
-		Landmark:  landmarkKindPB(landmark),
+	}
+	if landmark.Kind != game.LandmarkNone {
+		out.Landmark = landmarkPB(landmark)
 	}
 	if p, ok := t.Occupant.(*game.Player); ok && p != nil {
 		out.Occupant = pb.OccupantKind_OCCUPANT_PLAYER
@@ -231,37 +269,38 @@ func tileFromDomain(t game.Tile, landmark game.LandmarkKind) *pb.Tile {
 	return out
 }
 
-// landmarkAtTile looks up the landmark kind at the given world coordinate by
-// fetching the containing super-chunk's landmark slice from lc and scanning
-// for a matching Coord. Returns LandmarkNone when lc is nil, the super-chunk
-// has no landmarks, or no landmark occupies this exact tile.
+// landmarkAtTile looks up the landmark at the given world coordinate
+// by fetching the containing super-chunk's landmark slice from lc and
+// scanning for a matching Coord. Returns the zero-value Landmark when
+// lc is nil, the super-chunk has no landmarks, or no landmark occupies
+// this exact tile.
 //
-// The scan is O(k) where k is the number of landmarks per super-chunk (always
-// 4 in the current implementation). A viewport covers at most 4 super-chunks,
-// so the total work per snapshot is viewW×viewH×4 = ~41×21×4 ≈ 3 444 simple
-// comparisons — well within the <500µs budget.
-func landmarkAtTile(lc *landmarkCache, worldX, worldY int) game.LandmarkKind {
+// The scan is O(k) where k is the number of landmarks per super-chunk
+// (always 4 in the current implementation). A viewport covers at most
+// 4 super-chunks, so the total work per snapshot is viewW×viewH×4 =
+// ~41×21×4 ≈ 3 444 simple comparisons — well within the <500µs budget.
+func landmarkAtTile(lc *landmarkCache, worldX, worldY int) game.Landmark {
 	if lc == nil {
-		return game.LandmarkNone
+		return game.Landmark{}
 	}
 	sc := game.WorldToSuperChunk(worldX, worldY)
-	landmarks := lc.LandmarksIn(sc)
-	for _, l := range landmarks {
+	for _, l := range lc.LandmarksIn(sc) {
 		if l.Coord.X == worldX && l.Coord.Y == worldY {
-			return l.Kind
+			return l
 		}
 	}
-	return game.LandmarkNone
+	return game.Landmark{}
 }
 
-// snapshotOf builds a viewport Snapshot of viewW × viewH tiles centred on
-// the given world position. Zero or too-small dimensions are replaced by
-// the server defaults via clampViewport. The returned Snapshot also carries
-// the region covering center — resolved from region on the caller's side
-// so the cache is owned by the service, not re-entered per snapshot here.
-// Pass a nil region when no RegionSource is configured (tests, legacy paths)
-// and the Snapshot omits the region field. Pass a nil lc when no
-// LandmarkSource is configured; tiles will carry LANDMARK_KIND_NONE.
+// snapshotOf builds a viewport Snapshot of viewW × viewH tiles centred
+// on the given world position. Zero or too-small dimensions are
+// replaced by the server defaults via clampViewport. The returned
+// Snapshot also carries the region covering center — resolved from
+// region on the caller's side so the cache is owned by the service,
+// not re-entered per snapshot here. Pass a nil region when no
+// RegionSource is configured (tests, legacy paths) and the Snapshot
+// omits the region field. Pass a nil lc when no LandmarkSource is
+// configured; tiles will carry no landmark.
 func snapshotOf(w *game.World, center game.Position, viewW, viewH int, region *pb.Region, lc *landmarkCache) *pb.Snapshot {
 	viewW, viewH = clampViewport(viewW, viewH)
 	halfW := viewW / 2
@@ -273,8 +312,8 @@ func snapshotOf(w *game.World, center game.Position, viewW, viewH int, region *p
 		for dx := range viewW {
 			p := game.Position{X: originX + dx, Y: originY + dy}
 			t, _ := w.TileAt(p)
-			lk := landmarkAtTile(lc, p.X, p.Y)
-			tiles = append(tiles, tileFromDomain(t, lk))
+			lm := landmarkAtTile(lc, p.X, p.Y)
+			tiles = append(tiles, tileFromDomain(t, lm))
 		}
 	}
 	return &pb.Snapshot{

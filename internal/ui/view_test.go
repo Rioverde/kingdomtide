@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/naming"
 	pb "github.com/Rioverde/gongeons/internal/proto"
 )
 
@@ -43,9 +44,16 @@ func TestLayoutWide(t *testing.T) {
 	t.Parallel()
 	m := playingModel(120, 40)
 
-	// Inject a region so the region-name text path is exercised.
+	// Inject a region so the region-name text path is exercised. The
+	// structured Name drives composeName on render; the composed output
+	// is deterministic in BodySeed.
 	m.region = &pb.Region{
-		Name:      "Vinehollow",
+		Name: &pb.NameParts{
+			Character: "normal",
+			SubKind:   "forest",
+			Format:    pb.NameFormat_NAME_FORMAT_BODY_ONLY,
+			BodySeed:  12345,
+		},
 		Character: pb.RegionCharacter_REGION_CHARACTER_NORMAL,
 	}
 
@@ -61,9 +69,13 @@ func TestLayoutWide(t *testing.T) {
 		t.Error("wide layout (120x40): Stats panel header not found in output")
 	}
 
-	// Region name must appear as plain text in the output (no decorative rules).
-	if !strings.Contains(out, "Vinehollow") {
-		t.Error("wide layout (120x40): Region name 'Vinehollow' not found in output")
+	// Region name must appear as the composeName output.
+	wantName := composeName(naming.DomainRegion, m.region.GetName(), m.lang)
+	if wantName == "" {
+		t.Fatal("composeName returned empty — markov corpus for (en, normal) missing?")
+	}
+	if !strings.Contains(out, wantName) {
+		t.Errorf("wide layout (120x40): composed region name %q not found in output", wantName)
 	}
 
 	// Events panel header must appear below the map.
@@ -280,7 +292,7 @@ func TestRenderLandmarkPrecedence(t *testing.T) {
 			name: "landmark wins over structure",
 			tile: &pb.Tile{
 				Terrain:   pb.Terrain_TERRAIN_PLAINS,
-				Landmark:  pb.LandmarkKind_LANDMARK_KIND_TOWER,
+				Landmark:  &pb.Landmark{Kind: pb.LandmarkKind_LANDMARK_KIND_TOWER},
 				Structure: pb.Structure_STRUCTURE_VILLAGE,
 			},
 			mustHave:    []string{towerRune},
@@ -291,7 +303,7 @@ func TestRenderLandmarkPrecedence(t *testing.T) {
 			myID: "me",
 			tile: &pb.Tile{
 				Terrain:  pb.Terrain_TERRAIN_PLAINS,
-				Landmark: pb.LandmarkKind_LANDMARK_KIND_TOWER,
+				Landmark: &pb.Landmark{Kind: pb.LandmarkKind_LANDMARK_KIND_TOWER},
 				Occupant: pb.OccupantKind_OCCUPANT_PLAYER,
 				EntityId: "me",
 			},
@@ -302,7 +314,7 @@ func TestRenderLandmarkPrecedence(t *testing.T) {
 			name: "landmark wins over river overlay",
 			tile: &pb.Tile{
 				Terrain:  pb.Terrain_TERRAIN_PLAINS,
-				Landmark: pb.LandmarkKind_LANDMARK_KIND_SHRINE,
+				Landmark: &pb.Landmark{Kind: pb.LandmarkKind_LANDMARK_KIND_SHRINE},
 				Overlays: uint32(game.OverlayRiver),
 			},
 			mustHave:    []string{shrineRune},
@@ -382,14 +394,14 @@ func TestTileRenderIsTwoCells(t *testing.T) {
 			name: "landmark tower",
 			tile: &pb.Tile{
 				Terrain:  pb.Terrain_TERRAIN_PLAINS,
-				Landmark: pb.LandmarkKind_LANDMARK_KIND_TOWER,
+				Landmark: &pb.Landmark{Kind: pb.LandmarkKind_LANDMARK_KIND_TOWER},
 			},
 		},
 		{
 			name: "landmark shrine",
 			tile: &pb.Tile{
 				Terrain:  pb.Terrain_TERRAIN_PLAINS,
-				Landmark: pb.LandmarkKind_LANDMARK_KIND_SHRINE,
+				Landmark: &pb.Landmark{Kind: pb.LandmarkKind_LANDMARK_KIND_SHRINE},
 			},
 		},
 	}

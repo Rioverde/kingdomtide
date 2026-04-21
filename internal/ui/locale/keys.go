@@ -260,6 +260,9 @@ func AllKeys() []string {
 		KeyGeoTundra2,
 
 		KeyGeoUnknown0,
+
+		KeyRegionNameCharacterPrefix,
+		KeyLandmarkNameCharacterPrefix,
 	}
 }
 
@@ -279,4 +282,48 @@ func CharacterLabelKey(characterName string) string {
 // family is a lowercase biome name such as "forest" or "plain".
 func GeoKey(family string, index int) string {
 	return "geo." + family + "." + strconv.Itoa(index)
+}
+
+// KeyRegionNameCharacterPrefix is the catalog key for the
+// FormatCharacterPrefix template used when composing a region display name
+// from a naming.Parts record whose Format is FormatCharacterPrefix.
+const KeyRegionNameCharacterPrefix = "region.name.character_prefix"
+
+// KeyLandmarkNameCharacterPrefix is the catalog key for the
+// FormatCharacterPrefix template used when composing a landmark display
+// name from a naming.Parts record whose Format is FormatCharacterPrefix.
+const KeyLandmarkNameCharacterPrefix = "landmark.name.character_prefix"
+
+// RegionNamePatternKey returns the kind-pattern template key for a region
+// sub-kind (biome family, e.g. "forest") and zero-based PatternIndex.
+// The key shape is "region.name.<sub_kind>.kind_pattern.<index>".
+func RegionNamePatternKey(subKind string, idx uint8) string {
+	return "region.name." + subKind + ".kind_pattern." + strconv.Itoa(int(idx))
+}
+
+// RegionPrefixKey returns the character-prefix catalog key for a region.
+// character is the RegionCharacter.Key() value (e.g. "blighted"). The key
+// shape is "region.prefix.<character>.<index>".
+func RegionPrefixKey(character string, idx uint8) string {
+	return "region.prefix." + character + "." + strconv.Itoa(int(idx))
+}
+
+// LandmarkNamePatternKey returns the kind-pattern template key for a
+// landmark sub-kind (LandmarkKind.Key(), e.g. "tower") and zero-based
+// PatternIndex. Shape: "landmark.name.<sub_kind>.kind_pattern.<index>".
+func LandmarkNamePatternKey(subKind string, idx uint8) string {
+	return "landmark.name." + subKind + ".kind_pattern." + strconv.Itoa(int(idx))
+}
+
+// LandmarkPrefixKey returns the character-prefix catalog key for a
+// landmark. Shape: "landmark.prefix.<character>.<index>".
+func LandmarkPrefixKey(character string, idx uint8) string {
+	return "landmark.prefix." + character + "." + strconv.Itoa(int(idx))
+}
+
+// LandmarkApproachKey returns the approach-message catalog key for a
+// landmark kind (LandmarkKind.Key(), e.g. "tower"). Shape:
+// "landmark.approach.<kind_key>".
+func LandmarkApproachKey(kindKey string) string {
+	return "landmark.approach." + kindKey
 }

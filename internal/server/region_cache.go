@@ -38,10 +38,12 @@ func newRegionCache(source game.RegionSource, capacity int) *regionCache {
 	return &regionCache{source: source, lru: cache}
 }
 
-// At returns the Region for the given anchor's SuperChunkCoord, consulting
-// the LRU first and delegating to the underlying source on a miss. The
-// returned Region is the same value stored in the cache; callers must not
-// mutate its fields.
+// At returns the Region for the given anchor's SuperChunkCoord,
+// consulting the LRU first and delegating to the underlying source on
+// a miss. The returned Region is the same value stored in the cache;
+// callers must not mutate its fields. Region names are
+// language-agnostic Parts records so the cache key is just sc — no
+// per-language sharding required.
 func (c *regionCache) At(sc game.SuperChunkCoord) game.Region {
 	if r, ok := c.lru.Get(sc); ok {
 		return r

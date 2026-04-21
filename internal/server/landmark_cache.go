@@ -39,10 +39,12 @@ func newLandmarkCache(source game.LandmarkSource, capacity int) *landmarkCache {
 	return &landmarkCache{source: source, lru: cache}
 }
 
-// LandmarksIn returns the landmark slice for the given super-chunk, consulting
-// the LRU first and delegating to the underlying source on a miss. The
-// returned slice is the same value stored in the cache; callers must not
-// mutate it.
+// LandmarksIn returns the landmark slice for the given super-chunk,
+// consulting the LRU first and delegating to the underlying source on
+// a miss. The returned slice is the same value stored in the cache;
+// callers must not mutate it. Landmark names are language-agnostic
+// Parts records so the cache key is just sc — no per-language
+// sharding required.
 func (c *landmarkCache) LandmarksIn(sc game.SuperChunkCoord) []game.Landmark {
 	if v, ok := c.lru.Get(sc); ok {
 		return v

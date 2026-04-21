@@ -1,5 +1,7 @@
 package game
 
+import "github.com/Rioverde/gongeons/internal/game/naming/parts"
+
 // LandmarkKind identifies a natural or ancient landmark visible in the
 // world. Landmarks live on Layer 1.5 — tied to geography and pre-
 // civilization history, independent of any living faction. A ruined
@@ -53,24 +55,31 @@ func (k LandmarkKind) String() string {
 }
 
 // Landmark is the server-facing record for one placed landmark — its
-// world position and the kind visible at that tile. Coord is the exact
-// tile the landmark occupies; Kind is never LandmarkNone for a real
-// record (a source that has nothing to place returns an empty slice).
+// world position, the kind visible at that tile, and the structured
+// naming Parts composed by the language-agnostic naming pipeline. Coord
+// is the exact tile the landmark occupies; Kind is never LandmarkNone
+// for a real record (a source that has nothing to place returns an
+// empty slice). Name carries the Markov-generated Body plus the Format
+// and catalog indices the client uses to render the final display
+// string via the locale catalog.
 type Landmark struct {
 	Coord Position
 	Kind  LandmarkKind
+	Name  parts.Parts
 }
 
 // LandmarkSource is the consumer-side interface the World delegates to
-// when reporting landmarks inside a super-chunk. The interface lives in
-// this package because World consumes it — per Go interface-design
+// when reporting landmarks inside a super-chunk. The interface lives
+// in this package because World consumes it — per Go interface-design
 // guidance, interfaces belong at the consumer. Implementations live
 // outside (e.g. worldgen.NoiseLandmarkSource).
 //
 // Implementations must be deterministic: same SuperChunkCoord yields
 // the same []Landmark every call (including order), and must be safe
 // for concurrent read. Returning nil or an empty slice is the correct
-// way to signal "no landmarks in this super-chunk".
+// way to signal "no landmarks in this super-chunk". Landmark names are
+// emitted as structured, language-agnostic Parts records; the client
+// composes localized display text locally.
 type LandmarkSource interface {
 	LandmarksIn(sc SuperChunkCoord) []Landmark
 }

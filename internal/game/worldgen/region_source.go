@@ -135,10 +135,12 @@ func NewNoiseRegionSource(seed int64) *NoiseRegionSource {
 	}
 }
 
-// RegionAt returns the canonical Region for the super-chunk sc. The sample
-// site is the jittered anchor of sc — keeping the sample point deterministic
-// on sc (not on the calling tile) ensures every tile inside the region sees
-// the same Region record.
+// RegionAt returns the canonical Region for the super-chunk sc. The
+// sample site is the jittered anchor of sc — keeping the sample point
+// deterministic on sc (not on the calling tile) ensures every tile
+// inside the region sees the same Region record. The returned
+// Region.Name is a language-agnostic Parts record; the client composes
+// the display string locally.
 func (s *NoiseRegionSource) RegionAt(sc game.SuperChunkCoord) game.Region {
 	anchor := game.AnchorOf(s.seed, sc)
 	influence := s.InfluenceAt(anchor.X, anchor.Y)

@@ -70,7 +70,7 @@ outer:
 
 	var hasLandmark bool
 	for _, tile := range snap.GetTiles() {
-		if tile.GetLandmark() != pb.LandmarkKind_LANDMARK_KIND_NONE {
+		if lm := tile.GetLandmark(); lm != nil && lm.GetKind() != pb.LandmarkKind_LANDMARK_KIND_NONE {
 			hasLandmark = true
 			break
 		}

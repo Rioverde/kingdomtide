@@ -1,4 +1,4 @@
-package worldgen
+package markov
 
 import (
 	"bufio"
@@ -10,14 +10,14 @@ import (
 	"unicode"
 )
 
-// loadCorpusFile reads one of the bundled corpora off disk (not via embed so
-// the test stays independent of the production embed wiring).
+// loadCorpusFile reads one of the bundled corpora off disk (not via
+// embed so the test stays independent of the production embed wiring).
 func loadCorpusFile(t *testing.T, rel string) []string {
 	t.Helper()
-	path := filepath.Join("data", "names", rel)
-	f, err := os.Open(path)
+	p := filepath.Join("data", "names", rel)
+	f, err := os.Open(p)
 	if err != nil {
-		t.Fatalf("open %s: %v", path, err)
+		t.Fatalf("open %s: %v", p, err)
 	}
 	defer func() { _ = f.Close() }()
 
@@ -31,25 +31,24 @@ func loadCorpusFile(t *testing.T, rel string) []string {
 		out = append(out, line)
 	}
 	if err := sc.Err(); err != nil {
-		t.Fatalf("scan %s: %v", path, err)
+		t.Fatalf("scan %s: %v", p, err)
 	}
 	return out
 }
 
-// TestMarkovChainDeterminism builds two chains from the same corpus and
-// drives them with identically-seeded PCGs — the 50 generated names must
-// match byte-for-byte. This pins the chain's pure-rng contract: same corpus
-// + same rng ⇒ same output.
-func TestMarkovChainDeterminism(t *testing.T) {
+// TestChainDeterminism builds two chains from the same corpus and
+// drives them with identically-seeded PCGs — the 50 generated names
+// must match byte-for-byte.
+func TestChainDeterminism(t *testing.T) {
 	corpus := loadCorpusFile(t, "en/blighted.txt")
 
-	chainA, err := newMarkovChain(corpus)
+	chainA, err := NewChain(corpus)
 	if err != nil {
-		t.Fatalf("newMarkovChain: %v", err)
+		t.Fatalf("NewChain: %v", err)
 	}
-	chainB, err := newMarkovChain(corpus)
+	chainB, err := NewChain(corpus)
 	if err != nil {
-		t.Fatalf("newMarkovChain: %v", err)
+		t.Fatalf("NewChain: %v", err)
 	}
 
 	rngA := rand.New(rand.NewPCG(1, 1))
@@ -65,14 +64,14 @@ func TestMarkovChainDeterminism(t *testing.T) {
 	}
 }
 
-// TestMarkovChainUniqueness asserts the generator produces a reasonable
-// variety of names. The 500/10000 bound is deliberately loose — the purpose
-// is flake resistance, not a distribution test.
-func TestMarkovChainUniqueness(t *testing.T) {
+// TestChainUniqueness asserts the generator produces a reasonable
+// variety of names. The 500/10000 bound is deliberately loose — the
+// purpose is flake resistance, not a distribution test.
+func TestChainUniqueness(t *testing.T) {
 	corpus := loadCorpusFile(t, "en/blighted.txt")
-	chain, err := newMarkovChain(corpus)
+	chain, err := NewChain(corpus)
 	if err != nil {
-		t.Fatalf("newMarkovChain: %v", err)
+		t.Fatalf("NewChain: %v", err)
 	}
 
 	const total = 10000
@@ -91,18 +90,14 @@ func TestMarkovChainUniqueness(t *testing.T) {
 	}
 }
 
-// TestMarkovChainPronounceability smoke-checks that generated names avoid
+// TestChainPronounceability smoke-checks that generated names avoid
 // pathologically unreadable output: five-or-more consonant runs and
-// three-or-more identical vowels in a row. The consonant threshold is
-// deliberately above the plan's strict ">3" bar because the real fey
-// corpus contains legitimate four-consonant clusters (e.g. "Dawnglaemor"
-// contains "wngl") and the chain faithfully reproduces them. The test
-// exists to catch "rksthr"-level garbage, not to enforce linguistics.
-func TestMarkovChainPronounceability(t *testing.T) {
+// three-or-more identical vowels in a row.
+func TestChainPronounceability(t *testing.T) {
 	corpus := loadCorpusFile(t, "en/fey.txt")
-	chain, err := newMarkovChain(corpus)
+	chain, err := NewChain(corpus)
 	if err != nil {
-		t.Fatalf("newMarkovChain: %v", err)
+		t.Fatalf("NewChain: %v", err)
 	}
 
 	const total = 1000
@@ -119,16 +114,13 @@ func TestMarkovChainPronounceability(t *testing.T) {
 	}
 }
 
-// TestMarkovChainLength checks all generated names land inside a relaxed
-// [minLen-2, maxLen+2] window. The Markov truncator lands on the nearest
-// trailing vowel within a short lookback, so a result a rune or two over
-// the hard cap is expected — but anything further out means the cap logic
-// broke.
-func TestMarkovChainLength(t *testing.T) {
+// TestChainLength checks all generated names land inside a relaxed
+// [minLen-2, maxLen+2] window.
+func TestChainLength(t *testing.T) {
 	corpus := loadCorpusFile(t, "en/holy.txt")
-	chain, err := newMarkovChain(corpus)
+	chain, err := NewChain(corpus)
 	if err != nil {
-		t.Fatalf("newMarkovChain: %v", err)
+		t.Fatalf("NewChain: %v", err)
 	}
 
 	const minLen, maxLen = 5, 11
@@ -144,9 +136,9 @@ func TestMarkovChainLength(t *testing.T) {
 	}
 }
 
-// TestMarkovChainSmallCorpusErrors locks in the documented error contract:
-// fewer than markovMinCorpusSize usable entries returns a non-nil error.
-func TestMarkovChainSmallCorpusErrors(t *testing.T) {
+// TestChainSmallCorpusErrors locks in the documented error contract:
+// fewer than minCorpusSize usable entries returns a non-nil error.
+func TestChainSmallCorpusErrors(t *testing.T) {
 	cases := []struct {
 		name   string
 		corpus []string
@@ -158,40 +150,29 @@ func TestMarkovChainSmallCorpusErrors(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			chain, err := newMarkovChain(tc.corpus)
+			chain, err := NewChain(tc.corpus)
 			if err == nil {
-				t.Fatalf("newMarkovChain(%v) returned nil error, want non-nil", tc.corpus)
+				t.Fatalf("NewChain(%v) returned nil error, want non-nil", tc.corpus)
 			}
 			if chain != nil {
-				t.Fatalf("newMarkovChain(%v) returned non-nil chain with error", tc.corpus)
+				t.Fatalf("NewChain(%v) returned non-nil chain with error", tc.corpus)
 			}
 		})
 	}
 }
 
-// TestMarkovChainNonASCIICorpusFilter feeds a corpus where non-ASCII
-// entries sit alongside ASCII ones. cleanMarkovWord keeps all unicode
-// letters (it lowercases everything it accepts), so we can't assert the
-// cyrillic entries are dropped outright — but we CAN assert that generated
-// output never contains characters outside the union of input characters.
-// That way a silent garbage path (e.g. emitting random bytes) fails.
-func TestMarkovChainNonASCIICorpusFilter(t *testing.T) {
+// TestChainNonASCIICorpusFilter verifies that cleanWord preserves
+// Unicode letters so the Russian corpus survives the cleaner, and that
+// generated output never contains characters outside the union of
+// input characters.
+func TestChainNonASCIICorpusFilter(t *testing.T) {
 	corpus := []string{
-		"ashenfold",
-		"mordhelm",
-		"drakrel",
-		"vornkar",
-		"mourngrave",
-		"sablereach",
-		// Non-ASCII entries — cleanMarkovWord preserves unicode letters, so
-		// these remain in the alphabet; the test only checks no out-of-alphabet
-		// rune appears in generated output.
-		"пустошь",
-		"скверна",
+		"ashenfold", "mordhelm", "drakrel", "vornkar", "mourngrave",
+		"sablereach", "пустошь", "скверна",
 	}
-	chain, err := newMarkovChain(corpus)
+	chain, err := NewChain(corpus)
 	if err != nil {
-		t.Fatalf("newMarkovChain: %v", err)
+		t.Fatalf("NewChain: %v", err)
 	}
 
 	allowed := make(map[rune]struct{})
@@ -215,8 +196,19 @@ func TestMarkovChainNonASCIICorpusFilter(t *testing.T) {
 	}
 }
 
-// hasRunOfNonVowels reports whether s contains n-or-more consecutive letters
-// that are not English vowels. Non-letter runes reset the run.
+// TestChainNilReceiver ensures a nil *Chain.Generate returns "" instead
+// of panicking. Callers relying on ChainFor error paths may pass the
+// nil result straight through; the generator must cope.
+func TestChainNilReceiver(t *testing.T) {
+	var c *Chain
+	got := c.Generate(rand.New(rand.NewPCG(1, 1)), 5, 11)
+	if got != "" {
+		t.Fatalf("nil chain Generate = %q, want empty string", got)
+	}
+}
+
+// hasRunOfNonVowels reports whether s contains n-or-more consecutive
+// letters that are not English vowels. Non-letter runes reset the run.
 func hasRunOfNonVowels(s string, n int) bool {
 	run := 0
 	for _, r := range strings.ToLower(s) {

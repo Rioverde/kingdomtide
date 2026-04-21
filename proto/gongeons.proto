@@ -89,6 +89,41 @@ enum RegionCharacter {
   REGION_CHARACTER_WILD     = 6;
 }
 
+// NameFormat selects which composition template the client uses to
+// render a NameParts record. Matches the naming/parts.Format enum
+// bit-for-bit so the conversion is a pure cast. Do not renumber —
+// legacy clients would misinterpret the format on version skew.
+enum NameFormat {
+  NAME_FORMAT_UNSPECIFIED      = 0;
+  NAME_FORMAT_BODY_ONLY        = 1;
+  NAME_FORMAT_CHARACTER_PREFIX = 2;
+  NAME_FORMAT_KIND_PATTERN     = 3;
+}
+
+// NameParts is the language-agnostic structured name carried on every
+// named entity (Region, Landmark, future Settlement). The client
+// composes the final display string locally: it looks up the template
+// for the chosen Format in its locale catalog under the domain-specific
+// namespace and fills in Body by seeding its embedded Markov corpus
+// with body_seed. No body text travels the wire — the server stays
+// language-agnostic while the client renders en/ru/etc.
+message NameParts {
+  string     character     = 1;
+  string     sub_kind      = 2;
+  NameFormat format        = 3;
+  uint32     prefix_index  = 4;
+  uint32     pattern_index = 5;
+  int64      body_seed     = 6;
+}
+
+// Landmark is a structured landmark record carried on Tile. Kind picks
+// the glyph and affinity rules; Name is composed into a display string
+// client-side from the NameParts plus a locale catalog.
+message Landmark {
+  LandmarkKind kind = 1;
+  NameParts    name = 2;
+}
+
 // RegionInfluence mirrors the game-side struct. Sent to clients so they
 // can reason about sub-dominant influences (e.g. a Fey region with
 // significant Ancient undertones) and blend per-tile tints without
@@ -106,12 +141,17 @@ message RegionInfluence {
 // Voronoi cell containing the receiving player. Anchor position is NOT
 // on the wire — clients derive it via AnchorOf(world_seed, {super_chunk_x,
 // super_chunk_y}). The world seed is delivered once in JoinAccepted.
+//
+// Tag 3 previously held a flat `string name` rendered server-side. It
+// is reserved so future proto evolutions cannot accidentally reuse it
+// with a different type; the structured name lives at tag 6.
 message Region {
   int32           super_chunk_x = 1;
   int32           super_chunk_y = 2;
-  string          name          = 3;
+  reserved 3;
   RegionCharacter character     = 4;
   RegionInfluence influence     = 5;
+  NameParts       name          = 6;
 }
 
 // LocalizedMessage is the server-to-client envelope for localized errors
@@ -148,10 +188,14 @@ message Tile {
   // comment in lockstep when adding a new flag.
   uint32       overlays  = 4;
   Structure    structure = 5; // village / castle overlay
-  // landmark is the natural or ancient landmark on this tile. Zero value
-  // LANDMARK_KIND_NONE means no landmark. Landmark is a separate layer from
+  // Tag 6 previously carried a bare LandmarkKind enum. It is reserved
+  // so future evolutions cannot accidentally reuse it with a different
+  // type; the structured landmark lives at tag 7.
+  reserved 6;
+  // landmark is the natural or ancient landmark on this tile, or nil
+  // when nothing is placed. Landmark is a separate layer from
   // structure — see the LandmarkKind enum comment above.
-  LandmarkKind landmark  = 6;
+  Landmark     landmark  = 7;
 }
 
 // Entity is a positioned actor in the world. Combat stats / monsters are

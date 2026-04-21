@@ -246,3 +246,293 @@ other = "Пустошь"
 
 [geo.unknown.0]
 other = "Край"
+
+# -----------------------------------------------------------------------------
+# Region name composition (Phase 3). Russian translations — structurally
+# equivalent to the English catalog. Counts per biome and per character must
+# match regionBounds; TestBundleKeyCoverage enforces the key parity.
+# -----------------------------------------------------------------------------
+
+# FormatCharacterPrefix template: "<prefix> <body>".
+[region.name.character_prefix]
+other = "{{.Prefix}} {{.Body}}"
+
+# Character prefix catalogs — 5 entries per character.
+[region.prefix.normal.0]
+other = "Старый"
+[region.prefix.normal.1]
+other = "Большой"
+[region.prefix.normal.2]
+other = "Малый"
+[region.prefix.normal.3]
+other = "Верхний"
+[region.prefix.normal.4]
+other = "Нижний"
+
+[region.prefix.blighted.0]
+other = "Мрачный"
+[region.prefix.blighted.1]
+other = "Гнилой"
+[region.prefix.blighted.2]
+other = "Увядший"
+[region.prefix.blighted.3]
+other = "Падший"
+[region.prefix.blighted.4]
+other = "Проклятый"
+
+[region.prefix.fey.0]
+other = "Серебряный"
+[region.prefix.fey.1]
+other = "Сумеречный"
+[region.prefix.fey.2]
+other = "Скрытый"
+[region.prefix.fey.3]
+other = "Шёпотный"
+[region.prefix.fey.4]
+other = "Грёзный"
+
+[region.prefix.ancient.0]
+other = "Древний"
+[region.prefix.ancient.1]
+other = "Забытый"
+[region.prefix.ancient.2]
+other = "Первозданный"
+[region.prefix.ancient.3]
+other = "Пустой"
+[region.prefix.ancient.4]
+other = "Затонувший"
+
+[region.prefix.savage.0]
+other = "Разбитый"
+[region.prefix.savage.1]
+other = "Гневный"
+[region.prefix.savage.2]
+other = "Кровавый"
+[region.prefix.savage.3]
+other = "Свирепый"
+[region.prefix.savage.4]
+other = "Зазубренный"
+
+[region.prefix.holy.0]
+other = "Благословенный"
+[region.prefix.holy.1]
+other = "Священный"
+[region.prefix.holy.2]
+other = "Златой"
+[region.prefix.holy.3]
+other = "Освящённый"
+[region.prefix.holy.4]
+other = "Сияющий"
+
+[region.prefix.wild.0]
+other = "Необъезженный"
+[region.prefix.wild.1]
+other = "Блуждающий"
+[region.prefix.wild.2]
+other = "Спутанный"
+[region.prefix.wild.3]
+other = "Бездорожный"
+[region.prefix.wild.4]
+other = "Открытый"
+
+# Kind-pattern catalogs — one family per biome.
+[region.name.forest.kind_pattern.0]
+other = "Чаща {{.Body}}"
+[region.name.forest.kind_pattern.1]
+other = "Пуща {{.Body}}"
+[region.name.forest.kind_pattern.2]
+other = "Лес {{.Body}}"
+[region.name.forest.kind_pattern.3]
+other = "Поляна {{.Body}}"
+[region.name.forest.kind_pattern.4]
+other = "Роща {{.Body}}"
+
+[region.name.plain.kind_pattern.0]
+other = "Пустоши {{.Body}}"
+[region.name.plain.kind_pattern.1]
+other = "Степи {{.Body}}"
+[region.name.plain.kind_pattern.2]
+other = "Равнины {{.Body}}"
+[region.name.plain.kind_pattern.3]
+other = "Луга {{.Body}}"
+[region.name.plain.kind_pattern.4]
+other = "Долина {{.Body}}"
+
+[region.name.mountain.kind_pattern.0]
+other = "Пики {{.Body}}"
+[region.name.mountain.kind_pattern.1]
+other = "Гребни {{.Body}}"
+[region.name.mountain.kind_pattern.2]
+other = "Скалы {{.Body}}"
+[region.name.mountain.kind_pattern.3]
+other = "Высоты {{.Body}}"
+
+[region.name.water.kind_pattern.0]
+other = "Топи {{.Body}}"
+[region.name.water.kind_pattern.1]
+other = "Болота {{.Body}}"
+[region.name.water.kind_pattern.2]
+other = "Пролив {{.Body}}"
+[region.name.water.kind_pattern.3]
+other = "Плавни {{.Body}}"
+
+[region.name.desert.kind_pattern.0]
+other = "Пустоши {{.Body}}"
+[region.name.desert.kind_pattern.1]
+other = "Дюны {{.Body}}"
+[region.name.desert.kind_pattern.2]
+other = "Барханы {{.Body}}"
+[region.name.desert.kind_pattern.3]
+other = "Пески {{.Body}}"
+
+[region.name.tundra.kind_pattern.0]
+other = "Мёрзлая {{.Body}}"
+[region.name.tundra.kind_pattern.1]
+other = "Степи {{.Body}}"
+[region.name.tundra.kind_pattern.2]
+other = "Пустошь {{.Body}}"
+
+[region.name.unknown.kind_pattern.0]
+other = "Край {{.Body}}"
+
+# -----------------------------------------------------------------------------
+# Landmark name composition (Phase 3). Same shape as region.name.* but keyed
+# by LandmarkKind. Counts match worldgen.landmarkBounds.
+# -----------------------------------------------------------------------------
+
+[landmark.name.character_prefix]
+other = "{{.Prefix}} {{.Body}}"
+
+[landmark.prefix.normal.0]
+other = "Старый"
+[landmark.prefix.normal.1]
+other = "Серый"
+[landmark.prefix.normal.2]
+other = "Каменный"
+[landmark.prefix.normal.3]
+other = "Одинокий"
+[landmark.prefix.normal.4]
+other = "Длинный"
+
+[landmark.prefix.blighted.0]
+other = "Разбитый"
+[landmark.prefix.blighted.1]
+other = "Мрачный"
+[landmark.prefix.blighted.2]
+other = "Проклятый"
+[landmark.prefix.blighted.3]
+other = "Павший"
+[landmark.prefix.blighted.4]
+other = "Гнилой"
+
+[landmark.prefix.fey.0]
+other = "Серебряный"
+[landmark.prefix.fey.1]
+other = "Шёпотный"
+[landmark.prefix.fey.2]
+other = "Скрытый"
+[landmark.prefix.fey.3]
+other = "Лунный"
+[landmark.prefix.fey.4]
+other = "Звёздный"
+
+[landmark.prefix.ancient.0]
+other = "Древний"
+[landmark.prefix.ancient.1]
+other = "Забытый"
+[landmark.prefix.ancient.2]
+other = "Безмолвный"
+[landmark.prefix.ancient.3]
+other = "Затонувший"
+[landmark.prefix.ancient.4]
+other = "Потерянный"
+
+[landmark.prefix.savage.0]
+other = "Кровавый"
+[landmark.prefix.savage.1]
+other = "Гневный"
+[landmark.prefix.savage.2]
+other = "Зубчатый"
+[landmark.prefix.savage.3]
+other = "Дикий"
+[landmark.prefix.savage.4]
+other = "Исполосованный"
+
+[landmark.prefix.holy.0]
+other = "Благословенный"
+[landmark.prefix.holy.1]
+other = "Священный"
+[landmark.prefix.holy.2]
+other = "Освящённый"
+[landmark.prefix.holy.3]
+other = "Златой"
+[landmark.prefix.holy.4]
+other = "Сияющий"
+
+[landmark.prefix.wild.0]
+other = "Искривлённый"
+[landmark.prefix.wild.1]
+other = "Ползучий"
+[landmark.prefix.wild.2]
+other = "Необъезженный"
+[landmark.prefix.wild.3]
+other = "Спутанный"
+[landmark.prefix.wild.4]
+other = "Тернистый"
+
+# Kind-pattern catalogs per LandmarkKind.
+[landmark.name.tower.kind_pattern.0]
+other = "Башня {{.Body}}"
+[landmark.name.tower.kind_pattern.1]
+other = "Башня {{.Body}}"
+[landmark.name.tower.kind_pattern.2]
+other = "Крепость {{.Body}}"
+
+[landmark.name.giant_tree.kind_pattern.0]
+other = "Древо {{.Body}}"
+[landmark.name.giant_tree.kind_pattern.1]
+other = "Великое {{.Body}}"
+
+[landmark.name.standing_stones.kind_pattern.0]
+other = "Менгиры {{.Body}}"
+[landmark.name.standing_stones.kind_pattern.1]
+other = "Камни {{.Body}}"
+
+[landmark.name.obelisk.kind_pattern.0]
+other = "Обелиск {{.Body}}"
+[landmark.name.obelisk.kind_pattern.1]
+other = "Обелиск {{.Body}}"
+
+[landmark.name.chasm.kind_pattern.0]
+other = "Бездна {{.Body}}"
+[landmark.name.chasm.kind_pattern.1]
+other = "Пропасть {{.Body}}"
+[landmark.name.chasm.kind_pattern.2]
+other = "Разлом {{.Body}}"
+
+[landmark.name.shrine.kind_pattern.0]
+other = "Святилище {{.Body}}"
+[landmark.name.shrine.kind_pattern.1]
+other = "Алтарь {{.Body}}"
+[landmark.name.shrine.kind_pattern.2]
+other = "Жертвенник {{.Body}}"
+
+# Approach messages — one per landmark kind. Fired when the player steps
+# within approach range; {{.Name}} is the landmark's display name.
+[landmark.approach.tower]
+other = "Впереди возвышается башня — {{.Name}}."
+
+[landmark.approach.giant_tree]
+other = "Огромное древо простёрлось над землёй — {{.Name}}."
+
+[landmark.approach.standing_stones]
+other = "Неотёсанные камни стоят на страже — {{.Name}}."
+
+[landmark.approach.obelisk]
+other = "Одинокий обелиск рассекает горизонт — {{.Name}}."
+
+[landmark.approach.chasm]
+other = "Земля разверзается перед тобой — {{.Name}}."
+
+[landmark.approach.shrine]
+other = "Тихое святилище ждёт у тропы — {{.Name}}."

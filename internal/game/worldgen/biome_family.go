@@ -47,6 +47,16 @@ func (f BiomeFamily) String() string {
 	return biomeFamilyNames[f]
 }
 
+// Key returns the lowercase identifier used by the naming package for
+// locale catalog lookup (e.g. "forest", "plain", "mountain", "water",
+// "desert", "tundra", "unknown"). Same value as String but named
+// explicitly so call sites document their intent: this string is a stable
+// identifier used in "region.<family>.kind_pattern.*" keys, not a
+// user-facing label.
+func (f BiomeFamily) Key() string {
+	return f.String()
+}
+
 // FamilyOf maps a domain Terrain to its family bucket. Unknown Terrain
 // values collapse to FamilyUnknown rather than panicking — region naming
 // can still pick a plausible name from the "generic" geo-term list in that

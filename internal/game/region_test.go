@@ -2,6 +2,8 @@ package game
 
 import (
 	"testing"
+
+	"github.com/Rioverde/gongeons/internal/game/naming/parts"
 )
 
 func TestRegionCharacterString(t *testing.T) {
@@ -423,17 +425,20 @@ func TestWorldRegionAtPlaceholder(t *testing.T) {
 	}
 }
 
-// stubRegionSource satisfies RegionSource with a trivial per-coord tag so
-// tests can verify that World.RegionAt delegates to the configured source.
+// stubRegionSource satisfies RegionSource with a trivial per-coord tag
+// so tests can verify that World.RegionAt delegates to the configured
+// source. The stubBodySeed sentinel proves the tag travels through.
 type stubRegionSource struct {
 	seen map[SuperChunkCoord]int
 }
+
+const stubBodySeed int64 = 0x5ca1ab1e
 
 func (s *stubRegionSource) RegionAt(sc SuperChunkCoord) Region {
 	if s.seen != nil {
 		s.seen[sc]++
 	}
-	return Region{Coord: sc, Name: "stub", Character: RegionWild}
+	return Region{Coord: sc, Name: parts.Parts{BodySeed: stubBodySeed}, Character: RegionWild}
 }
 
 func TestWorldRegionAtDelegates(t *testing.T) {
@@ -443,7 +448,7 @@ func TestWorldRegionAtDelegates(t *testing.T) {
 		t.Fatalf("Seed() = %d, want 17", w.Seed())
 	}
 	r := w.RegionAt(Position{X: 1, Y: 2})
-	if r.Character != RegionWild || r.Name != "stub" {
+	if r.Character != RegionWild || r.Name.BodySeed != stubBodySeed {
 		t.Fatalf("RegionAt did not delegate to stub source: %+v", r)
 	}
 	_, sc := AnchorAt(17, 1, 2)

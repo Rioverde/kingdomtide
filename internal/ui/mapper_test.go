@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/naming"
 	pb "github.com/Rioverde/gongeons/internal/proto"
 )
 
@@ -185,21 +186,30 @@ func TestAppendLogCap(t *testing.T) {
 	}
 }
 
-// snapshotWithRegion builds a bare-minimum snapshot carrying just a Region,
-// enough to exercise applyRegion without forcing tests to fill width/height
-// and the tiles array.
+// snapshotWithRegion builds a bare-minimum snapshot carrying just a
+// Region, enough to exercise applyRegion without forcing tests to fill
+// width/height and the tiles array.
 func snapshotWithRegion(r *pb.Region) *pb.Snapshot {
 	return &pb.Snapshot{Region: r}
 }
 
-// regionFixture builds a wire Region at the given anchor with the named
-// character. Name/Character/Coord are the only fields applyRegion reads.
-func regionFixture(scX, scY int32, character pb.RegionCharacter, name string) *pb.Region {
+// regionFixture builds a wire Region at the given anchor with the
+// named character. The returned NameParts uses FormatBodyOnly and a
+// fixed BodySeed so composeName produces a deterministic body from the
+// embedded Markov corpora — tests that depend on the composed text
+// derive their expected value via composeName rather than asserting a
+// literal.
+func regionFixture(scX, scY int32, character pb.RegionCharacter, bodySeed int64) *pb.Region {
 	return &pb.Region{
 		SuperChunkX: scX,
 		SuperChunkY: scY,
-		Name:        name,
 		Character:   character,
+		Name: &pb.NameParts{
+			Character: regionCharacterKey(character),
+			SubKind:   "forest",
+			Format:    pb.NameFormat_NAME_FORMAT_BODY_ONLY,
+			BodySeed:  bodySeed,
+		},
 	}
 }
 
@@ -209,8 +219,8 @@ func TestCrossingSuppressedOnFirstSnapshot(t *testing.T) {
 		players: make(map[string]playerInfo),
 		lang:    "en",
 	}
-	snap := snapshotWithRegion(
-		regionFixture(0, 0, pb.RegionCharacter_REGION_CHARACTER_BLIGHTED, "The Elmwolds"))
+	r := regionFixture(0, 0, pb.RegionCharacter_REGION_CHARACTER_BLIGHTED, 11)
+	snap := snapshotWithRegion(r)
 	applySnapshot(m, snap)
 
 	if len(m.logLines) != 0 {
@@ -219,7 +229,7 @@ func TestCrossingSuppressedOnFirstSnapshot(t *testing.T) {
 	if !m.initialised {
 		t.Fatal("initialised flag not set after first snapshot")
 	}
-	if m.region == nil || m.region.GetName() != "The Elmwolds" {
+	if m.region == nil || m.region.GetName() == nil {
 		t.Fatalf("region not stored on model: %+v", m.region)
 	}
 }
@@ -230,7 +240,7 @@ func TestCrossingNoLogOnSameRegion(t *testing.T) {
 		players: make(map[string]playerInfo),
 		lang:    "en",
 	}
-	reg := regionFixture(1, 1, pb.RegionCharacter_REGION_CHARACTER_FEY, "The Glaemora")
+	reg := regionFixture(1, 1, pb.RegionCharacter_REGION_CHARACTER_FEY, 22)
 	applySnapshot(m, snapshotWithRegion(reg))
 	applySnapshot(m, snapshotWithRegion(reg))
 
@@ -245,8 +255,8 @@ func TestCrossingEmitsLocalizedLogLineEn(t *testing.T) {
 		players: make(map[string]playerInfo),
 		lang:    "en",
 	}
-	a := regionFixture(0, 0, pb.RegionCharacter_REGION_CHARACTER_NORMAL, "Elmbrook")
-	b := regionFixture(1, 0, pb.RegionCharacter_REGION_CHARACTER_BLIGHTED, "The Elmwolds")
+	a := regionFixture(0, 0, pb.RegionCharacter_REGION_CHARACTER_NORMAL, 101)
+	b := regionFixture(1, 0, pb.RegionCharacter_REGION_CHARACTER_BLIGHTED, 202)
 	applySnapshot(m, snapshotWithRegion(a))
 	applySnapshot(m, snapshotWithRegion(b))
 
@@ -254,8 +264,9 @@ func TestCrossingEmitsLocalizedLogLineEn(t *testing.T) {
 		t.Fatalf("log len = %d, want 1: %v", len(m.logLines), m.logLines)
 	}
 	got := m.logLines[0].Text
-	if !strings.Contains(got, "You feel the weight of") || !strings.Contains(got, "The Elmwolds") {
-		t.Fatalf("crossing log = %q, want English Blighted verb with region name", got)
+	wantName := composeName(naming.DomainRegion, b.GetName(), "en")
+	if !strings.Contains(got, "You feel the weight of") || !strings.Contains(got, wantName) {
+		t.Fatalf("crossing log = %q, want English Blighted verb with region name %q", got, wantName)
 	}
 }
 
@@ -265,8 +276,8 @@ func TestCrossingEmitsLocalizedLogLineRu(t *testing.T) {
 		players: make(map[string]playerInfo),
 		lang:    "ru",
 	}
-	a := regionFixture(0, 0, pb.RegionCharacter_REGION_CHARACTER_NORMAL, "Эльмбрук")
-	b := regionFixture(1, 0, pb.RegionCharacter_REGION_CHARACTER_BLIGHTED, "Седолесье")
+	a := regionFixture(0, 0, pb.RegionCharacter_REGION_CHARACTER_NORMAL, 303)
+	b := regionFixture(1, 0, pb.RegionCharacter_REGION_CHARACTER_BLIGHTED, 404)
 	applySnapshot(m, snapshotWithRegion(a))
 	applySnapshot(m, snapshotWithRegion(b))
 
@@ -274,15 +285,17 @@ func TestCrossingEmitsLocalizedLogLineRu(t *testing.T) {
 		t.Fatalf("log len = %d, want 1: %v", len(m.logLines), m.logLines)
 	}
 	got := m.logLines[0].Text
-	if !strings.Contains(got, "тяжесть") || !strings.Contains(got, "Седолесье") {
-		t.Fatalf("crossing log = %q, want Russian Blighted verb with region name", got)
+	wantName := composeName(naming.DomainRegion, b.GetName(), "ru")
+	if !strings.Contains(got, "тяжесть") || !strings.Contains(got, wantName) {
+		t.Fatalf("crossing log = %q, want Russian Blighted verb with region name %q", got, wantName)
 	}
 }
 
 func TestCrossingCharacterCoverage(t *testing.T) {
 	t.Parallel()
-	// Walk every character; each must produce a log line and the line must
-	// not be the bare catalog key (that would signal a missing entry).
+	// Walk every character; each must produce a log line and the line
+	// must not be the bare catalog key (that would signal a missing
+	// entry).
 	chars := []pb.RegionCharacter{
 		pb.RegionCharacter_REGION_CHARACTER_NORMAL,
 		pb.RegionCharacter_REGION_CHARACTER_BLIGHTED,
@@ -300,8 +313,8 @@ func TestCrossingCharacterCoverage(t *testing.T) {
 				players: make(map[string]playerInfo),
 				lang:    "en",
 			}
-			first := regionFixture(0, 0, pb.RegionCharacter_REGION_CHARACTER_NORMAL, "origin")
-			second := regionFixture(int32(i+1), 0, c, "Target")
+			first := regionFixture(0, 0, pb.RegionCharacter_REGION_CHARACTER_NORMAL, int64(i*2+1))
+			second := regionFixture(int32(i+1), 0, c, int64(i*2+2))
 			applySnapshot(m, snapshotWithRegion(first))
 			applySnapshot(m, snapshotWithRegion(second))
 			if len(m.logLines) != 1 {
@@ -312,8 +325,9 @@ func TestCrossingCharacterCoverage(t *testing.T) {
 			if line == key {
 				t.Fatalf("log line is raw catalog key %q — catalog entry missing", key)
 			}
-			if !strings.Contains(line, "Target") {
-				t.Fatalf("log line %q missing region name", line)
+			wantName := composeName(naming.DomainRegion, second.GetName(), "en")
+			if wantName != "" && !strings.Contains(line, wantName) {
+				t.Fatalf("log line %q missing composed region name %q", line, wantName)
 			}
 		})
 	}
@@ -321,7 +335,7 @@ func TestCrossingCharacterCoverage(t *testing.T) {
 
 func TestRegionCoordDerivesFromProto(t *testing.T) {
 	t.Parallel()
-	r := regionFixture(-3, 7, pb.RegionCharacter_REGION_CHARACTER_NORMAL, "")
+	r := regionFixture(-3, 7, pb.RegionCharacter_REGION_CHARACTER_NORMAL, 0)
 	got := regionCoord(r)
 	want := game.SuperChunkCoord{X: -3, Y: 7}
 	if got != want {

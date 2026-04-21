@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/naming"
 	pb "github.com/Rioverde/gongeons/internal/proto"
 	"github.com/Rioverde/gongeons/internal/ui/locale"
 )
@@ -222,9 +223,10 @@ func (m *Model) renderMapBox() string {
 // (no region yet, no self-pos yet, etc.) collapse silently.
 func (m *Model) renderInMapStatus(totalWidth int) string {
 	var regionName, coords, serverAddr, hints string
-	if m.region != nil && m.region.GetName() != "" {
-		regionName = regionHeaderStyle(m.region.GetCharacter()).
-			Render(m.region.GetName())
+	if m.region != nil {
+		if name := composeName(naming.DomainRegion, m.region.GetName(), m.lang); name != "" {
+			regionName = regionHeaderStyle(m.region.GetCharacter()).Render(name)
+		}
 	}
 	if self, ok := m.selfPlayer(); ok {
 		coords = fmt.Sprintf("X: %d, Y: %d", self.Pos.X, self.Pos.Y)
@@ -343,10 +345,13 @@ func (m *Model) renderTile2w(t *pb.Tile, worldX, worldY int) string {
 		}
 		return styles.otherPlayer.Render(runeOther + " ")
 	}
-	if lk := t.GetLandmark(); lk != pb.LandmarkKind_LANDMARK_KIND_NONE {
-		if glyph, ok := landmarkRunes[lk]; ok {
-			style := landmarkStyles[lk]
-			return style.Render(glyph + " ")
+	if lm := t.GetLandmark(); lm != nil {
+		lk := lm.GetKind()
+		if lk != pb.LandmarkKind_LANDMARK_KIND_NONE {
+			if glyph, ok := landmarkRunes[lk]; ok {
+				style := landmarkStyles[lk]
+				return style.Render(glyph + " ")
+			}
 		}
 	}
 	if s := t.GetStructure(); s != pb.Structure_STRUCTURE_UNSPECIFIED {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/naming"
 	"github.com/Rioverde/gongeons/internal/game/worldgen"
 	pb "github.com/Rioverde/gongeons/internal/proto"
 	"github.com/Rioverde/gongeons/internal/ui/locale"
@@ -67,9 +68,11 @@ func applySnapshot(m *Model, s *pb.Snapshot) {
 }
 
 // applyRegion folds the per-player region field from Snapshot into the
-// Model. A change in anchor SuperChunkCoord relative to the previous value
-// emits a localized crossing log line; identical-coord snapshots and the
-// very first snapshot after join produce no log line.
+// Model. A change in anchor SuperChunkCoord relative to the previous
+// value emits a localized crossing log line; identical-coord snapshots
+// and the very first snapshot after join produce no log line. The
+// region name is composed client-side from the structured NameParts
+// using the player's Model.lang.
 func applyRegion(m *Model, r *pb.Region) {
 	if r == nil {
 		return
@@ -77,7 +80,7 @@ func applyRegion(m *Model, r *pb.Region) {
 	sc := regionCoord(r)
 	if m.initialised && m.lastRegionCoord != sc {
 		key := locale.CharacterCrossingKey(regionCharacterKey(r.GetCharacter()))
-		msg := locale.Tr(m.lang, key, "Region", r.GetName())
+		msg := locale.Tr(m.lang, key, locale.ArgRegion, composeName(naming.DomainRegion, r.GetName(), m.lang))
 		m.appendLogDefault(msg)
 	}
 	m.lastRegionCoord = sc
@@ -171,19 +174,19 @@ func applyEvent(m *Model, ev *pb.Event) {
 // Centralising the bullet + locale.Tr call keeps every event branch in
 // applyEvent one line.
 func (m *Model) logEvent(messageID, name string) {
-	msg := locale.Tr(m.lang, messageID, "Name", name)
+	msg := locale.Tr(m.lang, messageID, locale.ArgName, name)
 	m.appendLogDefault(fmt.Sprintf("%s %s", LogBullet, msg))
 }
 
 // logJoinEvent appends a green-styled join log entry.
 func (m *Model) logJoinEvent(messageID, name string) {
-	msg := locale.Tr(m.lang, messageID, "Name", name)
+	msg := locale.Tr(m.lang, messageID, locale.ArgName, name)
 	m.appendLogJoin(fmt.Sprintf("%s %s", LogBullet, msg))
 }
 
 // logLeaveEvent appends a grey-styled leave log entry.
 func (m *Model) logLeaveEvent(messageID, name string) {
-	msg := locale.Tr(m.lang, messageID, "Name", name)
+	msg := locale.Tr(m.lang, messageID, locale.ArgName, name)
 	m.appendLogLeave(fmt.Sprintf("%s %s", LogBullet, msg))
 }
 

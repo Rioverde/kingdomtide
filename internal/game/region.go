@@ -1,5 +1,7 @@
 package game
 
+import "github.com/Rioverde/gongeons/internal/game/naming/parts"
+
 // RegionCharacter is the dominant thematic identity of a super-chunk region.
 // It is derived at read time from a RegionInfluence vector via Dominant; a
 // region's canonical character is simply the Dominant projection of its
@@ -138,27 +140,35 @@ func (r RegionInfluence) Max() float32 {
 	return m
 }
 
-// Region is the server-facing read-only snapshot of one Voronoi cell of the
-// region diagram. Coord identifies the anchor's home super-chunk (not the
-// player's tile super-chunk) and is the stable identity used for change
-// detection on the client. Anchor is the absolute world position of the
-// jittered anchor, used by client-side tint falloff and by landmark
-// placement in later phases.
+// Region is the server-facing read-only snapshot of one Voronoi cell
+// of the region diagram. Coord identifies the anchor's home super-chunk
+// (not the player's tile super-chunk) and is the stable identity used
+// for change detection on the client. Anchor is the absolute world
+// position of the jittered anchor, used by client-side tint falloff and
+// by landmark placement in later phases.
+//
+// Name is the structured, language-agnostic output of the naming
+// package. The client composes the final display string from Name via
+// locale keys under "region.name.*" and "region.prefix.*" and an
+// embedded Markov corpus keyed on Name.BodySeed.
 type Region struct {
 	Coord     SuperChunkCoord
 	Anchor    Position
 	Influence RegionInfluence
 	Character RegionCharacter
-	Name      string
+	Name      parts.Parts
 }
 
 // RegionSource produces the canonical Region for a given anchor's home
-// super-chunk. The interface lives in this package because World consumes
-// it — per Go interface-design guidance, interfaces belong at the consumer.
-// Implementations live outside (e.g. worldgen.NoiseRegionSource).
+// super-chunk. The interface lives in this package because World
+// consumes it — per Go interface-design guidance, interfaces belong at
+// the consumer. Implementations live outside (e.g.
+// worldgen.NoiseRegionSource).
 //
-// Implementations must be deterministic: same SuperChunkCoord yields the
-// same Region every call, and must be safe for concurrent read.
+// No language argument: names are emitted as structured Parts records
+// and the client composes localized display text. Implementations must
+// be deterministic (same sc yields the same Region every call) and
+// safe for concurrent read.
 type RegionSource interface {
 	RegionAt(sc SuperChunkCoord) Region
 }

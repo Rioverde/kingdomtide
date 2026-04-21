@@ -349,6 +349,62 @@ func (RegionCharacter) EnumDescriptor() ([]byte, []int) {
 	return file_gongeons_proto_rawDescGZIP(), []int{4}
 }
 
+// NameFormat selects which composition template the client uses to
+// render a NameParts record. Matches the naming/parts.Format enum
+// bit-for-bit so the conversion is a pure cast. Do not renumber —
+// legacy clients would misinterpret the format on version skew.
+type NameFormat int32
+
+const (
+	NameFormat_NAME_FORMAT_UNSPECIFIED      NameFormat = 0
+	NameFormat_NAME_FORMAT_BODY_ONLY        NameFormat = 1
+	NameFormat_NAME_FORMAT_CHARACTER_PREFIX NameFormat = 2
+	NameFormat_NAME_FORMAT_KIND_PATTERN     NameFormat = 3
+)
+
+// Enum value maps for NameFormat.
+var (
+	NameFormat_name = map[int32]string{
+		0: "NAME_FORMAT_UNSPECIFIED",
+		1: "NAME_FORMAT_BODY_ONLY",
+		2: "NAME_FORMAT_CHARACTER_PREFIX",
+		3: "NAME_FORMAT_KIND_PATTERN",
+	}
+	NameFormat_value = map[string]int32{
+		"NAME_FORMAT_UNSPECIFIED":      0,
+		"NAME_FORMAT_BODY_ONLY":        1,
+		"NAME_FORMAT_CHARACTER_PREFIX": 2,
+		"NAME_FORMAT_KIND_PATTERN":     3,
+	}
+)
+
+func (x NameFormat) Enum() *NameFormat {
+	p := new(NameFormat)
+	*p = x
+	return p
+}
+
+func (x NameFormat) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (NameFormat) Descriptor() protoreflect.EnumDescriptor {
+	return file_gongeons_proto_enumTypes[5].Descriptor()
+}
+
+func (NameFormat) Type() protoreflect.EnumType {
+	return &file_gongeons_proto_enumTypes[5]
+}
+
+func (x NameFormat) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use NameFormat.Descriptor instead.
+func (NameFormat) EnumDescriptor() ([]byte, []int) {
+	return file_gongeons_proto_rawDescGZIP(), []int{5}
+}
+
 // Position is an absolute square-grid tile coordinate. Origin is arbitrary
 // (world 0, 0); the coordinate system is unbounded in both axes.
 type Position struct {
@@ -403,6 +459,152 @@ func (x *Position) GetY() int32 {
 	return 0
 }
 
+// NameParts is the language-agnostic structured name carried on every
+// named entity (Region, Landmark, future Settlement). The client
+// composes the final display string locally: it looks up the template
+// for the chosen Format in its locale catalog under the domain-specific
+// namespace and fills in Body by seeding its embedded Markov corpus
+// with body_seed. No body text travels the wire — the server stays
+// language-agnostic while the client renders en/ru/etc.
+type NameParts struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Character     string                 `protobuf:"bytes,1,opt,name=character,proto3" json:"character,omitempty"`
+	SubKind       string                 `protobuf:"bytes,2,opt,name=sub_kind,json=subKind,proto3" json:"sub_kind,omitempty"`
+	Format        NameFormat             `protobuf:"varint,3,opt,name=format,proto3,enum=gongeons.v1.NameFormat" json:"format,omitempty"`
+	PrefixIndex   uint32                 `protobuf:"varint,4,opt,name=prefix_index,json=prefixIndex,proto3" json:"prefix_index,omitempty"`
+	PatternIndex  uint32                 `protobuf:"varint,5,opt,name=pattern_index,json=patternIndex,proto3" json:"pattern_index,omitempty"`
+	BodySeed      int64                  `protobuf:"varint,6,opt,name=body_seed,json=bodySeed,proto3" json:"body_seed,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *NameParts) Reset() {
+	*x = NameParts{}
+	mi := &file_gongeons_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NameParts) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NameParts) ProtoMessage() {}
+
+func (x *NameParts) ProtoReflect() protoreflect.Message {
+	mi := &file_gongeons_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NameParts.ProtoReflect.Descriptor instead.
+func (*NameParts) Descriptor() ([]byte, []int) {
+	return file_gongeons_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *NameParts) GetCharacter() string {
+	if x != nil {
+		return x.Character
+	}
+	return ""
+}
+
+func (x *NameParts) GetSubKind() string {
+	if x != nil {
+		return x.SubKind
+	}
+	return ""
+}
+
+func (x *NameParts) GetFormat() NameFormat {
+	if x != nil {
+		return x.Format
+	}
+	return NameFormat_NAME_FORMAT_UNSPECIFIED
+}
+
+func (x *NameParts) GetPrefixIndex() uint32 {
+	if x != nil {
+		return x.PrefixIndex
+	}
+	return 0
+}
+
+func (x *NameParts) GetPatternIndex() uint32 {
+	if x != nil {
+		return x.PatternIndex
+	}
+	return 0
+}
+
+func (x *NameParts) GetBodySeed() int64 {
+	if x != nil {
+		return x.BodySeed
+	}
+	return 0
+}
+
+// Landmark is a structured landmark record carried on Tile. Kind picks
+// the glyph and affinity rules; Name is composed into a display string
+// client-side from the NameParts plus a locale catalog.
+type Landmark struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Kind          LandmarkKind           `protobuf:"varint,1,opt,name=kind,proto3,enum=gongeons.v1.LandmarkKind" json:"kind,omitempty"`
+	Name          *NameParts             `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Landmark) Reset() {
+	*x = Landmark{}
+	mi := &file_gongeons_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Landmark) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Landmark) ProtoMessage() {}
+
+func (x *Landmark) ProtoReflect() protoreflect.Message {
+	mi := &file_gongeons_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Landmark.ProtoReflect.Descriptor instead.
+func (*Landmark) Descriptor() ([]byte, []int) {
+	return file_gongeons_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *Landmark) GetKind() LandmarkKind {
+	if x != nil {
+		return x.Kind
+	}
+	return LandmarkKind_LANDMARK_KIND_NONE
+}
+
+func (x *Landmark) GetName() *NameParts {
+	if x != nil {
+		return x.Name
+	}
+	return nil
+}
+
 // RegionInfluence mirrors the game-side struct. Sent to clients so they
 // can reason about sub-dominant influences (e.g. a Fey region with
 // significant Ancient undertones) and blend per-tile tints without
@@ -421,7 +623,7 @@ type RegionInfluence struct {
 
 func (x *RegionInfluence) Reset() {
 	*x = RegionInfluence{}
-	mi := &file_gongeons_proto_msgTypes[1]
+	mi := &file_gongeons_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -433,7 +635,7 @@ func (x *RegionInfluence) String() string {
 func (*RegionInfluence) ProtoMessage() {}
 
 func (x *RegionInfluence) ProtoReflect() protoreflect.Message {
-	mi := &file_gongeons_proto_msgTypes[1]
+	mi := &file_gongeons_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -446,7 +648,7 @@ func (x *RegionInfluence) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegionInfluence.ProtoReflect.Descriptor instead.
 func (*RegionInfluence) Descriptor() ([]byte, []int) {
-	return file_gongeons_proto_rawDescGZIP(), []int{1}
+	return file_gongeons_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *RegionInfluence) GetBlight() float32 {
@@ -495,20 +697,24 @@ func (x *RegionInfluence) GetWild() float32 {
 // Voronoi cell containing the receiving player. Anchor position is NOT
 // on the wire — clients derive it via AnchorOf(world_seed, {super_chunk_x,
 // super_chunk_y}). The world seed is delivered once in JoinAccepted.
+//
+// Tag 3 previously held a flat `string name` rendered server-side. It
+// is reserved so future proto evolutions cannot accidentally reuse it
+// with a different type; the structured name lives at tag 6.
 type Region struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	SuperChunkX   int32                  `protobuf:"varint,1,opt,name=super_chunk_x,json=superChunkX,proto3" json:"super_chunk_x,omitempty"`
 	SuperChunkY   int32                  `protobuf:"varint,2,opt,name=super_chunk_y,json=superChunkY,proto3" json:"super_chunk_y,omitempty"`
-	Name          string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
 	Character     RegionCharacter        `protobuf:"varint,4,opt,name=character,proto3,enum=gongeons.v1.RegionCharacter" json:"character,omitempty"`
 	Influence     *RegionInfluence       `protobuf:"bytes,5,opt,name=influence,proto3" json:"influence,omitempty"`
+	Name          *NameParts             `protobuf:"bytes,6,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Region) Reset() {
 	*x = Region{}
-	mi := &file_gongeons_proto_msgTypes[2]
+	mi := &file_gongeons_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -520,7 +726,7 @@ func (x *Region) String() string {
 func (*Region) ProtoMessage() {}
 
 func (x *Region) ProtoReflect() protoreflect.Message {
-	mi := &file_gongeons_proto_msgTypes[2]
+	mi := &file_gongeons_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -533,7 +739,7 @@ func (x *Region) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Region.ProtoReflect.Descriptor instead.
 func (*Region) Descriptor() ([]byte, []int) {
-	return file_gongeons_proto_rawDescGZIP(), []int{2}
+	return file_gongeons_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *Region) GetSuperChunkX() int32 {
@@ -550,13 +756,6 @@ func (x *Region) GetSuperChunkY() int32 {
 	return 0
 }
 
-func (x *Region) GetName() string {
-	if x != nil {
-		return x.Name
-	}
-	return ""
-}
-
 func (x *Region) GetCharacter() RegionCharacter {
 	if x != nil {
 		return x.Character
@@ -567,6 +766,13 @@ func (x *Region) GetCharacter() RegionCharacter {
 func (x *Region) GetInfluence() *RegionInfluence {
 	if x != nil {
 		return x.Influence
+	}
+	return nil
+}
+
+func (x *Region) GetName() *NameParts {
+	if x != nil {
+		return x.Name
 	}
 	return nil
 }
@@ -586,7 +792,7 @@ type LocalizedMessage struct {
 
 func (x *LocalizedMessage) Reset() {
 	*x = LocalizedMessage{}
-	mi := &file_gongeons_proto_msgTypes[3]
+	mi := &file_gongeons_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -598,7 +804,7 @@ func (x *LocalizedMessage) String() string {
 func (*LocalizedMessage) ProtoMessage() {}
 
 func (x *LocalizedMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_gongeons_proto_msgTypes[3]
+	mi := &file_gongeons_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -611,7 +817,7 @@ func (x *LocalizedMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LocalizedMessage.ProtoReflect.Descriptor instead.
 func (*LocalizedMessage) Descriptor() ([]byte, []int) {
-	return file_gongeons_proto_rawDescGZIP(), []int{3}
+	return file_gongeons_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *LocalizedMessage) GetMessageId() string {
@@ -655,17 +861,17 @@ type Tile struct {
 	// comment in lockstep when adding a new flag.
 	Overlays  uint32    `protobuf:"varint,4,opt,name=overlays,proto3" json:"overlays,omitempty"`
 	Structure Structure `protobuf:"varint,5,opt,name=structure,proto3,enum=gongeons.v1.Structure" json:"structure,omitempty"` // village / castle overlay
-	// landmark is the natural or ancient landmark on this tile. Zero value
-	// LANDMARK_KIND_NONE means no landmark. Landmark is a separate layer from
+	// landmark is the natural or ancient landmark on this tile, or nil
+	// when nothing is placed. Landmark is a separate layer from
 	// structure — see the LandmarkKind enum comment above.
-	Landmark      LandmarkKind `protobuf:"varint,6,opt,name=landmark,proto3,enum=gongeons.v1.LandmarkKind" json:"landmark,omitempty"`
+	Landmark      *Landmark `protobuf:"bytes,7,opt,name=landmark,proto3" json:"landmark,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Tile) Reset() {
 	*x = Tile{}
-	mi := &file_gongeons_proto_msgTypes[4]
+	mi := &file_gongeons_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -677,7 +883,7 @@ func (x *Tile) String() string {
 func (*Tile) ProtoMessage() {}
 
 func (x *Tile) ProtoReflect() protoreflect.Message {
-	mi := &file_gongeons_proto_msgTypes[4]
+	mi := &file_gongeons_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -690,7 +896,7 @@ func (x *Tile) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Tile.ProtoReflect.Descriptor instead.
 func (*Tile) Descriptor() ([]byte, []int) {
-	return file_gongeons_proto_rawDescGZIP(), []int{4}
+	return file_gongeons_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *Tile) GetTerrain() Terrain {
@@ -728,11 +934,11 @@ func (x *Tile) GetStructure() Structure {
 	return Structure_STRUCTURE_UNSPECIFIED
 }
 
-func (x *Tile) GetLandmark() LandmarkKind {
+func (x *Tile) GetLandmark() *Landmark {
 	if x != nil {
 		return x.Landmark
 	}
-	return LandmarkKind_LANDMARK_KIND_NONE
+	return nil
 }
 
 // Entity is a positioned actor in the world. Combat stats / monsters are
@@ -749,7 +955,7 @@ type Entity struct {
 
 func (x *Entity) Reset() {
 	*x = Entity{}
-	mi := &file_gongeons_proto_msgTypes[5]
+	mi := &file_gongeons_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -761,7 +967,7 @@ func (x *Entity) String() string {
 func (*Entity) ProtoMessage() {}
 
 func (x *Entity) ProtoReflect() protoreflect.Message {
-	mi := &file_gongeons_proto_msgTypes[5]
+	mi := &file_gongeons_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -774,7 +980,7 @@ func (x *Entity) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Entity.ProtoReflect.Descriptor instead.
 func (*Entity) Descriptor() ([]byte, []int) {
-	return file_gongeons_proto_rawDescGZIP(), []int{5}
+	return file_gongeons_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *Entity) GetId() string {
@@ -819,7 +1025,7 @@ type ClientMessage struct {
 
 func (x *ClientMessage) Reset() {
 	*x = ClientMessage{}
-	mi := &file_gongeons_proto_msgTypes[6]
+	mi := &file_gongeons_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -831,7 +1037,7 @@ func (x *ClientMessage) String() string {
 func (*ClientMessage) ProtoMessage() {}
 
 func (x *ClientMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_gongeons_proto_msgTypes[6]
+	mi := &file_gongeons_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -844,7 +1050,7 @@ func (x *ClientMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClientMessage.ProtoReflect.Descriptor instead.
 func (*ClientMessage) Descriptor() ([]byte, []int) {
-	return file_gongeons_proto_rawDescGZIP(), []int{6}
+	return file_gongeons_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *ClientMessage) GetPayload() isClientMessage_Payload {
@@ -922,7 +1128,7 @@ type JoinRequest struct {
 
 func (x *JoinRequest) Reset() {
 	*x = JoinRequest{}
-	mi := &file_gongeons_proto_msgTypes[7]
+	mi := &file_gongeons_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -934,7 +1140,7 @@ func (x *JoinRequest) String() string {
 func (*JoinRequest) ProtoMessage() {}
 
 func (x *JoinRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gongeons_proto_msgTypes[7]
+	mi := &file_gongeons_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -947,7 +1153,7 @@ func (x *JoinRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JoinRequest.ProtoReflect.Descriptor instead.
 func (*JoinRequest) Descriptor() ([]byte, []int) {
-	return file_gongeons_proto_rawDescGZIP(), []int{7}
+	return file_gongeons_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *JoinRequest) GetName() string {
@@ -991,7 +1197,7 @@ type ViewportCmd struct {
 
 func (x *ViewportCmd) Reset() {
 	*x = ViewportCmd{}
-	mi := &file_gongeons_proto_msgTypes[8]
+	mi := &file_gongeons_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1003,7 +1209,7 @@ func (x *ViewportCmd) String() string {
 func (*ViewportCmd) ProtoMessage() {}
 
 func (x *ViewportCmd) ProtoReflect() protoreflect.Message {
-	mi := &file_gongeons_proto_msgTypes[8]
+	mi := &file_gongeons_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1016,7 +1222,7 @@ func (x *ViewportCmd) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ViewportCmd.ProtoReflect.Descriptor instead.
 func (*ViewportCmd) Descriptor() ([]byte, []int) {
-	return file_gongeons_proto_rawDescGZIP(), []int{8}
+	return file_gongeons_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *ViewportCmd) GetWidth() int32 {
@@ -1045,7 +1251,7 @@ type MoveCmd struct {
 
 func (x *MoveCmd) Reset() {
 	*x = MoveCmd{}
-	mi := &file_gongeons_proto_msgTypes[9]
+	mi := &file_gongeons_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1057,7 +1263,7 @@ func (x *MoveCmd) String() string {
 func (*MoveCmd) ProtoMessage() {}
 
 func (x *MoveCmd) ProtoReflect() protoreflect.Message {
-	mi := &file_gongeons_proto_msgTypes[9]
+	mi := &file_gongeons_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1070,7 +1276,7 @@ func (x *MoveCmd) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MoveCmd.ProtoReflect.Descriptor instead.
 func (*MoveCmd) Descriptor() ([]byte, []int) {
-	return file_gongeons_proto_rawDescGZIP(), []int{9}
+	return file_gongeons_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *MoveCmd) GetDx() int32 {
@@ -1102,7 +1308,7 @@ type ServerMessage struct {
 
 func (x *ServerMessage) Reset() {
 	*x = ServerMessage{}
-	mi := &file_gongeons_proto_msgTypes[10]
+	mi := &file_gongeons_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1114,7 +1320,7 @@ func (x *ServerMessage) String() string {
 func (*ServerMessage) ProtoMessage() {}
 
 func (x *ServerMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_gongeons_proto_msgTypes[10]
+	mi := &file_gongeons_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1127,7 +1333,7 @@ func (x *ServerMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerMessage.ProtoReflect.Descriptor instead.
 func (*ServerMessage) Descriptor() ([]byte, []int) {
-	return file_gongeons_proto_rawDescGZIP(), []int{10}
+	return file_gongeons_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *ServerMessage) GetPayload() isServerMessage_Payload {
@@ -1217,7 +1423,7 @@ type JoinAccepted struct {
 
 func (x *JoinAccepted) Reset() {
 	*x = JoinAccepted{}
-	mi := &file_gongeons_proto_msgTypes[11]
+	mi := &file_gongeons_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1229,7 +1435,7 @@ func (x *JoinAccepted) String() string {
 func (*JoinAccepted) ProtoMessage() {}
 
 func (x *JoinAccepted) ProtoReflect() protoreflect.Message {
-	mi := &file_gongeons_proto_msgTypes[11]
+	mi := &file_gongeons_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1242,7 +1448,7 @@ func (x *JoinAccepted) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JoinAccepted.ProtoReflect.Descriptor instead.
 func (*JoinAccepted) Descriptor() ([]byte, []int) {
-	return file_gongeons_proto_rawDescGZIP(), []int{11}
+	return file_gongeons_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *JoinAccepted) GetPlayerId() string {
@@ -1285,7 +1491,7 @@ type Snapshot struct {
 
 func (x *Snapshot) Reset() {
 	*x = Snapshot{}
-	mi := &file_gongeons_proto_msgTypes[12]
+	mi := &file_gongeons_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1297,7 +1503,7 @@ func (x *Snapshot) String() string {
 func (*Snapshot) ProtoMessage() {}
 
 func (x *Snapshot) ProtoReflect() protoreflect.Message {
-	mi := &file_gongeons_proto_msgTypes[12]
+	mi := &file_gongeons_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1310,7 +1516,7 @@ func (x *Snapshot) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Snapshot.ProtoReflect.Descriptor instead.
 func (*Snapshot) Descriptor() ([]byte, []int) {
-	return file_gongeons_proto_rawDescGZIP(), []int{12}
+	return file_gongeons_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *Snapshot) GetWidth() int32 {
@@ -1371,7 +1577,7 @@ type Event struct {
 
 func (x *Event) Reset() {
 	*x = Event{}
-	mi := &file_gongeons_proto_msgTypes[13]
+	mi := &file_gongeons_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1383,7 +1589,7 @@ func (x *Event) String() string {
 func (*Event) ProtoMessage() {}
 
 func (x *Event) ProtoReflect() protoreflect.Message {
-	mi := &file_gongeons_proto_msgTypes[13]
+	mi := &file_gongeons_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1396,7 +1602,7 @@ func (x *Event) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Event.ProtoReflect.Descriptor instead.
 func (*Event) Descriptor() ([]byte, []int) {
-	return file_gongeons_proto_rawDescGZIP(), []int{13}
+	return file_gongeons_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *Event) GetPayload() isEvent_Payload {
@@ -1464,7 +1670,7 @@ type PlayerJoined struct {
 
 func (x *PlayerJoined) Reset() {
 	*x = PlayerJoined{}
-	mi := &file_gongeons_proto_msgTypes[14]
+	mi := &file_gongeons_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1476,7 +1682,7 @@ func (x *PlayerJoined) String() string {
 func (*PlayerJoined) ProtoMessage() {}
 
 func (x *PlayerJoined) ProtoReflect() protoreflect.Message {
-	mi := &file_gongeons_proto_msgTypes[14]
+	mi := &file_gongeons_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1489,7 +1695,7 @@ func (x *PlayerJoined) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PlayerJoined.ProtoReflect.Descriptor instead.
 func (*PlayerJoined) Descriptor() ([]byte, []int) {
-	return file_gongeons_proto_rawDescGZIP(), []int{14}
+	return file_gongeons_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *PlayerJoined) GetEntity() *Entity {
@@ -1508,7 +1714,7 @@ type PlayerLeft struct {
 
 func (x *PlayerLeft) Reset() {
 	*x = PlayerLeft{}
-	mi := &file_gongeons_proto_msgTypes[15]
+	mi := &file_gongeons_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1520,7 +1726,7 @@ func (x *PlayerLeft) String() string {
 func (*PlayerLeft) ProtoMessage() {}
 
 func (x *PlayerLeft) ProtoReflect() protoreflect.Message {
-	mi := &file_gongeons_proto_msgTypes[15]
+	mi := &file_gongeons_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1533,7 +1739,7 @@ func (x *PlayerLeft) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PlayerLeft.ProtoReflect.Descriptor instead.
 func (*PlayerLeft) Descriptor() ([]byte, []int) {
-	return file_gongeons_proto_rawDescGZIP(), []int{15}
+	return file_gongeons_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *PlayerLeft) GetPlayerId() string {
@@ -1554,7 +1760,7 @@ type EntityMoved struct {
 
 func (x *EntityMoved) Reset() {
 	*x = EntityMoved{}
-	mi := &file_gongeons_proto_msgTypes[16]
+	mi := &file_gongeons_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1566,7 +1772,7 @@ func (x *EntityMoved) String() string {
 func (*EntityMoved) ProtoMessage() {}
 
 func (x *EntityMoved) ProtoReflect() protoreflect.Message {
-	mi := &file_gongeons_proto_msgTypes[16]
+	mi := &file_gongeons_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1579,7 +1785,7 @@ func (x *EntityMoved) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EntityMoved.ProtoReflect.Descriptor instead.
 func (*EntityMoved) Descriptor() ([]byte, []int) {
-	return file_gongeons_proto_rawDescGZIP(), []int{16}
+	return file_gongeons_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *EntityMoved) GetEntityId() string {
@@ -1613,7 +1819,7 @@ type ErrorResponse struct {
 
 func (x *ErrorResponse) Reset() {
 	*x = ErrorResponse{}
-	mi := &file_gongeons_proto_msgTypes[17]
+	mi := &file_gongeons_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1625,7 +1831,7 @@ func (x *ErrorResponse) String() string {
 func (*ErrorResponse) ProtoMessage() {}
 
 func (x *ErrorResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gongeons_proto_msgTypes[17]
+	mi := &file_gongeons_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1638,7 +1844,7 @@ func (x *ErrorResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ErrorResponse.ProtoReflect.Descriptor instead.
 func (*ErrorResponse) Descriptor() ([]byte, []int) {
-	return file_gongeons_proto_rawDescGZIP(), []int{17}
+	return file_gongeons_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *ErrorResponse) GetMessage() string {
@@ -1662,34 +1868,44 @@ const file_gongeons_proto_rawDesc = "" +
 	"\x0egongeons.proto\x12\vgongeons.v1\"&\n" +
 	"\bPosition\x12\f\n" +
 	"\x01x\x18\x01 \x01(\x05R\x01x\x12\f\n" +
-	"\x01y\x18\x02 \x01(\x05R\x01y\"\x95\x01\n" +
+	"\x01y\x18\x02 \x01(\x05R\x01y\"\xda\x01\n" +
+	"\tNameParts\x12\x1c\n" +
+	"\tcharacter\x18\x01 \x01(\tR\tcharacter\x12\x19\n" +
+	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12/\n" +
+	"\x06format\x18\x03 \x01(\x0e2\x17.gongeons.v1.NameFormatR\x06format\x12!\n" +
+	"\fprefix_index\x18\x04 \x01(\rR\vprefixIndex\x12#\n" +
+	"\rpattern_index\x18\x05 \x01(\rR\fpatternIndex\x12\x1b\n" +
+	"\tbody_seed\x18\x06 \x01(\x03R\bbodySeed\"e\n" +
+	"\bLandmark\x12-\n" +
+	"\x04kind\x18\x01 \x01(\x0e2\x19.gongeons.v1.LandmarkKindR\x04kind\x12*\n" +
+	"\x04name\x18\x02 \x01(\v2\x16.gongeons.v1.NamePartsR\x04name\"\x95\x01\n" +
 	"\x0fRegionInfluence\x12\x16\n" +
 	"\x06blight\x18\x01 \x01(\x02R\x06blight\x12\x10\n" +
 	"\x03fae\x18\x02 \x01(\x02R\x03fae\x12\x18\n" +
 	"\aancient\x18\x03 \x01(\x02R\aancient\x12\x16\n" +
 	"\x06savage\x18\x04 \x01(\x02R\x06savage\x12\x12\n" +
 	"\x04holy\x18\x05 \x01(\x02R\x04holy\x12\x12\n" +
-	"\x04wild\x18\x06 \x01(\x02R\x04wild\"\xdc\x01\n" +
+	"\x04wild\x18\x06 \x01(\x02R\x04wild\"\xfa\x01\n" +
 	"\x06Region\x12\"\n" +
 	"\rsuper_chunk_x\x18\x01 \x01(\x05R\vsuperChunkX\x12\"\n" +
-	"\rsuper_chunk_y\x18\x02 \x01(\x05R\vsuperChunkY\x12\x12\n" +
-	"\x04name\x18\x03 \x01(\tR\x04name\x12:\n" +
+	"\rsuper_chunk_y\x18\x02 \x01(\x05R\vsuperChunkY\x12:\n" +
 	"\tcharacter\x18\x04 \x01(\x0e2\x1c.gongeons.v1.RegionCharacterR\tcharacter\x12:\n" +
-	"\tinfluence\x18\x05 \x01(\v2\x1c.gongeons.v1.RegionInfluenceR\tinfluence\"\xa7\x01\n" +
+	"\tinfluence\x18\x05 \x01(\v2\x1c.gongeons.v1.RegionInfluenceR\tinfluence\x12*\n" +
+	"\x04name\x18\x06 \x01(\v2\x16.gongeons.v1.NamePartsR\x04nameJ\x04\b\x03\x10\x04\"\xa7\x01\n" +
 	"\x10LocalizedMessage\x12\x1d\n" +
 	"\n" +
 	"message_id\x18\x01 \x01(\tR\tmessageId\x12;\n" +
 	"\x04args\x18\x02 \x03(\v2'.gongeons.v1.LocalizedMessage.ArgsEntryR\x04args\x1a7\n" +
 	"\tArgsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x93\x02\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x95\x02\n" +
 	"\x04Tile\x12.\n" +
 	"\aterrain\x18\x01 \x01(\x0e2\x14.gongeons.v1.TerrainR\aterrain\x125\n" +
 	"\boccupant\x18\x02 \x01(\x0e2\x19.gongeons.v1.OccupantKindR\boccupant\x12\x1b\n" +
 	"\tentity_id\x18\x03 \x01(\tR\bentityId\x12\x1a\n" +
 	"\boverlays\x18\x04 \x01(\rR\boverlays\x124\n" +
-	"\tstructure\x18\x05 \x01(\x0e2\x16.gongeons.v1.StructureR\tstructure\x125\n" +
-	"\blandmark\x18\x06 \x01(\x0e2\x19.gongeons.v1.LandmarkKindR\blandmark\"\x8e\x01\n" +
+	"\tstructure\x18\x05 \x01(\x0e2\x16.gongeons.v1.StructureR\tstructure\x121\n" +
+	"\blandmark\x18\a \x01(\v2\x15.gongeons.v1.LandmarkR\blandmarkJ\x04\b\x06\x10\a\"\x8e\x01\n" +
 	"\x06Entity\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12-\n" +
@@ -1789,7 +2005,13 @@ const file_gongeons_proto_rawDesc = "" +
 	"\x18REGION_CHARACTER_ANCIENT\x10\x03\x12\x1b\n" +
 	"\x17REGION_CHARACTER_SAVAGE\x10\x04\x12\x19\n" +
 	"\x15REGION_CHARACTER_HOLY\x10\x05\x12\x19\n" +
-	"\x15REGION_CHARACTER_WILD\x10\x062Q\n" +
+	"\x15REGION_CHARACTER_WILD\x10\x06*\x84\x01\n" +
+	"\n" +
+	"NameFormat\x12\x1b\n" +
+	"\x17NAME_FORMAT_UNSPECIFIED\x10\x00\x12\x19\n" +
+	"\x15NAME_FORMAT_BODY_ONLY\x10\x01\x12 \n" +
+	"\x1cNAME_FORMAT_CHARACTER_PREFIX\x10\x02\x12\x1c\n" +
+	"\x18NAME_FORMAT_KIND_PATTERN\x10\x032Q\n" +
 	"\vGameService\x12B\n" +
 	"\x04Play\x12\x1a.gongeons.v1.ClientMessage\x1a\x1a.gongeons.v1.ServerMessage(\x010\x01B8Z6github.com/Rioverde/gongeons/internal/proto;gongeonspbb\x06proto3"
 
@@ -1805,69 +2027,76 @@ func file_gongeons_proto_rawDescGZIP() []byte {
 	return file_gongeons_proto_rawDescData
 }
 
-var file_gongeons_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
-var file_gongeons_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
+var file_gongeons_proto_enumTypes = make([]protoimpl.EnumInfo, 6)
+var file_gongeons_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
 var file_gongeons_proto_goTypes = []any{
 	(Terrain)(0),             // 0: gongeons.v1.Terrain
 	(OccupantKind)(0),        // 1: gongeons.v1.OccupantKind
 	(Structure)(0),           // 2: gongeons.v1.Structure
 	(LandmarkKind)(0),        // 3: gongeons.v1.LandmarkKind
 	(RegionCharacter)(0),     // 4: gongeons.v1.RegionCharacter
-	(*Position)(nil),         // 5: gongeons.v1.Position
-	(*RegionInfluence)(nil),  // 6: gongeons.v1.RegionInfluence
-	(*Region)(nil),           // 7: gongeons.v1.Region
-	(*LocalizedMessage)(nil), // 8: gongeons.v1.LocalizedMessage
-	(*Tile)(nil),             // 9: gongeons.v1.Tile
-	(*Entity)(nil),           // 10: gongeons.v1.Entity
-	(*ClientMessage)(nil),    // 11: gongeons.v1.ClientMessage
-	(*JoinRequest)(nil),      // 12: gongeons.v1.JoinRequest
-	(*ViewportCmd)(nil),      // 13: gongeons.v1.ViewportCmd
-	(*MoveCmd)(nil),          // 14: gongeons.v1.MoveCmd
-	(*ServerMessage)(nil),    // 15: gongeons.v1.ServerMessage
-	(*JoinAccepted)(nil),     // 16: gongeons.v1.JoinAccepted
-	(*Snapshot)(nil),         // 17: gongeons.v1.Snapshot
-	(*Event)(nil),            // 18: gongeons.v1.Event
-	(*PlayerJoined)(nil),     // 19: gongeons.v1.PlayerJoined
-	(*PlayerLeft)(nil),       // 20: gongeons.v1.PlayerLeft
-	(*EntityMoved)(nil),      // 21: gongeons.v1.EntityMoved
-	(*ErrorResponse)(nil),    // 22: gongeons.v1.ErrorResponse
-	nil,                      // 23: gongeons.v1.LocalizedMessage.ArgsEntry
+	(NameFormat)(0),          // 5: gongeons.v1.NameFormat
+	(*Position)(nil),         // 6: gongeons.v1.Position
+	(*NameParts)(nil),        // 7: gongeons.v1.NameParts
+	(*Landmark)(nil),         // 8: gongeons.v1.Landmark
+	(*RegionInfluence)(nil),  // 9: gongeons.v1.RegionInfluence
+	(*Region)(nil),           // 10: gongeons.v1.Region
+	(*LocalizedMessage)(nil), // 11: gongeons.v1.LocalizedMessage
+	(*Tile)(nil),             // 12: gongeons.v1.Tile
+	(*Entity)(nil),           // 13: gongeons.v1.Entity
+	(*ClientMessage)(nil),    // 14: gongeons.v1.ClientMessage
+	(*JoinRequest)(nil),      // 15: gongeons.v1.JoinRequest
+	(*ViewportCmd)(nil),      // 16: gongeons.v1.ViewportCmd
+	(*MoveCmd)(nil),          // 17: gongeons.v1.MoveCmd
+	(*ServerMessage)(nil),    // 18: gongeons.v1.ServerMessage
+	(*JoinAccepted)(nil),     // 19: gongeons.v1.JoinAccepted
+	(*Snapshot)(nil),         // 20: gongeons.v1.Snapshot
+	(*Event)(nil),            // 21: gongeons.v1.Event
+	(*PlayerJoined)(nil),     // 22: gongeons.v1.PlayerJoined
+	(*PlayerLeft)(nil),       // 23: gongeons.v1.PlayerLeft
+	(*EntityMoved)(nil),      // 24: gongeons.v1.EntityMoved
+	(*ErrorResponse)(nil),    // 25: gongeons.v1.ErrorResponse
+	nil,                      // 26: gongeons.v1.LocalizedMessage.ArgsEntry
 }
 var file_gongeons_proto_depIdxs = []int32{
-	4,  // 0: gongeons.v1.Region.character:type_name -> gongeons.v1.RegionCharacter
-	6,  // 1: gongeons.v1.Region.influence:type_name -> gongeons.v1.RegionInfluence
-	23, // 2: gongeons.v1.LocalizedMessage.args:type_name -> gongeons.v1.LocalizedMessage.ArgsEntry
-	0,  // 3: gongeons.v1.Tile.terrain:type_name -> gongeons.v1.Terrain
-	1,  // 4: gongeons.v1.Tile.occupant:type_name -> gongeons.v1.OccupantKind
-	2,  // 5: gongeons.v1.Tile.structure:type_name -> gongeons.v1.Structure
-	3,  // 6: gongeons.v1.Tile.landmark:type_name -> gongeons.v1.LandmarkKind
-	1,  // 7: gongeons.v1.Entity.kind:type_name -> gongeons.v1.OccupantKind
-	5,  // 8: gongeons.v1.Entity.position:type_name -> gongeons.v1.Position
-	12, // 9: gongeons.v1.ClientMessage.join:type_name -> gongeons.v1.JoinRequest
-	14, // 10: gongeons.v1.ClientMessage.move:type_name -> gongeons.v1.MoveCmd
-	13, // 11: gongeons.v1.ClientMessage.viewport:type_name -> gongeons.v1.ViewportCmd
-	16, // 12: gongeons.v1.ServerMessage.accepted:type_name -> gongeons.v1.JoinAccepted
-	17, // 13: gongeons.v1.ServerMessage.snapshot:type_name -> gongeons.v1.Snapshot
-	18, // 14: gongeons.v1.ServerMessage.event:type_name -> gongeons.v1.Event
-	22, // 15: gongeons.v1.ServerMessage.error:type_name -> gongeons.v1.ErrorResponse
-	5,  // 16: gongeons.v1.JoinAccepted.spawn:type_name -> gongeons.v1.Position
-	5,  // 17: gongeons.v1.Snapshot.origin:type_name -> gongeons.v1.Position
-	9,  // 18: gongeons.v1.Snapshot.tiles:type_name -> gongeons.v1.Tile
-	10, // 19: gongeons.v1.Snapshot.entities:type_name -> gongeons.v1.Entity
-	7,  // 20: gongeons.v1.Snapshot.region:type_name -> gongeons.v1.Region
-	19, // 21: gongeons.v1.Event.player_joined:type_name -> gongeons.v1.PlayerJoined
-	20, // 22: gongeons.v1.Event.player_left:type_name -> gongeons.v1.PlayerLeft
-	21, // 23: gongeons.v1.Event.entity_moved:type_name -> gongeons.v1.EntityMoved
-	10, // 24: gongeons.v1.PlayerJoined.entity:type_name -> gongeons.v1.Entity
-	5,  // 25: gongeons.v1.EntityMoved.from:type_name -> gongeons.v1.Position
-	5,  // 26: gongeons.v1.EntityMoved.to:type_name -> gongeons.v1.Position
-	11, // 27: gongeons.v1.GameService.Play:input_type -> gongeons.v1.ClientMessage
-	15, // 28: gongeons.v1.GameService.Play:output_type -> gongeons.v1.ServerMessage
-	28, // [28:29] is the sub-list for method output_type
-	27, // [27:28] is the sub-list for method input_type
-	27, // [27:27] is the sub-list for extension type_name
-	27, // [27:27] is the sub-list for extension extendee
-	0,  // [0:27] is the sub-list for field type_name
+	5,  // 0: gongeons.v1.NameParts.format:type_name -> gongeons.v1.NameFormat
+	3,  // 1: gongeons.v1.Landmark.kind:type_name -> gongeons.v1.LandmarkKind
+	7,  // 2: gongeons.v1.Landmark.name:type_name -> gongeons.v1.NameParts
+	4,  // 3: gongeons.v1.Region.character:type_name -> gongeons.v1.RegionCharacter
+	9,  // 4: gongeons.v1.Region.influence:type_name -> gongeons.v1.RegionInfluence
+	7,  // 5: gongeons.v1.Region.name:type_name -> gongeons.v1.NameParts
+	26, // 6: gongeons.v1.LocalizedMessage.args:type_name -> gongeons.v1.LocalizedMessage.ArgsEntry
+	0,  // 7: gongeons.v1.Tile.terrain:type_name -> gongeons.v1.Terrain
+	1,  // 8: gongeons.v1.Tile.occupant:type_name -> gongeons.v1.OccupantKind
+	2,  // 9: gongeons.v1.Tile.structure:type_name -> gongeons.v1.Structure
+	8,  // 10: gongeons.v1.Tile.landmark:type_name -> gongeons.v1.Landmark
+	1,  // 11: gongeons.v1.Entity.kind:type_name -> gongeons.v1.OccupantKind
+	6,  // 12: gongeons.v1.Entity.position:type_name -> gongeons.v1.Position
+	15, // 13: gongeons.v1.ClientMessage.join:type_name -> gongeons.v1.JoinRequest
+	17, // 14: gongeons.v1.ClientMessage.move:type_name -> gongeons.v1.MoveCmd
+	16, // 15: gongeons.v1.ClientMessage.viewport:type_name -> gongeons.v1.ViewportCmd
+	19, // 16: gongeons.v1.ServerMessage.accepted:type_name -> gongeons.v1.JoinAccepted
+	20, // 17: gongeons.v1.ServerMessage.snapshot:type_name -> gongeons.v1.Snapshot
+	21, // 18: gongeons.v1.ServerMessage.event:type_name -> gongeons.v1.Event
+	25, // 19: gongeons.v1.ServerMessage.error:type_name -> gongeons.v1.ErrorResponse
+	6,  // 20: gongeons.v1.JoinAccepted.spawn:type_name -> gongeons.v1.Position
+	6,  // 21: gongeons.v1.Snapshot.origin:type_name -> gongeons.v1.Position
+	12, // 22: gongeons.v1.Snapshot.tiles:type_name -> gongeons.v1.Tile
+	13, // 23: gongeons.v1.Snapshot.entities:type_name -> gongeons.v1.Entity
+	10, // 24: gongeons.v1.Snapshot.region:type_name -> gongeons.v1.Region
+	22, // 25: gongeons.v1.Event.player_joined:type_name -> gongeons.v1.PlayerJoined
+	23, // 26: gongeons.v1.Event.player_left:type_name -> gongeons.v1.PlayerLeft
+	24, // 27: gongeons.v1.Event.entity_moved:type_name -> gongeons.v1.EntityMoved
+	13, // 28: gongeons.v1.PlayerJoined.entity:type_name -> gongeons.v1.Entity
+	6,  // 29: gongeons.v1.EntityMoved.from:type_name -> gongeons.v1.Position
+	6,  // 30: gongeons.v1.EntityMoved.to:type_name -> gongeons.v1.Position
+	14, // 31: gongeons.v1.GameService.Play:input_type -> gongeons.v1.ClientMessage
+	18, // 32: gongeons.v1.GameService.Play:output_type -> gongeons.v1.ServerMessage
+	32, // [32:33] is the sub-list for method output_type
+	31, // [31:32] is the sub-list for method input_type
+	31, // [31:31] is the sub-list for extension type_name
+	31, // [31:31] is the sub-list for extension extendee
+	0,  // [0:31] is the sub-list for field type_name
 }
 
 func init() { file_gongeons_proto_init() }
@@ -1875,18 +2104,18 @@ func file_gongeons_proto_init() {
 	if File_gongeons_proto != nil {
 		return
 	}
-	file_gongeons_proto_msgTypes[6].OneofWrappers = []any{
+	file_gongeons_proto_msgTypes[8].OneofWrappers = []any{
 		(*ClientMessage_Join)(nil),
 		(*ClientMessage_Move)(nil),
 		(*ClientMessage_Viewport)(nil),
 	}
-	file_gongeons_proto_msgTypes[10].OneofWrappers = []any{
+	file_gongeons_proto_msgTypes[12].OneofWrappers = []any{
 		(*ServerMessage_Accepted)(nil),
 		(*ServerMessage_Snapshot)(nil),
 		(*ServerMessage_Event)(nil),
 		(*ServerMessage_Error)(nil),
 	}
-	file_gongeons_proto_msgTypes[13].OneofWrappers = []any{
+	file_gongeons_proto_msgTypes[15].OneofWrappers = []any{
 		(*Event_PlayerJoined)(nil),
 		(*Event_PlayerLeft)(nil),
 		(*Event_EntityMoved)(nil),
@@ -1896,8 +2125,8 @@ func file_gongeons_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_gongeons_proto_rawDesc), len(file_gongeons_proto_rawDesc)),
-			NumEnums:      5,
-			NumMessages:   19,
+			NumEnums:      6,
+			NumMessages:   21,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -123,10 +123,12 @@ func (w *World) LandmarkSource() LandmarkSource {
 }
 
 // RegionAt returns the region covering the given world position. It
-// resolves the nearest Voronoi anchor for (p.X, p.Y) and delegates to the
-// configured RegionSource keyed by that anchor's SuperChunkCoord. When no
-// RegionSource is configured, it returns a RegionNormal placeholder so
-// callers need not special-case the nil source.
+// resolves the nearest Voronoi anchor for (p.X, p.Y) and delegates to
+// the configured RegionSource keyed by that anchor's SuperChunkCoord.
+// When no RegionSource is configured, it returns a RegionNormal
+// placeholder so callers need not special-case the nil source. Names
+// are emitted as structured Parts records; the client composes
+// localized display text using its own Markov corpora and catalogs.
 func (w *World) RegionAt(p Position) Region {
 	anchor, sc := AnchorAt(w.seed, p.X, p.Y)
 	if w.regionSource == nil {
@@ -135,11 +137,13 @@ func (w *World) RegionAt(p Position) Region {
 	return w.regionSource.RegionAt(sc)
 }
 
-// LandmarksIn returns the landmarks inside the super-chunk sc. Delegates
-// to whatever LandmarkSource the World was constructed with. Returns
-// nil when no LandmarkSource is wired — the server's per-sc cache can
-// treat a nil result the same as "no landmarks here" without a separate
-// branch for the missing-source case.
+// LandmarksIn returns the landmarks inside the super-chunk sc.
+// Delegates to whatever LandmarkSource the World was constructed with.
+// Returns nil when no LandmarkSource is wired — the server's per-sc
+// cache can treat a nil result the same as "no landmarks here" without
+// a separate branch for the missing-source case. Each landmark's
+// structured Name is language-agnostic; the client composes the final
+// display string.
 func (w *World) LandmarksIn(sc SuperChunkCoord) []Landmark {
 	if w.landmarkSource == nil {
 		return nil
