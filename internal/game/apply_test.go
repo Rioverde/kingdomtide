@@ -91,29 +91,48 @@ func TestApplyJoinTwice(t *testing.T) {
 	}
 }
 
-func TestApplyMoveHappyPath(t *testing.T) {
+// reasonOf returns the IntentFailedEvent reason in a single-event
+// failure slice. Fatals the test on any shape mismatch so the caller
+// can read the event layout off the helper's name alone.
+func reasonOf(t *testing.T, events []Event) string {
+	t.Helper()
+	if len(events) != 1 {
+		t.Fatalf("events = %d, want 1 IntentFailedEvent", len(events))
+	}
+	fail, ok := events[0].(IntentFailedEvent)
+	if !ok {
+		t.Fatalf("event = %T, want IntentFailedEvent", events[0])
+	}
+	return fail.Reason
+}
+
+func TestApplyMoveIntentHappyPath(t *testing.T) {
 	w := newTestWorld(testTiles{})
 	joinEvents, _ := w.ApplyCommand(JoinCmd{PlayerID: "p1", Name: "Alice"})
 	start := joinEvents[0].(PlayerJoinedEvent).Position
 
-	events, err := w.ApplyCommand(MoveCmd{PlayerID: "p1", DX: 1, DY: 0})
-	if err != nil {
-		t.Fatalf("move: %v", err)
+	p, ok := w.PlayerByID("p1")
+	if !ok {
+		t.Fatalf("PlayerByID(p1) missing after join")
 	}
-	moved, ok := events[0].(EntityMovedEvent)
+	events, moved := w.applyMoveIntent(p, MoveIntent{DX: 1, DY: 0})
+	if !moved {
+		t.Fatalf("move failed: events=%+v", events)
+	}
+	em, ok := events[0].(EntityMovedEvent)
 	if !ok {
 		t.Fatalf("event = %T, want EntityMovedEvent", events[0])
 	}
 	wantTo := Position{X: start.X + 1, Y: start.Y}
-	if moved.From != start || moved.To != wantTo {
-		t.Fatalf("event = %+v, want From=%+v To=%+v", moved, start, wantTo)
+	if em.From != start || em.To != wantTo {
+		t.Fatalf("event = %+v, want From=%+v To=%+v", em, start, wantTo)
 	}
 	if pos, _ := w.PositionOf("p1"); pos != wantTo {
 		t.Fatalf("PositionOf(p1) = %+v, want %+v", pos, wantTo)
 	}
 }
 
-func TestApplyMoveValidation(t *testing.T) {
+func TestApplyMoveIntentValidation(t *testing.T) {
 	cases := []struct {
 		name   string
 		dx, dy int
@@ -127,51 +146,55 @@ func TestApplyMoveValidation(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			w := newTestWorld(testTiles{})
 			_, _ = w.ApplyCommand(JoinCmd{PlayerID: "p1", Name: "Alice"})
-			_, err := w.ApplyCommand(MoveCmd{PlayerID: "p1", DX: tc.dx, DY: tc.dy})
-			if !errors.Is(err, ErrInvalidMove) {
-				t.Fatalf("err = %v, want ErrInvalidMove", err)
+			p, _ := w.PlayerByID("p1")
+			events, ok := w.applyMoveIntent(p, MoveIntent{DX: tc.dx, DY: tc.dy})
+			if ok {
+				t.Fatalf("move succeeded, want failure: events=%+v", events)
+			}
+			if got := reasonOf(t, events); got != ReasonIntentMoveInvalid {
+				t.Fatalf("reason = %q, want %q", got, ReasonIntentMoveInvalid)
 			}
 		})
 	}
 }
 
-func TestApplyMoveUnknownPlayer(t *testing.T) {
-	w := newTestWorld(testTiles{})
-	_, err := w.ApplyCommand(MoveCmd{PlayerID: "ghost", DX: 1, DY: 0})
-	if !errors.Is(err, ErrPlayerNotFound) {
-		t.Fatalf("err = %v, want ErrPlayerNotFound", err)
-	}
-}
-
-func TestApplyMoveIntoWall(t *testing.T) {
+func TestApplyMoveIntentIntoWall(t *testing.T) {
 	// Wall one tile east of the origin (where spawn will land).
 	src := testTiles{
 		Position{X: 1, Y: 0}: {Terrain: TerrainMountain},
 	}
 	w := newTestWorld(src)
 	_, _ = w.ApplyCommand(JoinCmd{PlayerID: "p1", Name: "Alice"})
-	_, err := w.ApplyCommand(MoveCmd{PlayerID: "p1", DX: 1, DY: 0})
-	if !errors.Is(err, ErrBlocked) {
-		t.Fatalf("err = %v, want ErrBlocked", err)
+	p, _ := w.PlayerByID("p1")
+	events, ok := w.applyMoveIntent(p, MoveIntent{DX: 1, DY: 0})
+	if ok {
+		t.Fatalf("move into wall succeeded, want failure")
+	}
+	if got := reasonOf(t, events); got != ReasonIntentMoveBlocked {
+		t.Fatalf("reason = %q, want %q", got, ReasonIntentMoveBlocked)
 	}
 }
 
-func TestApplyMoveOntoWater(t *testing.T) {
+func TestApplyMoveIntentOntoWater(t *testing.T) {
 	src := testTiles{
 		Position{X: 1, Y: 0}: {Terrain: TerrainOcean},
 	}
 	w := newTestWorld(src)
 	_, _ = w.ApplyCommand(JoinCmd{PlayerID: "p1", Name: "Alice"})
-	_, err := w.ApplyCommand(MoveCmd{PlayerID: "p1", DX: 1, DY: 0})
-	if !errors.Is(err, ErrBlocked) {
-		t.Fatalf("err = %v, want ErrBlocked", err)
+	p, _ := w.PlayerByID("p1")
+	events, ok := w.applyMoveIntent(p, MoveIntent{DX: 1, DY: 0})
+	if ok {
+		t.Fatalf("move onto water succeeded, want failure")
+	}
+	if got := reasonOf(t, events); got != ReasonIntentMoveBlocked {
+		t.Fatalf("reason = %q, want %q", got, ReasonIntentMoveBlocked)
 	}
 }
 
-func TestApplyMoveOntoAnotherPlayer(t *testing.T) {
+func TestApplyMoveIntentOntoAnotherPlayer(t *testing.T) {
 	// Manually place two players on adjacent tiles — the spawn spiral's
-	// natural next position is diagonal, which would hit ErrInvalidMove
-	// before reaching the occupancy check.
+	// natural next position is diagonal, which would hit
+	// ReasonIntentMoveInvalid before reaching the occupancy check.
 	w := newTestWorld(testTiles{})
 	at := Position{X: 0, Y: 0}
 	next := Position{X: 1, Y: 0}
@@ -190,9 +213,12 @@ func TestApplyMoveOntoAnotherPlayer(t *testing.T) {
 	w.positions["p2"] = next
 	w.occupants[next] = p2
 
-	_, err = w.ApplyCommand(MoveCmd{PlayerID: "p1", DX: 1, DY: 0})
-	if !errors.Is(err, ErrBlocked) {
-		t.Fatalf("err = %v, want ErrBlocked", err)
+	events, ok := w.applyMoveIntent(p1, MoveIntent{DX: 1, DY: 0})
+	if ok {
+		t.Fatalf("move onto occupied tile succeeded, want failure")
+	}
+	if got := reasonOf(t, events); got != ReasonIntentMoveBlocked {
+		t.Fatalf("reason = %q, want %q", got, ReasonIntentMoveBlocked)
 	}
 }
 

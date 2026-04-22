@@ -10,6 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/worldgen"
 	"github.com/Rioverde/gongeons/internal/ui/locale"
 )
 
@@ -62,10 +63,45 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		cmd := m.keepListening()
 		return m, cmd
+	case sessionAcceptedMsg:
+		return m.handleSessionAccepted(v)
+	case sessionTickMsg:
+		applySessionEvent(m, v.evt)
+		return m, pumpSessionEventsCmd(m.ctx, m.sessionEvents)
+	case sessionMoveErrorMsg:
+		// Session-mode move errors mirror the gRPC serverErrorMsg path:
+		// log the localized default and keep the session open. The raw
+		// server error is logged to stderr via renderServerError's
+		// fallback so developers can still trace rule-violation reasons.
+		m.appendLogDefault(locale.Tr(m.lang, locale.KeyErrorUnknown))
+		return m, nil
 	case netErrorMsg:
 		return m.handleNetError(v), nil
 	}
 	return m, nil
+}
+
+// handleSessionAccepted folds the post-join result from JoinSession
+// into the Model. The PlayerID anchors "me" for rendering, the world
+// seed spins up a local influenceSource for cosmetic tint sampling,
+// and the initial snapshot is applied synchronously so the first
+// frame renders without waiting on a pump event. The Subscribe call
+// installs the in-process event feed and the returned unsubscribe is
+// stored so Quit and netError paths can tear it down symmetrically.
+func (m *Model) handleSessionAccepted(v sessionAcceptedMsg) (tea.Model, tea.Cmd) {
+	m.myID = v.Result.PlayerID
+	m.worldSeed = v.Result.WorldSeed
+	m.influenceSource = worldgen.NewInfluenceSampler(v.Result.WorldSeed)
+	events, unsub := m.sessionSvc.Subscribe(m.ctx, m.myID)
+	m.sessionEvents = events
+	m.sessionUnsub = unsub
+	if v.Result.Snapshot != nil {
+		applySnapshot(m, v.Result.Snapshot)
+	}
+	m.phase = phasePlaying
+	m.status = ""
+	m.approached = approachedLandmark{}
+	return m, pumpSessionEventsCmd(m.ctx, m.sessionEvents)
 }
 
 // handleKey is the tea.KeyMsg dispatcher. Quit is handled globally so
@@ -76,6 +112,7 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.cancel != nil {
 			m.cancel()
 		}
+		m.teardownSession()
 		return m, tea.Quit
 	}
 	switch m.phase {
@@ -219,36 +256,92 @@ func (m *Model) confirmCharacterCreation() (tea.Model, tea.Cmd) {
 	m.statsError = ""
 	m.phase = phaseConnecting
 	m.status = locale.Tr(m.lang, locale.KeyStatusConnecting, "Address", m.serverAddr)
+	if m.sessionSvc != nil {
+		viewW, viewH := viewportForTerm(m.termWidth, m.termHeight)
+		name := strings.TrimSpace(m.nameInput.Value())
+		stats := game.CoreStats{
+			Strength:     m.stats[statIdxStrength],
+			Dexterity:    m.stats[statIdxDexterity],
+			Constitution: m.stats[statIdxConstitution],
+			Intelligence: m.stats[statIdxIntelligence],
+			Wisdom:       m.stats[statIdxWisdom],
+			Charisma:     m.stats[statIdxCharisma],
+		}
+		dims := viewportDims{Width: viewW, Height: viewH}
+		return m, tea.Batch(joinSessionCmd(m.sessionSvc, name, dims, stats), m.spinner.Tick)
+	}
 	return m, tea.Batch(connectCmd(m.ctx, m.serverAddr), m.spinner.Tick)
 }
 
-// handleKeyPlaying turns WASD/arrows into a MoveCmd on the outbox.
+// teardownSession clears per-session state when the model is exiting
+// (Quit, netError, or a stream teardown). Idempotent: safe to call when
+// no session is active. Drains the unsubscribe and LeaveSession calls
+// symmetrically so the server-side session hub releases the channel and
+// the world releases the player slot at the same moment.
+func (m *Model) teardownSession() {
+	if m.sessionUnsub != nil {
+		m.sessionUnsub()
+		m.sessionUnsub = nil
+	}
+	if m.sessionSvc != nil && m.myID != "" {
+		m.sessionSvc.LeaveSession(m.myID)
+	}
+	m.sessionEvents = nil
+}
+
+// handleKeyPlaying turns WASD/arrows into a move command. In session
+// mode the command flows through sendMoveSessionCmd straight into the
+// in-process Service; in gRPC mode it serialises onto the outbox. The
+// two paths share everything else — phase transitions, region logic,
+// event rendering — so only the transport differs.
 func (m *Model) handleKeyPlaying(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	dx, dy, ok := moveDeltaFor(msg)
+	if !ok {
+		return m, nil
+	}
+	if m.sessionSvc != nil {
+		return m, sendMoveSessionCmd(m.sessionSvc, m.myID, dx, dy)
+	}
 	if m.outbox == nil {
 		return m, nil
 	}
+	return m, sendMoveCmd(m.outbox, dx, dy)
+}
+
+// moveDeltaFor decodes a key press into a four-directional step, or
+// reports ok=false when the key is not a movement key. Split out so
+// handleKeyPlaying stays one branch on transport mode instead of
+// duplicating the key.Matches ladder twice.
+func moveDeltaFor(msg tea.KeyMsg) (int, int, bool) {
 	switch {
 	case key.Matches(msg, Keys.Up):
-		return m, sendMoveCmd(m.outbox, 0, -1)
+		return 0, -1, true
 	case key.Matches(msg, Keys.Down):
-		return m, sendMoveCmd(m.outbox, 0, +1)
+		return 0, +1, true
 	case key.Matches(msg, Keys.Left):
-		return m, sendMoveCmd(m.outbox, -1, 0)
+		return -1, 0, true
 	case key.Matches(msg, Keys.Right):
-		return m, sendMoveCmd(m.outbox, +1, 0)
+		return +1, 0, true
 	}
-	return m, nil
+	return 0, 0, false
 }
 
 // handleResize stores the new terminal dimensions and, if we are already
 // playing, pushes the fresh viewport size to the server so the next
-// snapshot is rendered at the new terminal area.
+// snapshot is rendered at the new terminal area. Session and gRPC
+// transports use the same computed dims — only the Cmd factory differs.
 func (m *Model) handleResize(v tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
 	m.termWidth = v.Width
 	m.termHeight = v.Height
 	m.help.Width = v.Width
-	if m.phase == phasePlaying && m.outbox != nil {
-		w, h := viewportForTerm(v.Width, v.Height)
+	if m.phase != phasePlaying {
+		return m, nil
+	}
+	w, h := viewportForTerm(v.Width, v.Height)
+	if m.sessionSvc != nil {
+		return m, sendViewportSessionCmd(m.sessionSvc, m.myID, w, h)
+	}
+	if m.outbox != nil {
 		return m, sendViewportCmd(m.outbox, w, h)
 	}
 	return m, nil
@@ -275,7 +368,9 @@ func (m *Model) handleConnected(v connectedMsg) (tea.Model, tea.Cmd) {
 
 // handleNetError moves the UI into the disconnected phase and tears
 // down every piece of network state owned by the Model. It is safe to
-// call repeatedly; idempotency keeps the teardown path simple.
+// call repeatedly; idempotency keeps the teardown path simple. Session
+// mode teardown (unsubscribe + LeaveSession) runs on the same path so
+// an SSH disconnect releases the server-side player slot.
 func (m *Model) handleNetError(v netErrorMsg) *Model {
 	if m.cancel != nil {
 		m.cancel()
@@ -292,6 +387,7 @@ func (m *Model) handleNetError(v netErrorMsg) *Model {
 		m.conn = nil
 	}
 	m.stream = nil
+	m.teardownSession()
 	m.err = v.Err
 	if v.Err != nil {
 		m.status = v.Err.Error()

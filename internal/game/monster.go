@@ -10,6 +10,12 @@ var _ Combatant = (*Monster)(nil)
 // controlled and player-controlled entities resolve through a single tick
 // pipeline without special casing. Monsters without a registry entry are
 // constructed with DefaultCoreStats (all 10s — a neutral baseline).
+//
+// Position is the monster's current world coordinate. Admin insertion
+// via AddMonster places the monster at the origin; future AI paths
+// will place monsters via AddMonsterAt at spawn time. Move intents
+// resolved inside Tick update Position atomically with world-side
+// occupancy bookkeeping.
 type Monster struct {
 	ID    string    `json:"id"`
 	Name  string    `json:"name"`
@@ -19,10 +25,11 @@ type Monster struct {
 	HP    int `json:"hp"`
 	Mana  int `json:"mana"`
 
-	Speed      int    `json:"speed"`
-	Energy     int    `json:"energy"`
-	Initiative int    `json:"initiative"`
-	Intent     Intent `json:"-"`
+	Speed      int      `json:"speed"`
+	Energy     int      `json:"energy"`
+	Initiative int      `json:"initiative"`
+	Position   Position `json:"position"`
+	Intent     Intent   `json:"-"`
 }
 
 // TakeDamage reduces HP by the given amount, clamping at zero. Monster

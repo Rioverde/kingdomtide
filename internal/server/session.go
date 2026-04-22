@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/google/uuid"
 
@@ -44,14 +43,11 @@ func (s *Service) JoinSession(
 	if name == "" {
 		return SessionJoinResult{}, errors.New("session join: name required")
 	}
-	if stats == (game.CoreStats{}) {
-		stats = game.DefaultCoreStats()
-	} else if _, err := game.NewStatsPointBuy(
-		stats.Strength, stats.Dexterity, stats.Constitution,
-		stats.Intelligence, stats.Wisdom, stats.Charisma,
-	); err != nil {
-		return SessionJoinResult{}, fmt.Errorf("session join: invalid stats: %w", err)
+	validated, err := validateDomainJoinStats(stats)
+	if err != nil {
+		return SessionJoinResult{}, err
 	}
+	stats = validated
 
 	playerID := uuid.NewString()
 	spawn, snap, events, err := s.bootJoin(playerID, name, dims.toInternal(), stats)
@@ -74,16 +70,26 @@ func (s *Service) JoinSession(
 // is internal to Service; exposing the channel directly keeps the
 // session package free of server-internals awareness.
 //
-// Contract: callers MUST either drain the channel or call the returned
-// unsubscribe function promptly — the broadcast path uses a non-blocking
-// send and will drop events for stuck subscribers, but an undrained
-// channel that is never unsubscribed leaks the buffer until Service
-// shutdown.
-func (s *Service) Subscribe(playerID string) (<-chan SessionEvent, func()) {
+// ctx is the per-session context (typically the SSH session's context).
+// A watcher goroutine fires unsub when ctx is cancelled, so an SSH
+// disconnect automatically releases the hub slot even if the caller
+// forgets to invoke unsub. The returned unsub remains idempotent and
+// callers are still encouraged to invoke it explicitly on graceful
+// teardown so the server-side cleanup does not wait on a
+// transport-level timeout.
+//
+// Contract: callers MUST either drain the channel or let the ctx
+// watcher unsubscribe them promptly — the broadcast path uses a
+// non-blocking send and will drop events for stuck subscribers, but
+// an undrained channel that is never unsubscribed leaks the buffer
+// until Service shutdown.
+func (s *Service) Subscribe(ctx context.Context, playerID string) (<-chan SessionEvent, func()) {
 	if s.sessions == nil {
 		s.sessions = newSessionHub(s.log)
 	}
-	return s.sessions.subscribe(playerID)
+	ch, unsub := s.sessions.subscribe(playerID)
+	go s.ctxWatch(ctx, playerID, unsub)
+	return ch, unsub
 }
 
 // LeaveSession fires a LeaveCmd and broadcasts the resulting events.
@@ -162,18 +168,14 @@ func (s *Service) publishSnapshotsToSessions(snaps map[string]*pb.Snapshot) {
 	}
 }
 
-// ctxWatch is a small helper for sessions that want to unsubscribe when
-// the per-session ssh context is cancelled. The returned goroutine
-// exits cleanly both on ctx.Done() (SSH connection closing) and when
-// done is closed (explicit session teardown). Kept here rather than in
-// internal/session so sessions have a single entry point into the
-// Service's cleanup contract.
-func (s *Service) ctxWatch(ctx context.Context, done <-chan struct{}, unsub func()) {
-	go func() {
-		select {
-		case <-ctx.Done():
-		case <-done:
-		}
-		unsub()
-	}()
+// ctxWatch is the goroutine body that unsubscribes a session when the
+// per-session SSH context is cancelled. Blocks on ctx.Done() and then
+// calls unsub; because unsub is idempotent (guarded by sync.Once in
+// the hub) a concurrent explicit teardown remains safe. playerID is
+// captured for diagnostic logging when the future cancellation path
+// needs to distinguish between many open sessions.
+func (s *Service) ctxWatch(ctx context.Context, playerID string, unsub func()) {
+	<-ctx.Done()
+	s.log.Debug("session ctx cancelled, unsubscribing", "id", playerID)
+	unsub()
 }

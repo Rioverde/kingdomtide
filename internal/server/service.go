@@ -192,7 +192,18 @@ func validateJoinStats(pbStats *pb.CoreStats) (game.CoreStats, error) {
 	if pbStats == nil {
 		return game.DefaultCoreStats(), nil
 	}
-	stats := coreStatsFromPB(pbStats)
+	return validateDomainJoinStats(coreStatsFromPB(pbStats))
+}
+
+// validateDomainJoinStats is the transport-agnostic half of
+// validateJoinStats: runs Point Buy validation on a domain CoreStats
+// value and returns the same DefaultCoreStats fallback / localized
+// status shape. Both the gRPC readJoinFrame path (via validateJoinStats)
+// and the SSH JoinSession path call this helper so wire-format drift
+// (pb vs. direct domain value) never drifts the error shape. A localized
+// rejection always carries the KeyErrorInvalidStats message_id so the
+// client's catalog lookup resolves identically across transports.
+func validateDomainJoinStats(stats game.CoreStats) (game.CoreStats, error) {
 	if stats == (game.CoreStats{}) {
 		return game.DefaultCoreStats(), nil
 	}

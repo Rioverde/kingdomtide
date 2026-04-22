@@ -11,16 +11,21 @@ type TileSource interface {
 
 // World is the authoritative in-memory state of a single match. It combines
 // an immutable, pluggable TileSource with mutable runtime overlays — the
-// player registry, monster registry, and the occupancy map. World is NOT
+// player registry, monster registry, and the occupancy maps. World is NOT
 // safe for concurrent use; callers (server) own the lock.
 type World struct {
 	source    TileSource
 	players   map[string]*Player
 	monsters  map[string]*Monster
 	positions map[string]Position
-	// occupants shadows the TileSource with runtime occupant info. TileAt
-	// merges the two on read so the TileSource stays read-only.
+	// occupants shadows the TileSource with runtime player occupant info.
+	// TileAt merges it in on read so the TileSource stays read-only.
 	occupants map[Position]*Player
+	// monsterOccupants is the monster-side occupancy map. Kept disjoint
+	// from occupants (players) so the wire-level mapper can continue to
+	// switch on *game.Player for player glyphs; monster glyphs will
+	// arrive via a dedicated mapping path when AI ships.
+	monsterOccupants map[Position]*Monster
 	// seed is the world-level entropy shared with anchor geometry and the
 	// region source. Zero when unset; RegionAt tolerates that by returning a
 	// placeholder Region.
@@ -89,11 +94,12 @@ func NewWorld(source TileSource, opts ...WorldOption) *World {
 // pipeline. Accepts the same WorldOptions as NewWorld.
 func NewWorldFromSource(source TileSource, opts ...WorldOption) *World {
 	w := &World{
-		source:    source,
-		players:   make(map[string]*Player),
-		monsters:  make(map[string]*Monster),
-		positions: make(map[string]Position),
-		occupants: make(map[Position]*Player),
+		source:           source,
+		players:          make(map[string]*Player),
+		monsters:         make(map[string]*Monster),
+		positions:        make(map[string]Position),
+		occupants:        make(map[Position]*Player),
+		monsterOccupants: make(map[Position]*Monster),
 	}
 	for _, opt := range opts {
 		opt(w)
@@ -211,19 +217,42 @@ func (w *World) Monsters() map[string]*Monster {
 }
 
 // AddMonster inserts m into the world's monster registry. If a monster
-// with the same ID already exists it is replaced (idempotent). This is an
-// admin/fixture operation; no geometric collision check is performed —
-// tile-occupancy semantics for monsters are deferred to a later phase.
+// with the same ID already exists it is replaced (idempotent) and the
+// previous monster's occupancy entry is cleared. The new monster lands
+// on its Position field's coordinate (origin when left zero-valued) and
+// its spot is recorded in monsterOccupants so applyMonsterMoveIntent
+// observes the tile as occupied. This remains an admin/fixture entry
+// point; geometric legality (passable terrain, no player present) is
+// the caller's responsibility at admin-insert time.
 func (w *World) AddMonster(m *Monster) {
 	if w.monsters == nil {
 		w.monsters = make(map[string]*Monster)
 	}
+	if w.monsterOccupants == nil {
+		w.monsterOccupants = make(map[Position]*Monster)
+	}
+	if prev, ok := w.monsters[m.ID]; ok {
+		// Clear the previous occupancy slot only if the stored map entry
+		// still points at that monster — guards against replacing a
+		// monster that was already moved off its original tile.
+		if stored, ok := w.monsterOccupants[prev.Position]; ok && stored == prev {
+			delete(w.monsterOccupants, prev.Position)
+		}
+	}
 	w.monsters[m.ID] = m
+	w.monsterOccupants[m.Position] = m
 }
 
-// RemoveMonster deletes the monster with the given id from the registry.
-// No-op when no such monster exists.
+// RemoveMonster deletes the monster with the given id from the registry
+// and clears its occupancy slot. No-op when no such monster exists.
 func (w *World) RemoveMonster(id string) {
+	m, ok := w.monsters[id]
+	if !ok {
+		return
+	}
+	if stored, ok := w.monsterOccupants[m.Position]; ok && stored == m {
+		delete(w.monsterOccupants, m.Position)
+	}
 	delete(w.monsters, id)
 }
 
