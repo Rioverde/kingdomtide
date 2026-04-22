@@ -109,6 +109,15 @@ other = "Статы"
 [stats.empty]
 other = "(параметров пока нет)"
 
+[stats.hp]
+other = "HP"
+
+[stats.mp]
+other = "MP"
+
+[stats.speed]
+other = "СКР"
+
 [panel.events_header]
 other = "События"
 

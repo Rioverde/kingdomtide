@@ -158,36 +158,114 @@ func (m *Model) viewPlaying() string {
 		leftCol, strings.Repeat(" ", sideGap), rightCol)
 }
 
-// renderStatsBox renders the right-side character stats panel. The first
-// content line is the player's display name, followed by the stats
-// placeholder. Future iterations will list HP, Agility, Intellect, and
-// other character parameters once the stats model is wired into the
-// snapshot pipeline.
+// renderStatsBox renders the right-side character stats panel.
 //
-//	┌──────────────┐
-//	│ Name         │       ← player name
-//	│ HP:   12/20  │       ← future stat rows
-//	│ AGI:      8  │
-//	│ INT:     14  │
-//	└──────────────┘
+// Before join (no coreStats set) it shows the player name and a
+// placeholder so the box is never empty. After phaseCharacterCreation
+// completes the box renders the full block:
+//
+//	{name — yellow bold}
+//
+//	STR  8  -1
+//	DEX 10   0
+//	CON 14  +2
+//	INT 10   0
+//	WIS 10   0
+//	CHA 10   0
+//
+//	HP  22/22
+//	MP   5
+//	SPD  1
+//
+// Stat labels come from the creation.stat.* locale keys so they are
+// already localised (EN: STR/DEX/…, RU: СИЛ/ЛОВ/…). The derived rows
+// use stats.hp / stats.mp / stats.speed. Modifiers are right-aligned
+// to a fixed 3-char width: "+2", " 0", "-1".
 func (m *Model) renderStatsBox() string {
-	empty := locale.Tr(m.lang, locale.KeyStatsEmpty)
 	innerW := sidebarWidth - gridBoxChrome
 	if innerW < 4 {
 		innerW = 4
 	}
+
+	nameStyled := ""
 	name := displayName(m.nameInput.Value(), m.myID)
-	var content string
 	if name != "" {
-		nameStyled := lipgloss.NewStyle().
+		nameStyled = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("11")).
 			Bold(true).
 			Render(name)
-		content = nameStyled + "\n" + empty
-	} else {
-		content = empty
 	}
-	return styles.playerL.Width(innerW).Render(content)
+
+	// Before character creation is confirmed, show the placeholder.
+	zero := game.CoreStats{}
+	if m.coreStats == zero {
+		empty := locale.Tr(m.lang, locale.KeyStatsEmpty)
+		var content string
+		if nameStyled != "" {
+			content = nameStyled + "\n" + empty
+		} else {
+			content = empty
+		}
+		return styles.playerL.Width(innerW).Render(content)
+	}
+
+	// Stat label keys and the matching raw values, in order.
+	statKeys := [statsCount]string{
+		locale.KeyCreationStatStrength,
+		locale.KeyCreationStatDexterity,
+		locale.KeyCreationStatConstitution,
+		locale.KeyCreationStatIntelligence,
+		locale.KeyCreationStatWisdom,
+		locale.KeyCreationStatCharisma,
+	}
+	statVals := [statsCount]int{
+		m.coreStats.Strength,
+		m.coreStats.Dexterity,
+		m.coreStats.Constitution,
+		m.coreStats.Intelligence,
+		m.coreStats.Wisdom,
+		m.coreStats.Charisma,
+	}
+
+	var b strings.Builder
+	if nameStyled != "" {
+		b.WriteString(nameStyled)
+		b.WriteByte('\n')
+	}
+	b.WriteByte('\n') // spacer after name
+
+	for i := range statsCount {
+		label := locale.Tr(m.lang, statKeys[i])
+		val := statVals[i]
+		mod := game.Modifier(val)
+		var modStr string
+		switch {
+		case mod > 0:
+			modStr = fmt.Sprintf("+%d", mod)
+		case mod < 0:
+			modStr = fmt.Sprintf("%d", mod)
+		default:
+			modStr = " 0"
+		}
+		// Format: "LBL  VV  MOD" — label left, value and modifier right-padded.
+		b.WriteString(fmt.Sprintf("%-3s %2d %3s\n", label, val, modStr))
+	}
+
+	b.WriteByte('\n') // spacer before derived stats
+
+	maxHP := m.coreStats.MaxHP()
+	mp := m.coreStats.Mana()
+	spd := m.coreStats.DerivedSpeed()
+
+	hpLabel := locale.Tr(m.lang, locale.KeyStatsHP)
+	mpLabel := locale.Tr(m.lang, locale.KeyStatsMP)
+	spdLabel := locale.Tr(m.lang, locale.KeyStatsSpeed)
+
+	b.WriteString(fmt.Sprintf("%-3s %d/%d\n", hpLabel, m.currentHP, maxHP))
+	b.WriteString(fmt.Sprintf("%-3s %d\n", mpLabel, mp))
+	b.WriteString(fmt.Sprintf("%-3s %d", spdLabel, spd))
+
+	return styles.playerL.Width(innerW).Render(b.String())
 }
 
 // renderMapBox wraps the tile grid and the three-row in-map status strip

@@ -254,21 +254,23 @@ func (m *Model) confirmCharacterCreation() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	m.statsError = ""
+	cs := game.CoreStats{
+		Strength:     m.stats[statIdxStrength],
+		Dexterity:    m.stats[statIdxDexterity],
+		Constitution: m.stats[statIdxConstitution],
+		Intelligence: m.stats[statIdxIntelligence],
+		Wisdom:       m.stats[statIdxWisdom],
+		Charisma:     m.stats[statIdxCharisma],
+	}
+	m.coreStats = cs
+	m.currentHP = cs.MaxHP()
 	m.phase = phaseConnecting
 	m.status = locale.Tr(m.lang, locale.KeyStatusConnecting, "Address", m.serverAddr)
 	if m.sessionSvc != nil {
 		viewW, viewH := viewportForTerm(m.termWidth, m.termHeight)
 		name := strings.TrimSpace(m.nameInput.Value())
-		stats := game.CoreStats{
-			Strength:     m.stats[statIdxStrength],
-			Dexterity:    m.stats[statIdxDexterity],
-			Constitution: m.stats[statIdxConstitution],
-			Intelligence: m.stats[statIdxIntelligence],
-			Wisdom:       m.stats[statIdxWisdom],
-			Charisma:     m.stats[statIdxCharisma],
-		}
 		dims := viewportDims{Width: viewW, Height: viewH}
-		return m, tea.Batch(joinSessionCmd(m.sessionSvc, name, dims, stats), m.spinner.Tick)
+		return m, tea.Batch(joinSessionCmd(m.sessionSvc, name, dims, cs), m.spinner.Tick)
 	}
 	return m, tea.Batch(connectCmd(m.ctx, m.serverAddr), m.spinner.Tick)
 }
