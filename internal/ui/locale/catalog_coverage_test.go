@@ -83,6 +83,7 @@ func TestNamingCatalogCoverage(t *testing.T) {
 	domains := []domainCase{
 		{"region", "region", worldgen.RegionBounds()},
 		{"landmark", "landmark", worldgen.LandmarkBounds()},
+		{"settlement", "settlement", worldgen.SettlementBounds()},
 	}
 
 	for _, c := range catalogs {

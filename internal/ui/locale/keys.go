@@ -263,6 +263,7 @@ func AllKeys() []string {
 
 		KeyRegionNameCharacterPrefix,
 		KeyLandmarkNameCharacterPrefix,
+		KeySettlementNameCharacterPrefix,
 	}
 }
 
@@ -293,6 +294,12 @@ const KeyRegionNameCharacterPrefix = "region.name.character_prefix"
 // FormatCharacterPrefix template used when composing a landmark display
 // name from a naming.Parts record whose Format is FormatCharacterPrefix.
 const KeyLandmarkNameCharacterPrefix = "landmark.name.character_prefix"
+
+// KeySettlementNameCharacterPrefix is the catalog key for the
+// FormatCharacterPrefix template used when composing a settlement
+// display name from a naming.Parts record whose Format is
+// FormatCharacterPrefix.
+const KeySettlementNameCharacterPrefix = "settlement.name.character_prefix"
 
 // RegionNamePatternKey returns the kind-pattern template key for a region
 // sub-kind (biome family, e.g. "forest") and zero-based PatternIndex.
@@ -326,4 +333,18 @@ func LandmarkPrefixKey(character string, idx uint8) string {
 // "landmark.approach.<kind_key>".
 func LandmarkApproachKey(kindKey string) string {
 	return "landmark.approach." + kindKey
+}
+
+// SettlementNamePatternKey returns the kind-pattern template key for a
+// settlement sub-kind and zero-based PatternIndex. The sub-kind is the
+// "<culture>.<kind>" pair (e.g. "drevan.village"). Shape:
+// "settlement.name.<culture>.<kind>.kind_pattern.<index>".
+func SettlementNamePatternKey(subKind string, idx uint8) string {
+	return "settlement.name." + subKind + ".kind_pattern." + strconv.Itoa(int(idx))
+}
+
+// SettlementPrefixKey returns the character-prefix catalog key for a
+// settlement. Shape: "settlement.prefix.<character>.<index>".
+func SettlementPrefixKey(character string, idx uint8) string {
+	return "settlement.prefix." + character + "." + strconv.Itoa(int(idx))
 }

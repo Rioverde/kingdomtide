@@ -59,6 +59,8 @@ func prefixKeyFor(d naming.Domain, character string, idx uint8) string {
 		return locale.RegionPrefixKey(character, idx)
 	case naming.DomainLandmark:
 		return locale.LandmarkPrefixKey(character, idx)
+	case naming.DomainSettlement:
+		return locale.SettlementPrefixKey(character, idx)
 	}
 	return "" // unreachable for any production Domain
 }
@@ -71,6 +73,8 @@ func patternKeyFor(d naming.Domain, subKind string, idx uint8) string {
 		return locale.RegionNamePatternKey(subKind, idx)
 	case naming.DomainLandmark:
 		return locale.LandmarkNamePatternKey(subKind, idx)
+	case naming.DomainSettlement:
+		return locale.SettlementNamePatternKey(subKind, idx)
 	}
 	return "" // unreachable for any production Domain
 }
@@ -84,6 +88,8 @@ func characterPrefixKeyFor(d naming.Domain) string {
 		return locale.KeyRegionNameCharacterPrefix
 	case naming.DomainLandmark:
 		return locale.KeyLandmarkNameCharacterPrefix
+	case naming.DomainSettlement:
+		return locale.KeySettlementNameCharacterPrefix
 	}
 	return "" // unreachable for any production Domain
 }

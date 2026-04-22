@@ -536,3 +536,236 @@ other = "Земля разверзается перед тобой — {{.Name}}
 
 [landmark.approach.shrine]
 other = "Тихое святилище ждёт у тропы — {{.Name}}."
+
+# -----------------------------------------------------------------------------
+# Поселения — именование (инфраструктура Phase 3f, без размещения).
+#
+# Собирается composeName в internal/ui/naming_compose.go по записи
+# naming.Parts. Паттерны индексируются парой "<культура>.<вид>",
+# префиксы — ключом RegionCharacter.Key().
+# -----------------------------------------------------------------------------
+
+[settlement.name.character_prefix]
+other = "{{.Prefix}} {{.Body}}"
+
+# --- Drevan (латино-славянское) ---
+[settlement.name.drevan.village.kind_pattern.0]
+other = "{{.Body}}-дол"
+[settlement.name.drevan.village.kind_pattern.1]
+other = "{{.Body}}-ручей"
+[settlement.name.drevan.village.kind_pattern.2]
+other = "Малый {{.Body}}"
+
+[settlement.name.drevan.town.kind_pattern.0]
+other = "{{.Body}}-бор"
+[settlement.name.drevan.town.kind_pattern.1]
+other = "{{.Body}}-брод"
+[settlement.name.drevan.town.kind_pattern.2]
+other = "{{.Body}}-холм"
+
+[settlement.name.drevan.city.kind_pattern.0]
+other = "{{.Body}}-град"
+[settlement.name.drevan.city.kind_pattern.1]
+other = "Покой {{.Body}}"
+[settlement.name.drevan.city.kind_pattern.2]
+other = "Старый {{.Body}}"
+
+[settlement.name.drevan.keep.kind_pattern.0]
+other = "Крепость {{.Body}}"
+[settlement.name.drevan.keep.kind_pattern.1]
+other = "{{.Body}}-твердыня"
+[settlement.name.drevan.keep.kind_pattern.2]
+other = "Форт {{.Body}}"
+
+[settlement.name.drevan.ruin.kind_pattern.0]
+other = "Руины {{.Body}}"
+[settlement.name.drevan.ruin.kind_pattern.1]
+other = "Старый {{.Body}}"
+[settlement.name.drevan.ruin.kind_pattern.2]
+other = "Павший {{.Body}}"
+
+# --- Wild (степные/тюркские корни) ---
+[settlement.name.wild.village.kind_pattern.0]
+other = "{{.Body}}-стойбище"
+[settlement.name.wild.village.kind_pattern.1]
+other = "{{.Body}}-кочевье"
+[settlement.name.wild.village.kind_pattern.2]
+other = "{{.Body}}-род"
+
+[settlement.name.wild.town.kind_pattern.0]
+other = "{{.Body}}-простор"
+[settlement.name.wild.town.kind_pattern.1]
+other = "{{.Body}}-селение"
+[settlement.name.wild.town.kind_pattern.2]
+other = "{{.Body}}-племя"
+
+[settlement.name.wild.city.kind_pattern.0]
+other = "Вече {{.Body}}"
+[settlement.name.wild.city.kind_pattern.1]
+other = "Великий {{.Body}}"
+[settlement.name.wild.city.kind_pattern.2]
+other = "{{.Body}}-становище"
+
+[settlement.name.wild.keep.kind_pattern.0]
+other = "Оплот {{.Body}}"
+[settlement.name.wild.keep.kind_pattern.1]
+other = "{{.Body}}-клык"
+[settlement.name.wild.keep.kind_pattern.2]
+other = "Логово {{.Body}}"
+
+[settlement.name.wild.ruin.kind_pattern.0]
+other = "Мёртвый {{.Body}}"
+[settlement.name.wild.ruin.kind_pattern.1]
+other = "Кости {{.Body}}"
+[settlement.name.wild.ruin.kind_pattern.2]
+other = "Сломленный {{.Body}}"
+
+# --- Fallen (готические) ---
+[settlement.name.fallen.village.kind_pattern.0]
+other = "{{.Body}}-юдоль"
+[settlement.name.fallen.village.kind_pattern.1]
+other = "Последний {{.Body}}"
+[settlement.name.fallen.village.kind_pattern.2]
+other = "{{.Body}}-исход"
+
+[settlement.name.fallen.town.kind_pattern.0]
+other = "Серый {{.Body}}"
+[settlement.name.fallen.town.kind_pattern.1]
+other = "{{.Body}}-скорбь"
+[settlement.name.fallen.town.kind_pattern.2]
+other = "{{.Body}} в Пепле"
+
+[settlement.name.fallen.city.kind_pattern.0]
+other = "Чёрный {{.Body}}"
+[settlement.name.fallen.city.kind_pattern.1]
+other = "{{.Body}} Забытый"
+[settlement.name.fallen.city.kind_pattern.2]
+other = "{{.Body}}-что-был"
+
+[settlement.name.fallen.keep.kind_pattern.0]
+other = "Бледный {{.Body}}"
+[settlement.name.fallen.keep.kind_pattern.1]
+other = "{{.Body}}-склеп"
+[settlement.name.fallen.keep.kind_pattern.2]
+other = "Сумрачный {{.Body}}"
+
+[settlement.name.fallen.ruin.kind_pattern.0]
+other = "Остатки {{.Body}}"
+[settlement.name.fallen.ruin.kind_pattern.1]
+other = "{{.Body}} Забвения"
+[settlement.name.fallen.ruin.kind_pattern.2]
+other = "Усыпальница {{.Body}}"
+
+# --- Plain (пасторальные русские) ---
+[settlement.name.plain.village.kind_pattern.0]
+other = "{{.Body}}-поле"
+[settlement.name.plain.village.kind_pattern.1]
+other = "{{.Body}}-луг"
+[settlement.name.plain.village.kind_pattern.2]
+other = "{{.Body}}овка"
+
+[settlement.name.plain.town.kind_pattern.0]
+other = "{{.Body}} Перекрёсток"
+[settlement.name.plain.town.kind_pattern.1]
+other = "{{.Body}}-брод"
+[settlement.name.plain.town.kind_pattern.2]
+other = "{{.Body}}-торг"
+
+[settlement.name.plain.city.kind_pattern.0]
+other = "Большой {{.Body}}"
+[settlement.name.plain.city.kind_pattern.1]
+other = "{{.Body}}-врата"
+[settlement.name.plain.city.kind_pattern.2]
+other = "{{.Body}}-на-Просторе"
+
+[settlement.name.plain.keep.kind_pattern.0]
+other = "{{.Body}}-дозор"
+[settlement.name.plain.keep.kind_pattern.1]
+other = "Чертог {{.Body}}"
+[settlement.name.plain.keep.kind_pattern.2]
+other = "Усадьба {{.Body}}"
+
+[settlement.name.plain.ruin.kind_pattern.0]
+other = "Старый {{.Body}}"
+[settlement.name.plain.ruin.kind_pattern.1]
+other = "Забытый {{.Body}}"
+[settlement.name.plain.ruin.kind_pattern.2]
+other = "{{.Body}}-что-был"
+
+# --- Префиксы по характеру региона (5 × 7 = 35) ---
+[settlement.prefix.normal.0]
+other = "Ильм"
+[settlement.prefix.normal.1]
+other = "Ручей"
+[settlement.prefix.normal.2]
+other = "Дуб"
+[settlement.prefix.normal.3]
+other = "Ясный"
+[settlement.prefix.normal.4]
+other = "Сенной"
+
+[settlement.prefix.blighted.0]
+other = "Мрачный"
+[settlement.prefix.blighted.1]
+other = "Пустой"
+[settlement.prefix.blighted.2]
+other = "Гиблый"
+[settlement.prefix.blighted.3]
+other = "Увядший"
+[settlement.prefix.blighted.4]
+other = "Кровавый"
+
+[settlement.prefix.fey.0]
+other = "Серебряный"
+[settlement.prefix.fey.1]
+other = "Лунный"
+[settlement.prefix.fey.2]
+other = "Звёздный"
+[settlement.prefix.fey.3]
+other = "Шепчущий"
+[settlement.prefix.fey.4]
+other = "Шёлковый"
+
+[settlement.prefix.ancient.0]
+other = "Древний"
+[settlement.prefix.ancient.1]
+other = "Каэр"
+[settlement.prefix.ancient.2]
+other = "Валь"
+[settlement.prefix.ancient.3]
+other = "Тор"
+[settlement.prefix.ancient.4]
+other = "Старый"
+
+[settlement.prefix.savage.0]
+other = "Железный"
+[settlement.prefix.savage.1]
+other = "Кровавый"
+[settlement.prefix.savage.2]
+other = "Волчий"
+[settlement.prefix.savage.3]
+other = "Костяной"
+[settlement.prefix.savage.4]
+other = "Утёсный"
+
+[settlement.prefix.holy.0]
+other = "Светлый"
+[settlement.prefix.holy.1]
+other = "Рассветный"
+[settlement.prefix.holy.2]
+other = "Благословенный"
+[settlement.prefix.holy.3]
+other = "Священный"
+[settlement.prefix.holy.4]
+other = "Солнечный"
+
+[settlement.prefix.wild.0]
+other = "Тернистый"
+[settlement.prefix.wild.1]
+other = "Вересковый"
+[settlement.prefix.wild.2]
+other = "Моховой"
+[settlement.prefix.wild.3]
+other = "Папоротник"
+[settlement.prefix.wild.4]
+other = "Зелёный"

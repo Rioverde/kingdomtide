@@ -545,3 +545,236 @@ other = "The ground splits open before you — {{.Name}}."
 
 [landmark.approach.shrine]
 other = "A quiet shrine waits by the path — {{.Name}}."
+
+# -----------------------------------------------------------------------------
+# Settlement naming (Phase 3f infrastructure — no placement yet).
+#
+# Composed by composeName in internal/ui/naming_compose.go from a
+# naming.Parts record. Patterns are keyed on "<culture>.<kind>" and
+# prefixes on RegionCharacter.Key().
+# -----------------------------------------------------------------------------
+
+[settlement.name.character_prefix]
+other = "{{.Prefix}} {{.Body}}"
+
+# --- Drevan (latin/slavic old-world) ---
+[settlement.name.drevan.village.kind_pattern.0]
+other = "{{.Body}}vale"
+[settlement.name.drevan.village.kind_pattern.1]
+other = "{{.Body}}brook"
+[settlement.name.drevan.village.kind_pattern.2]
+other = "Little {{.Body}}"
+
+[settlement.name.drevan.town.kind_pattern.0]
+other = "{{.Body}}borough"
+[settlement.name.drevan.town.kind_pattern.1]
+other = "{{.Body}}ford"
+[settlement.name.drevan.town.kind_pattern.2]
+other = "{{.Body}}holm"
+
+[settlement.name.drevan.city.kind_pattern.0]
+other = "{{.Body}}ham"
+[settlement.name.drevan.city.kind_pattern.1]
+other = "{{.Body}}'s Rest"
+[settlement.name.drevan.city.kind_pattern.2]
+other = "Old {{.Body}}"
+
+[settlement.name.drevan.keep.kind_pattern.0]
+other = "Keep of {{.Body}}"
+[settlement.name.drevan.keep.kind_pattern.1]
+other = "{{.Body}} Hold"
+[settlement.name.drevan.keep.kind_pattern.2]
+other = "Fort {{.Body}}"
+
+[settlement.name.drevan.ruin.kind_pattern.0]
+other = "Ruins of {{.Body}}"
+[settlement.name.drevan.ruin.kind_pattern.1]
+other = "Old {{.Body}}"
+[settlement.name.drevan.ruin.kind_pattern.2]
+other = "Fallen {{.Body}}"
+
+# --- Wild (short harsh tribal) ---
+[settlement.name.wild.village.kind_pattern.0]
+other = "{{.Body}}camp"
+[settlement.name.wild.village.kind_pattern.1]
+other = "{{.Body}}wick"
+[settlement.name.wild.village.kind_pattern.2]
+other = "{{.Body}}-kin"
+
+[settlement.name.wild.town.kind_pattern.0]
+other = "{{.Body}}reach"
+[settlement.name.wild.town.kind_pattern.1]
+other = "{{.Body}}hurst"
+[settlement.name.wild.town.kind_pattern.2]
+other = "{{.Body}}-clan"
+
+[settlement.name.wild.city.kind_pattern.0]
+other = "{{.Body}}moot"
+[settlement.name.wild.city.kind_pattern.1]
+other = "Great {{.Body}}"
+[settlement.name.wild.city.kind_pattern.2]
+other = "{{.Body}}stead"
+
+[settlement.name.wild.keep.kind_pattern.0]
+other = "{{.Body}} Stronghold"
+[settlement.name.wild.keep.kind_pattern.1]
+other = "{{.Body}}maw"
+[settlement.name.wild.keep.kind_pattern.2]
+other = "Den of {{.Body}}"
+
+[settlement.name.wild.ruin.kind_pattern.0]
+other = "Dead {{.Body}}"
+[settlement.name.wild.ruin.kind_pattern.1]
+other = "{{.Body}} Bones"
+[settlement.name.wild.ruin.kind_pattern.2]
+other = "Broken {{.Body}}"
+
+# --- Fallen (gothic/ruin-era) ---
+[settlement.name.fallen.village.kind_pattern.0]
+other = "{{.Body}} Hollow"
+[settlement.name.fallen.village.kind_pattern.1]
+other = "Last {{.Body}}"
+[settlement.name.fallen.village.kind_pattern.2]
+other = "{{.Body}}'s End"
+
+[settlement.name.fallen.town.kind_pattern.0]
+other = "Grey {{.Body}}"
+[settlement.name.fallen.town.kind_pattern.1]
+other = "{{.Body}} Mourne"
+[settlement.name.fallen.town.kind_pattern.2]
+other = "{{.Body}} in Ashes"
+
+[settlement.name.fallen.city.kind_pattern.0]
+other = "Black {{.Body}}"
+[settlement.name.fallen.city.kind_pattern.1]
+other = "{{.Body}} the Lost"
+[settlement.name.fallen.city.kind_pattern.2]
+other = "{{.Body}}-that-was"
+
+[settlement.name.fallen.keep.kind_pattern.0]
+other = "Pale {{.Body}}"
+[settlement.name.fallen.keep.kind_pattern.1]
+other = "{{.Body}} Crypt"
+[settlement.name.fallen.keep.kind_pattern.2]
+other = "Sombre {{.Body}}"
+
+[settlement.name.fallen.ruin.kind_pattern.0]
+other = "What Remains of {{.Body}}"
+[settlement.name.fallen.ruin.kind_pattern.1]
+other = "{{.Body}} the Forgotten"
+[settlement.name.fallen.ruin.kind_pattern.2]
+other = "Tomb of {{.Body}}"
+
+# --- Plain (common pastoral) ---
+[settlement.name.plain.village.kind_pattern.0]
+other = "{{.Body}}field"
+[settlement.name.plain.village.kind_pattern.1]
+other = "{{.Body}}meadow"
+[settlement.name.plain.village.kind_pattern.2]
+other = "{{.Body}}thorpe"
+
+[settlement.name.plain.town.kind_pattern.0]
+other = "{{.Body}}'s Crossing"
+[settlement.name.plain.town.kind_pattern.1]
+other = "{{.Body}}ford"
+[settlement.name.plain.town.kind_pattern.2]
+other = "{{.Body}}market"
+
+[settlement.name.plain.city.kind_pattern.0]
+other = "Greater {{.Body}}"
+[settlement.name.plain.city.kind_pattern.1]
+other = "{{.Body}}gate"
+[settlement.name.plain.city.kind_pattern.2]
+other = "{{.Body}}-on-the-Reach"
+
+[settlement.name.plain.keep.kind_pattern.0]
+other = "{{.Body}} Watch"
+[settlement.name.plain.keep.kind_pattern.1]
+other = "Hall of {{.Body}}"
+[settlement.name.plain.keep.kind_pattern.2]
+other = "{{.Body}} Manor"
+
+[settlement.name.plain.ruin.kind_pattern.0]
+other = "Old {{.Body}}"
+[settlement.name.plain.ruin.kind_pattern.1]
+other = "Forgotten {{.Body}}"
+[settlement.name.plain.ruin.kind_pattern.2]
+other = "{{.Body}}-that-was"
+
+# --- Character prefixes (5 per character × 7 characters = 35 entries) ---
+[settlement.prefix.normal.0]
+other = "Elm"
+[settlement.prefix.normal.1]
+other = "Brook"
+[settlement.prefix.normal.2]
+other = "Oak"
+[settlement.prefix.normal.3]
+other = "Fair"
+[settlement.prefix.normal.4]
+other = "Hay"
+
+[settlement.prefix.blighted.0]
+other = "Grim"
+[settlement.prefix.blighted.1]
+other = "Hollow"
+[settlement.prefix.blighted.2]
+other = "Dread"
+[settlement.prefix.blighted.3]
+other = "Wither"
+[settlement.prefix.blighted.4]
+other = "Gore"
+
+[settlement.prefix.fey.0]
+other = "Silver"
+[settlement.prefix.fey.1]
+other = "Moon"
+[settlement.prefix.fey.2]
+other = "Star"
+[settlement.prefix.fey.3]
+other = "Whisper"
+[settlement.prefix.fey.4]
+other = "Silk"
+
+[settlement.prefix.ancient.0]
+other = "Eld"
+[settlement.prefix.ancient.1]
+other = "Caer"
+[settlement.prefix.ancient.2]
+other = "Val"
+[settlement.prefix.ancient.3]
+other = "Tor"
+[settlement.prefix.ancient.4]
+other = "Old"
+
+[settlement.prefix.savage.0]
+other = "Iron"
+[settlement.prefix.savage.1]
+other = "Blood"
+[settlement.prefix.savage.2]
+other = "Wolf"
+[settlement.prefix.savage.3]
+other = "Bone"
+[settlement.prefix.savage.4]
+other = "Crag"
+
+[settlement.prefix.holy.0]
+other = "Light"
+[settlement.prefix.holy.1]
+other = "Dawn"
+[settlement.prefix.holy.2]
+other = "Blessed"
+[settlement.prefix.holy.3]
+other = "Sacred"
+[settlement.prefix.holy.4]
+other = "Solar"
+
+[settlement.prefix.wild.0]
+other = "Thorn"
+[settlement.prefix.wild.1]
+other = "Bramble"
+[settlement.prefix.wild.2]
+other = "Moss"
+[settlement.prefix.wild.3]
+other = "Fern"
+[settlement.prefix.wild.4]
+other = "Green"
