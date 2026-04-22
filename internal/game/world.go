@@ -1,6 +1,9 @@
 package game
 
-import "sort"
+import (
+	"math/rand/v2"
+	"sort"
+)
 
 // TileSource is the read-only pluggable backend that tells a World what
 // terrain sits at a given coordinate. Both procedural and hand-painted
@@ -30,6 +33,10 @@ type World struct {
 	// region source. Zero when unset; RegionAt tolerates that by returning a
 	// placeholder Region.
 	seed int64
+	// rng drives the probabilistic speed rounding in mcalcMove. Seeded
+	// deterministically from seed so replays with the same world seed
+	// produce identical combat timing. Never nil after NewWorldFromSource.
+	rng *rand.Rand
 	// regionSource produces canonical Region data per anchor. May be nil; if
 	// nil, RegionAt returns a placeholder RegionNormal region.
 	regionSource RegionSource
@@ -104,6 +111,15 @@ func NewWorldFromSource(source TileSource, opts ...WorldOption) *World {
 	for _, opt := range opts {
 		opt(w)
 	}
+	// Seed the rng deterministically from the world seed. When seed is
+	// zero (tests that skip WithSeed) we still need a non-degenerate PCG
+	// stream, so XOR-fold a non-zero constant into the second word.
+	s1 := uint64(w.seed)
+	s2 := uint64(w.seed) ^ 0x5f3759df
+	if s1 == 0 && s2 == 0 {
+		s2 = 0x5f3759df
+	}
+	w.rng = rand.New(rand.NewPCG(s1, s2))
 	return w
 }
 

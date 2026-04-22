@@ -113,7 +113,7 @@ func NewPlayer(id, name string, stats CoreStats, pos Position) (*Player, error) 
 		HP:         maxHP,
 		Mana:       stats.Mana(),
 		Speed:      stats.DerivedSpeed(),
-		Energy:     baseActionCost,
+		Energy:     BaseActionCost,
 		Initiative: stats.DerivedInitiative(),
 	}, nil
 }

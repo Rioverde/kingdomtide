@@ -32,6 +32,13 @@ var styles = struct {
 	logJoin    lipgloss.Style
 	logLeave   lipgloss.Style
 	logDefault lipgloss.Style
+
+	// hpBar and mpBar tint the HP/MP progress bars in the stats panel.
+	// Red for hit points, blue for mana — the conventional roguelike
+	// colour pairing so the player can parse the resource at a glance
+	// without reading the label.
+	hpBar lipgloss.Style
+	mpBar lipgloss.Style
 }{
 	selfPlayer:  lipgloss.NewStyle().Foreground(lipgloss.Color("15")).Bold(true),
 	otherPlayer: lipgloss.NewStyle().Foreground(lipgloss.Color("13")).Bold(true),
@@ -54,6 +61,9 @@ var styles = struct {
 	logJoin:    lipgloss.NewStyle().Foreground(lipgloss.Color("#5fd75f")),
 	logLeave:   lipgloss.NewStyle().Foreground(lipgloss.Color("#d0d0d0")),
 	logDefault: lipgloss.NewStyle(),
+
+	hpBar: lipgloss.NewStyle().Foreground(lipgloss.Color("#ff5f5f")),
+	mpBar: lipgloss.NewStyle().Foreground(lipgloss.Color("#5fafff")),
 }
 
 // landmarkStyles pairs each LandmarkKind with its foreground style. Landmarks

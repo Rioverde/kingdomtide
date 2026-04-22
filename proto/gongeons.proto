@@ -297,6 +297,16 @@ message Snapshot {
   // region at this player's position (per-player, not shared). Clients
   // use it for status-bar rendering, tint, and boundary-crossing events.
   Region          region   = 6;
+  // self_energy is the receiving player's current Energy counter for the
+  // tick system. int32 because proto has no native int; domain values
+  // are always non-negative. Private to the snapshot subject — never sent
+  // in broadcasts to other players.
+  int32           self_energy      = 7;
+  // self_energy_cost is the Energy required to perform a standard action
+  // (BaseActionCost = 12). Sent as a constant so the client can render
+  // the denominator of the energy bar (e.g. "8/12") without hard-coding
+  // the server constant.
+  int32           self_energy_cost = 8;
 }
 
 // Event is a domain event the server broadcasts to every connected client.

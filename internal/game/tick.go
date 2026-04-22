@@ -75,6 +75,24 @@ func (m *Monster) tickIntent() Intent { return m.Intent }
 // setTickIntent replaces the monster's pending Intent. Pass nil to clear.
 func (m *Monster) setTickIntent(i Intent) { m.Intent = i }
 
+// mcalcMove returns the energy gain for an entity with the given speed this
+// tick, using NetHack-style probabilistic rounding. The fractional part of
+// speed/BaseActionCost is handled stochastically: an entity with speed 9
+// contributes a guaranteed 0 (since 9 < BaseActionCost and 9%12==9) plus a
+// full BaseActionCost bonus with probability 9/12. Over many ticks the mean
+// gain equals speed exactly, but the timing is unpredictable — kiting by
+// counting "every Nth tick" no longer works. Multiples of BaseActionCost
+// (12, 24, …) have zero leftover and are entirely deterministic.
+func (w *World) mcalcMove(speed int) int {
+	mmove := speed
+	leftover := mmove % BaseActionCost
+	mmove -= leftover
+	if leftover > 0 && w.rng.IntN(BaseActionCost) < leftover {
+		mmove += BaseActionCost
+	}
+	return mmove
+}
+
 // Tick advances the world one simulation step.
 //
 // Every entity (players and monsters) accumulates Speed into Energy.
@@ -97,7 +115,18 @@ func (w *World) Tick() []Event {
 	entities := w.orderedEntities()
 	events := make([]Event, 0, len(entities))
 	for _, e := range entities {
-		e.setTickEnergy(e.tickEnergy() + e.tickSpeed())
+		// Accumulate and cap in one step. Clamping to BaseActionCost
+		// handles two symptoms of unbounded growth: (1) idle sessions,
+		// where Energy otherwise grows at Speed × tick-rate forever
+		// (e.g. ~140/sec at SpeedNormal, 10 Hz) and surfaces as nonsense
+		// like "1056/12" in the stats panel; (2) fast entities
+		// (Speed > BaseActionCost) resolving a held key — each successful
+		// action deducts Cost, but the next tick's +Speed exceeds it, so
+		// Energy drifts up by (Speed - Cost) per tick. The
+		// one-action-per-tick cap already forbids cashing in that surplus,
+		// so the cap is lossless: "ready" equals exactly one action's
+		// worth and the UI progress bar saturates cleanly at Cost.
+		e.setTickEnergy(min(e.tickEnergy()+w.mcalcMove(e.tickSpeed()), BaseActionCost))
 		intent := e.tickIntent()
 		if intent == nil {
 			continue

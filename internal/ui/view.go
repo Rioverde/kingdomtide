@@ -26,7 +26,54 @@ const (
 	// the line segment joining their anchors, so the boundary radius from
 	// one anchor is exactly half the inter-anchor distance.
 	voronoiBoundaryHalf = 2.0
+
+	// resourceBarWidth is the cell count for HP/MP progress bars shown in
+	// the stats panel. Six cells keeps the row width identical to the
+	// other aligned rows (label + bar + numbers fit on one line inside
+	// the stats column without wrapping).
+	resourceBarWidth = 6
+
+	// barFilled / barEmpty are the block glyphs shared by every textual
+	// progress bar in the UI. The dark-shade/light-shade pair reads as
+	// filled/empty in both light and dark terminal themes and stays within
+	// the Block Elements range already used elsewhere in the app.
+	barFilled = '\u2593' // ▓
+	barEmpty  = '\u2591' // ░
 )
+
+// progressBar renders a horizontal textual progress bar of exactly width
+// cells, proportional to current/max. The bar is saturated (all filled) as
+// soon as current >= max so saturated states read as "full" at a glance;
+// otherwise the filled count is floor(width * current / max), clamped to
+// [0, width]. Returns a string of exactly width runes.
+//
+// Intended to be reused across future stat bars (HP, mana, stamina, …).
+// Callers supply their own width so each bar can be sized independently
+// inside its panel.
+func progressBar(current, max, width int) string {
+	if width <= 0 {
+		return ""
+	}
+	filled := 0
+	switch {
+	case max <= 0 || current <= 0:
+		filled = 0
+	case current >= max:
+		filled = width
+	default:
+		filled = (current * width) / max
+	}
+	var b strings.Builder
+	b.Grow(width * 3) // block runes are 3 bytes each in UTF-8
+	for i := 0; i < width; i++ {
+		if i < filled {
+			b.WriteRune(barFilled)
+			continue
+		}
+		b.WriteRune(barEmpty)
+	}
+	return b.String()
+}
 
 // Every glyph this file renders comes from runes.go — runeSelf / runeOther /
 // runeUnspecified / riverRune / terrainRunes for the map, plus the chrome
@@ -261,8 +308,25 @@ func (m *Model) renderStatsBox() string {
 	mpLabel := locale.Tr(m.lang, locale.KeyStatsMP)
 	spdLabel := locale.Tr(m.lang, locale.KeyStatsSpeed)
 
-	b.WriteString(fmt.Sprintf("%-3s %d/%d\n", hpLabel, m.currentHP, maxHP))
-	b.WriteString(fmt.Sprintf("%-3s %d\n", mpLabel, mp))
+	// HP gets a visible progress bar so damage is legible at a glance.
+	// MP gets one too when the character has any mana at all (low-Int
+	// builds with Mana() == 0 skip the row entirely). Derived Speed is
+	// a plain number — it's a constant readout, not a resource to drain.
+	// Bars are tinted with the conventional roguelike palette: red for
+	// hit points, blue for mana.
+	hp := styles.hpBar.Render(progressBar(m.currentHP, maxHP, resourceBarWidth))
+	b.WriteString(fmt.Sprintf("%-3s %s %d/%d\n", hpLabel, hp, m.currentHP, maxHP))
+
+	if mp > 0 {
+		// Mana regeneration/spending is not yet modelled on the wire —
+		// current Mana is pinned at the cap, so the bar is always full.
+		// The row still renders because it telegraphs the resource exists
+		// and primes the UI for when spells land and the server starts
+		// tracking currentMana.
+		mpTinted := styles.mpBar.Render(progressBar(mp, mp, resourceBarWidth))
+		b.WriteString(fmt.Sprintf("%-3s %s %d/%d\n", mpLabel, mpTinted, mp, mp))
+	}
+
 	b.WriteString(fmt.Sprintf("%-3s %d", spdLabel, spd))
 
 	return styles.playerL.Width(innerW).Render(b.String())
