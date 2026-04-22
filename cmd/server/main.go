@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -13,13 +14,25 @@ import (
 	"syscall"
 	"time"
 
+	cbssh "github.com/charmbracelet/ssh"
+	"github.com/charmbracelet/wish"
+	"github.com/charmbracelet/wish/activeterm"
+	bm "github.com/charmbracelet/wish/bubbletea"
+	wishlog "github.com/charmbracelet/wish/logging"
 	"google.golang.org/grpc"
 
 	"github.com/Rioverde/gongeons/internal/game"
 	"github.com/Rioverde/gongeons/internal/game/worldgen"
 	pb "github.com/Rioverde/gongeons/internal/proto"
 	"github.com/Rioverde/gongeons/internal/server"
+	"github.com/Rioverde/gongeons/internal/session"
 )
+
+// sshShutdownTimeout caps how long the main loop waits for in-flight
+// Bubble Tea sessions to drain once a shutdown signal lands. Ten
+// seconds matches the gRPC GracefulStop latency so the two transports
+// unwind on comparable timescales.
+const sshShutdownTimeout = 10 * time.Second
 
 func main() {
 	if err := run(); err != nil {
@@ -32,10 +45,15 @@ func main() {
 func run() error {
 	var (
 		addr     string
+		sshAddr  string
+		hostKey  string
 		logLevel string
 		seed     int64
 	)
 	flag.StringVar(&addr, "addr", ":50051", "gRPC listen address")
+	flag.StringVar(&sshAddr, "ssh-addr", ":2222", "SSH listen address")
+	flag.StringVar(&hostKey, "ssh-host-key", ".ssh/gongeons_host_ed25519",
+		"SSH host key path (auto-generated on first run)")
 	flag.StringVar(&logLevel, "log-level", "info", "log level: debug | info | warn | error")
 	flag.Int64Var(&seed, "seed", 0, "world seed; 0 = random from wall clock")
 	flag.Parse()
@@ -71,16 +89,48 @@ func run() error {
 		close(serveErr)
 	}()
 
+	sshSrv, err := wish.NewServer(
+		wish.WithAddress(sshAddr),
+		wish.WithHostKeyPath(hostKey),
+		wish.WithMiddleware(
+			bm.Middleware(session.Handler(svc)),
+			activeterm.Middleware(),
+			wishlog.Middleware(),
+		),
+	)
+	if err != nil {
+		return fmt.Errorf("new ssh server: %w", err)
+	}
+	sshServeErr := make(chan error, 1)
+	go func() {
+		logger.Info("ssh listening", "addr", sshAddr)
+		if err := sshSrv.ListenAndServe(); err != nil && !errors.Is(err, cbssh.ErrServerClosed) {
+			sshServeErr <- err
+			return
+		}
+		close(sshServeErr)
+	}()
+
 	select {
 	case <-ctx.Done():
 		logger.Info("shutdown signal received")
 	case err := <-serveErr:
 		if err != nil {
-			return fmt.Errorf("serve: %w", err)
+			return fmt.Errorf("grpc serve: %w", err)
+		}
+		return nil
+	case err := <-sshServeErr:
+		if err != nil {
+			return fmt.Errorf("ssh serve: %w", err)
 		}
 		return nil
 	}
 
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), sshShutdownTimeout)
+	defer shutdownCancel()
+	if err := sshSrv.Shutdown(shutdownCtx); err != nil {
+		logger.Warn("ssh shutdown", "err", err)
+	}
 	grpcSrv.GracefulStop()
 	logger.Info("graceful shutdown complete")
 	return nil

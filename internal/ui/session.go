@@ -20,7 +20,7 @@ import (
 // call per client-originated command.
 type sessionDriver interface {
 	JoinSession(name string, dims viewportDims, stats game.CoreStats) (server.SessionJoinResult, error)
-	Subscribe(playerID string) (<-chan server.SessionEvent, func())
+	Subscribe(ctx context.Context, playerID string) (<-chan server.SessionEvent, func())
 	EnqueueMoveSession(playerID string, dx, dy int) error
 	UpdateSessionViewport(playerID string, width, height int)
 	LeaveSession(playerID string)

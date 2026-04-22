@@ -127,20 +127,49 @@ func (h *sessionHub) sendTo(playerID string, evt SessionEvent) bool {
 
 // broadcast sends evt to every current subscriber without blocking. Slow
 // subscribers have the event dropped and logged; the hub never stalls the
-// broadcast loop (would cascade into the tick loop). Holding the read
-// mutex during the fanout is safe because sends are non-blocking.
+// broadcast loop (would cascade into the tick loop). The subscriber set
+// is snapshot under the read mutex, then released before any sends run —
+// trySend is non-blocking so holding the lock was functionally safe, but
+// releasing it first removes a subtle coupling between broadcast cadence
+// and sync.Once-guarded unsub paths that briefly contest the write lock.
 func (h *sessionHub) broadcast(evt SessionEvent) {
 	h.mu.RLock()
-	defer h.mu.RUnlock()
+	subs := make([]sessionSubscriber, 0, len(h.subs))
 	for id, ch := range h.subs {
-		h.trySend(id, ch, evt)
+		subs = append(subs, sessionSubscriber{id: id, ch: ch})
+	}
+	h.mu.RUnlock()
+	for _, sub := range subs {
+		h.trySend(sub.id, sub.ch, evt)
 	}
 }
 
+// sessionSubscriber is the snapshot pair used by broadcast to fan out
+// events without holding the hub mutex. A value type so the snapshot
+// slice is a single heap allocation per broadcast.
+type sessionSubscriber struct {
+	id string
+	ch chan SessionEvent
+}
+
 // trySend attempts a non-blocking send. Logs and returns false if the
-// subscriber's outbox is full. The caller must hold h.mu (either read or
-// write lock).
-func (h *sessionHub) trySend(playerID string, ch chan SessionEvent, evt SessionEvent) bool {
+// subscriber's outbox is full. sendTo calls this under the read lock
+// (channel lookup + send as one critical section); broadcast calls it
+// after releasing the lock on a snapshot copy of the subscriber set.
+//
+// The snapshot-then-send pattern races with unsub, which takes the
+// write lock to delete + close ch. A send on a closed channel panics;
+// recover absorbs that rare interleaving so broadcast finishes the
+// remaining subscribers cleanly instead of crashing the tick loop.
+// The returned bool is false on panic too, matching the "drop" branch.
+func (h *sessionHub) trySend(playerID string, ch chan SessionEvent, evt SessionEvent) (sent bool) {
+	defer func() {
+		if r := recover(); r != nil {
+			h.log.Debug("session hub: send on closed channel, subscriber gone",
+				"id", playerID)
+			sent = false
+		}
+	}()
 	select {
 	case ch <- evt:
 		return true

@@ -510,6 +510,9 @@ func TestTickOrdersPlayersAndMonstersTogether(t *testing.T) {
 	monster.Speed = SpeedVeryFast
 	monster.Energy = baseActionCost
 	monster.Intent = MoveIntent{DX: 0, DY: 1}
+	// Place the monster away from the player's spawn so both moves resolve —
+	// collision semantics now block a monster and a player from sharing a tile.
+	monster.Position = Position{X: 2, Y: 0}
 	w.AddMonster(monster)
 
 	evs := w.Tick()
@@ -524,6 +527,110 @@ func TestTickOrdersPlayersAndMonstersTogether(t *testing.T) {
 	secondID := evs[1].(EntityMovedEvent).EntityID
 	if secondID != "p-slow" {
 		t.Errorf("second event EntityID = %q, want p-slow", secondID)
+	}
+}
+
+// TestMonsterMoveBlocked verifies that a monster attempting to walk
+// onto an impassable tile fails the move: the tick emits an
+// IntentFailedEvent, the monster's Position does not change, and
+// Energy is refunded (the refund semantics live in Tick, not in
+// applyMonsterMoveIntent, which only emits events).
+func TestMonsterMoveBlocked(t *testing.T) {
+	wall := Position{X: 1, Y: 0}
+	w := NewWorld(wallAtSource{wall: wall})
+
+	monster := newTestMonster(t, "m1", "Ogre")
+	monster.Energy = baseActionCost // pre-charged so it fires on first tick
+	monster.Intent = MoveIntent{DX: 1, DY: 0}
+	w.AddMonster(monster)
+
+	evs := w.Tick()
+	if len(evs) != 1 {
+		t.Fatalf("events = %d, want 1 IntentFailedEvent", len(evs))
+	}
+	fail, ok := evs[0].(IntentFailedEvent)
+	if !ok {
+		t.Fatalf("event = %T, want IntentFailedEvent", evs[0])
+	}
+	if fail.EntityID != "m1" {
+		t.Errorf("EntityID = %q, want m1", fail.EntityID)
+	}
+	if fail.Reason != ReasonIntentMoveBlocked {
+		t.Errorf("Reason = %q, want %q", fail.Reason, ReasonIntentMoveBlocked)
+	}
+	if monster.Position != (Position{X: 0, Y: 0}) {
+		t.Errorf("Position = %+v, want origin (blocked move must not mutate)",
+			monster.Position)
+	}
+	// Tick added Speed then refunded the cost, so Energy reflects one
+	// tick's worth of accumulation from the pre-charged baseline.
+	wantEnergy := baseActionCost + SpeedNormal
+	if monster.Energy != wantEnergy {
+		t.Errorf("Energy = %d, want %d (refund on failure)", monster.Energy, wantEnergy)
+	}
+}
+
+// TestMonsterMoveBlockedByPlayer verifies that a monster cannot step
+// onto a tile a player occupies. Symmetric to the player-vs-player
+// occupancy check, now extended across species.
+func TestMonsterMoveBlockedByPlayer(t *testing.T) {
+	w := newTickTestWorld(t)
+
+	// Player spawns at origin via findSpawn, so target tile is {1,0}.
+	player, err := NewPlayer("p1", "Alice", DefaultCoreStats(), Position{X: 1, Y: 0})
+	if err != nil {
+		t.Fatalf("new player: %v", err)
+	}
+	w.players[player.ID] = player
+	w.positions[player.ID] = player.Position
+	w.occupants[player.Position] = player
+
+	monster := newTestMonster(t, "m1", "Goblin")
+	monster.Energy = baseActionCost
+	monster.Intent = MoveIntent{DX: 1, DY: 0}
+	w.AddMonster(monster)
+
+	evs := w.Tick()
+	if len(evs) != 1 {
+		t.Fatalf("events = %d, want 1 IntentFailedEvent", len(evs))
+	}
+	if _, ok := evs[0].(IntentFailedEvent); !ok {
+		t.Fatalf("event = %T, want IntentFailedEvent", evs[0])
+	}
+	if monster.Position != (Position{}) {
+		t.Errorf("monster Position = %+v, want origin", monster.Position)
+	}
+}
+
+// TestPlayerMoveBlockedByMonster verifies the symmetric check: a
+// player cannot step onto a tile a monster occupies.
+func TestPlayerMoveBlockedByMonster(t *testing.T) {
+	w := newTickTestWorld(t)
+
+	player := joinPlayerAt(t, w, "p1", "Alice")
+	player.Energy = baseActionCost
+
+	monster := newTestMonster(t, "m1", "Wolf")
+	monster.Position = Position{X: 1, Y: 0}
+	w.AddMonster(monster)
+
+	if err := w.EnqueueIntent("p1", MoveIntent{DX: 1, DY: 0}); err != nil {
+		t.Fatalf("enqueue: %v", err)
+	}
+
+	evs := w.Tick()
+	if len(evs) != 1 {
+		t.Fatalf("events = %d, want 1 IntentFailedEvent", len(evs))
+	}
+	fail, ok := evs[0].(IntentFailedEvent)
+	if !ok {
+		t.Fatalf("event = %T, want IntentFailedEvent", evs[0])
+	}
+	if fail.EntityID != "p1" {
+		t.Errorf("EntityID = %q, want p1", fail.EntityID)
+	}
+	if fail.Reason != ReasonIntentMoveBlocked {
+		t.Errorf("Reason = %q, want %q", fail.Reason, ReasonIntentMoveBlocked)
 	}
 }
 
