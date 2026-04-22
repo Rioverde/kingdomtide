@@ -59,6 +59,8 @@ func run() error {
 	svc := server.NewService(buildWorld(seed), logger)
 	pb.RegisterGameServiceServer(grpcSrv, svc)
 
+	go svc.Run(ctx)
+
 	serveErr := make(chan error, 1)
 	go func() {
 		logger.Info("gongeonsd listening", "addr", lis.Addr().String(), "seed", seed)

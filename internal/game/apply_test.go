@@ -173,16 +173,16 @@ func TestApplyMoveOntoAnotherPlayer(t *testing.T) {
 	// natural next position is diagonal, which would hit ErrInvalidMove
 	// before reaching the occupancy check.
 	w := newTestWorld(testTiles{})
-	p1, err := NewPlayer("p1", "Alice", 1, 1, 1)
+	at := Position{X: 0, Y: 0}
+	next := Position{X: 1, Y: 0}
+	p1, err := NewPlayer("p1", "Alice", DefaultCoreStats(), at)
 	if err != nil {
 		t.Fatalf("new p1: %v", err)
 	}
-	p2, err := NewPlayer("p2", "Bob", 1, 1, 1)
+	p2, err := NewPlayer("p2", "Bob", DefaultCoreStats(), next)
 	if err != nil {
 		t.Fatalf("new p2: %v", err)
 	}
-	at := Position{X: 0, Y: 0}
-	next := Position{X: 1, Y: 0}
 	w.players["p1"] = p1
 	w.positions["p1"] = at
 	w.occupants[at] = p1

@@ -170,13 +170,15 @@ func listenCmd(stream pb.GameService_PlayClient) tea.Cmd {
 }
 
 // sendJoinCmd queues a Join message on the outbox, tagged with the
-// client's requested viewport size and BCP-47 language tag. The server
-// uses the viewport size when building Snapshot responses for this client;
-// the language is stored on the session so future server-generated
-// LocalizedMessage payloads can route through the right catalog. Non-
-// blocking; a full outbox means the writer goroutine is dead and the
-// session is doomed.
-func sendJoinCmd(outbox chan<- *pb.ClientMessage, name, lang string, viewW, viewH int) tea.Cmd {
+// client's requested viewport size, BCP-47 language tag, and the six
+// ability scores the player assembled during phaseCharacterCreation.
+// The server uses the viewport size when building Snapshot responses
+// for this client; the language is stored on the session so future
+// server-generated LocalizedMessage payloads can route through the
+// right catalog; the stats are revalidated through NewStatsPointBuy
+// before acceptance. Non-blocking; a full outbox means the writer
+// goroutine is dead and the session is doomed.
+func sendJoinCmd(outbox chan<- *pb.ClientMessage, name, lang string, stats [6]int, viewW, viewH int) tea.Cmd {
 	return sendNonBlocking(outbox, &pb.ClientMessage{
 		Payload: &pb.ClientMessage_Join{
 			Join: &pb.JoinRequest{
@@ -184,6 +186,14 @@ func sendJoinCmd(outbox chan<- *pb.ClientMessage, name, lang string, viewW, view
 				Language:       lang,
 				ViewportWidth:  int32(viewW),
 				ViewportHeight: int32(viewH),
+				Stats: &pb.CoreStats{
+					Strength:     int32(stats[0]),
+					Dexterity:    int32(stats[1]),
+					Constitution: int32(stats[2]),
+					Intelligence: int32(stats[3]),
+					Wisdom:       int32(stats[4]),
+					Charisma:     int32(stats[5]),
+				},
 			},
 		},
 	}, "join")

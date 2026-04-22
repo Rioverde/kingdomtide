@@ -1,3 +1,17 @@
+// apply.go contains all world-mutation handlers: lifecycle operations (join,
+// leave), the legacy MoveCmd adapter kept for pre-tick domain tests, and the
+// actual move resolvers (applyMoveIntent, applyMonsterMoveIntent) called by
+// Tick via resolveIntent in tick.go.
+//
+// File not renamed to lifecycle.go: after the M2 refactor it still hosts
+// applyMoveIntent and applyMonsterMoveIntent, which are gameplay — not
+// lifecycle — logic. A rename would misrepresent the file's scope. If a
+// future refactor extracts move resolution into its own file, the remainder
+// (applyJoin, applyLeave, findSpawn) would then cleanly live in lifecycle.go.
+//
+// For new gameplay actions use EnqueueIntent + Tick (see tick.go).
+// For join/leave use ApplyCommand directly.
+
 package game
 
 import "fmt"
@@ -38,7 +52,16 @@ func (w *World) applyJoin(c JoinCmd) ([]Event, error) {
 		return nil, fmt.Errorf("join: %w", ErrNoSpawn)
 	}
 
-	player, err := NewPlayer(c.PlayerID, c.Name, 1, 1, 1)
+	// Fall back to the neutral baseline when the caller passed the zero
+	// value — applyJoin is called both from the server (validated stats)
+	// and from domain tests that predate the stats payload and still
+	// issue bare JoinCmd{PlayerID, Name} literals.
+	stats := c.Stats
+	if stats == (CoreStats{}) {
+		stats = DefaultCoreStats()
+	}
+
+	player, err := NewPlayer(c.PlayerID, c.Name, stats, spawn)
 	if err != nil {
 		return nil, fmt.Errorf("join: %w", err)
 	}
@@ -56,39 +79,128 @@ func (w *World) applyJoin(c JoinCmd) ([]Event, error) {
 	return events, nil
 }
 
+// applyMove is the legacy Command-level entry point kept for domain tests
+// that predate the tick-resolution refactor. New gameplay code (and the
+// server) funnels moves through EnqueueIntent + Tick, which call
+// applyMoveIntent directly. The two paths agree on shape: applyMove
+// wraps applyMoveIntent's structured outcome back into ApplyCommand's
+// (events, error) contract so callers outside the tick loop stay fluent.
 func (w *World) applyMove(c MoveCmd) ([]Event, error) {
-	if !validStep(c.DX, c.DY) {
-		return nil, fmt.Errorf("move: %w", ErrInvalidMove)
-	}
 	player, ok := w.players[c.PlayerID]
 	if !ok {
 		return nil, fmt.Errorf("move: %w", ErrPlayerNotFound)
 	}
-	from, ok := w.positions[c.PlayerID]
-	if !ok {
+	if _, ok := w.positions[c.PlayerID]; !ok {
 		return nil, fmt.Errorf("move: %w", ErrPlayerNotFound)
 	}
-	to := from.Add(c.DX, c.DY)
+	events, ok := w.applyMoveIntent(player, MoveIntent{DX: c.DX, DY: c.DY})
+	if !ok {
+		return nil, intentFailReasonToError(reasonFromEvents(events))
+	}
+	return events, nil
+}
+
+// applyMoveIntent resolves a MoveIntent for the given player, returning the
+// events produced and a success flag. On success the returned slice holds
+// an EntityMovedEvent and ok is true; the world has been mutated. On
+// failure the slice holds a single IntentFailedEvent carrying a locale
+// catalog key in Reason and ok is false; the world is left unchanged so
+// the caller (Tick) can refund Energy. applyMoveIntent never panics on
+// bad input — an invalid step produces an IntentFailedEvent, not an
+// error, so Tick treats every failure mode uniformly.
+func (w *World) applyMoveIntent(p *Player, i MoveIntent) ([]Event, bool) {
+	if !validStep(i.DX, i.DY) {
+		return []Event{IntentFailedEvent{
+			EntityID: p.ID,
+			Reason:   ReasonIntentMoveInvalid,
+		}}, false
+	}
+	from, ok := w.positions[p.ID]
+	if !ok {
+		return []Event{IntentFailedEvent{
+			EntityID: p.ID,
+			Reason:   ReasonIntentMoveBlocked,
+		}}, false
+	}
+	to := from.Add(i.DX, i.DY)
 
 	target, _ := w.TileAt(to)
 	if !target.Terrain.Passable() {
-		return nil, fmt.Errorf("move: %w", ErrBlocked)
+		return []Event{IntentFailedEvent{
+			EntityID: p.ID,
+			Reason:   ReasonIntentMoveBlocked,
+		}}, false
 	}
 	if _, occupied := w.occupants[to]; occupied {
-		return nil, fmt.Errorf("move: %w", ErrBlocked)
+		return []Event{IntentFailedEvent{
+			EntityID: p.ID,
+			Reason:   ReasonIntentMoveBlocked,
+		}}, false
 	}
 
 	delete(w.occupants, from)
-	w.occupants[to] = player
-	w.positions[c.PlayerID] = to
+	w.occupants[to] = p
+	w.positions[p.ID] = to
 
 	events := make([]Event, 0, 1)
 	events = append(events, EntityMovedEvent{
-		EntityID: c.PlayerID,
+		EntityID: p.ID,
 		From:     from,
 		To:       to,
 	})
-	return events, nil
+	return events, true
+}
+
+// applyMonsterMoveIntent mirrors applyMoveIntent for monsters. Monster
+// positions are NOT tracked in the positions or occupants maps in M4 —
+// monsters are server-side infra only and do not yet interact with terrain
+// or player occupancy. The method emits an EntityMovedEvent so the tick
+// loop can observe monster movement in tests; full spatial integration is
+// deferred to Phase 6 when AI is introduced.
+//
+// M4 scope: monsters that receive a MoveIntent (set directly in tests)
+// will emit an EntityMovedEvent and consume Energy. No collision or
+// bounds check is performed — there are no world positions for monsters yet.
+func (w *World) applyMonsterMoveIntent(m *Monster, i MoveIntent) ([]Event, bool) {
+	if !validStep(i.DX, i.DY) {
+		return []Event{IntentFailedEvent{
+			EntityID: m.ID,
+			Reason:   ReasonIntentMoveInvalid,
+		}}, false
+	}
+	return []Event{EntityMovedEvent{
+		EntityID: m.ID,
+		From:     Position{},
+		To:       Position{X: i.DX, Y: i.DY},
+	}}, true
+}
+
+// reasonFromEvents pulls the Reason out of an IntentFailedEvent in a
+// short slice produced by applyMoveIntent on failure. Returns the empty
+// string when no IntentFailedEvent is present, which never happens on
+// the failure path but keeps applyMove's adapter defensive.
+func reasonFromEvents(events []Event) string {
+	for _, ev := range events {
+		if f, ok := ev.(IntentFailedEvent); ok {
+			return f.Reason
+		}
+	}
+	return ""
+}
+
+// intentFailReasonToError maps a locale-key reason to the legacy sentinel
+// error the Command-style path returns. Keeps ApplyCommand(MoveCmd)'s
+// error-return contract stable for the existing domain tests while the
+// tick-based path carries structured IntentFailedEvent.
+func intentFailReasonToError(reason string) error {
+	switch reason {
+	case ReasonIntentMoveInvalid:
+		return fmt.Errorf("move: %w", ErrInvalidMove)
+	case ReasonIntentMoveBlocked:
+		return fmt.Errorf("move: %w", ErrBlocked)
+	default:
+		return fmt.Errorf("move: %w", ErrBlocked)
+	}
 }
 
 func (w *World) applyLeave(c LeaveCmd) ([]Event, error) {

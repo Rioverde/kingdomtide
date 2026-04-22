@@ -38,6 +38,8 @@ func (m *Model) View() string {
 	switch m.phase {
 	case phaseEnterName:
 		return m.viewEnterName()
+	case phaseCharacterCreation:
+		return m.viewCharacterCreation()
 	case phaseConnecting:
 		return m.viewConnecting()
 	case phasePlaying:

@@ -14,4 +14,8 @@ const (
 	ErrCodeInvalidArgument = "invalid_argument"
 	ErrCodeInvalidProtocol = "invalid_protocol"
 	ErrCodeRuleViolation   = "rule_violation"
+	// ErrCodeInvalidStats is emitted when the server rejects a
+	// JoinRequest whose CoreStats fail the Point Buy validator.
+	// Clients surface it via the locale key "error.invalid_stats".
+	ErrCodeInvalidStats = "invalid_stats"
 )

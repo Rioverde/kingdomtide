@@ -11,11 +11,12 @@ type TileSource interface {
 
 // World is the authoritative in-memory state of a single match. It combines
 // an immutable, pluggable TileSource with mutable runtime overlays — the
-// player registry and the occupancy map. World is NOT safe for concurrent
-// use; callers (server) own the lock.
+// player registry, monster registry, and the occupancy map. World is NOT
+// safe for concurrent use; callers (server) own the lock.
 type World struct {
 	source    TileSource
 	players   map[string]*Player
+	monsters  map[string]*Monster
 	positions map[string]Position
 	// occupants shadows the TileSource with runtime occupant info. TileAt
 	// merges the two on read so the TileSource stays read-only.
@@ -90,6 +91,7 @@ func NewWorldFromSource(source TileSource, opts ...WorldOption) *World {
 	w := &World{
 		source:    source,
 		players:   make(map[string]*Player),
+		monsters:  make(map[string]*Monster),
 		positions: make(map[string]Position),
 		occupants: make(map[Position]*Player),
 	}
@@ -199,6 +201,30 @@ func (w *World) Players() []*Player {
 		out = append(out, w.players[id])
 	}
 	return out
+}
+
+// Monsters returns the world's monster map. The returned map is the live
+// internal registry — callers must not mutate it directly. Exposed for
+// snapshot and tick consumers that hold the server mutex while reading.
+func (w *World) Monsters() map[string]*Monster {
+	return w.monsters
+}
+
+// AddMonster inserts m into the world's monster registry. If a monster
+// with the same ID already exists it is replaced (idempotent). This is an
+// admin/fixture operation; no geometric collision check is performed —
+// tile-occupancy semantics for monsters are deferred to a later phase.
+func (w *World) AddMonster(m *Monster) {
+	if w.monsters == nil {
+		w.monsters = make(map[string]*Monster)
+	}
+	w.monsters[m.ID] = m
+}
+
+// RemoveMonster deletes the monster with the given id from the registry.
+// No-op when no such monster exists.
+func (w *World) RemoveMonster(id string) {
+	delete(w.monsters, id)
 }
 
 // Passable reports whether an entity can stand on a tile of this terrain.

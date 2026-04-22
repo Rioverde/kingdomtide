@@ -2,30 +2,14 @@ package game
 
 import "math/rand"
 
-// Scaling constants used when deriving Health and Mana from core stats.
-const (
-	BaseHealthPerStrength   = 10
-	BaseHealthPerDexterity  = 5
-	BaseManaPerIntelligence = 10
-)
-
-// Slots for equipping armor pieces.
+// Slots for equipping armor pieces. Ordered so attackedSlot picks an
+// index into a stable slice — tests that stub the RNG see a predictable
+// mapping.
 var slots = []Slot{SlotHead, SlotBody, SlotLegs}
 
-func calculateHealth(strength, dexterity int) int {
-	return strength*BaseHealthPerStrength + dexterity*BaseHealthPerDexterity
-}
-
-func calculateMana(intelligence int) int {
-	return intelligence * BaseManaPerIntelligence
-}
-
-// calculateBaseDamage calculates the base damage based on the attacker's strength.
-func calculateBaseDamage(strength int) int {
-	return strength * 2
-}
-
-// calculateDamage applies the damage multiplier based on the hit slot and returns the final damage to be applied to the player's health.
+// calculateDamage applies the body-part damage multiplier to a base damage
+// value. Unknown slots pass through unmodified rather than panicking —
+// robust handling keeps combat composable with future slot additions.
 func calculateDamage(baseDamage int, slot Slot) int {
 	switch slot {
 	case SlotHead:
@@ -35,11 +19,14 @@ func calculateDamage(baseDamage int, slot Slot) int {
 	case SlotLegs:
 		return int(float64(baseDamage) * LegsDamageMultiplier)
 	default:
-		return baseDamage // No multiplier for unknown slots
+		return baseDamage
 	}
 }
 
-// attackedSlot returns a random slot for the attack. This is a placeholder function and can be replaced with more complex logic to allow players to choose the target slot.
+// attackedSlot returns a random equipment slot for the incoming attack.
+// Placeholder for future targeting logic (player-chosen or AI-chosen
+// body part); uses math/rand because combat resolution is cosmetic, not
+// security-sensitive.
 func attackedSlot() Slot {
 	return slots[rand.Intn(len(slots))]
 }
