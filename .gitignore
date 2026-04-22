@@ -36,3 +36,4 @@ CLAUDE.md
 .omc/*
 internal/.omc/*
 server
+.ssh/
