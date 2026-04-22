@@ -66,7 +66,7 @@ outer:
 
 	// Build a snapshot centred on the landmark tile; the landmark must appear
 	// in the returned tile grid as a non-NONE LandmarkKind.
-	snap := snapshotOf(w, landmarkPos, DefaultViewportWidth, DefaultViewportHeight, nil, svc.landmarks)
+	snap := snapshotOf(w, landmarkPos, DefaultViewportWidth, DefaultViewportHeight, nil, svc.landmarks, svc.volcanoes)
 
 	var hasLandmark bool
 	for _, tile := range snap.GetTiles() {

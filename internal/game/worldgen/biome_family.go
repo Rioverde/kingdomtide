@@ -67,7 +67,9 @@ func FamilyOf(t game.Terrain) BiomeFamily {
 		return FamilyPlain
 	case game.TerrainForest, game.TerrainJungle, game.TerrainTaiga:
 		return FamilyForest
-	case game.TerrainHills, game.TerrainMountain, game.TerrainSnowyPeak:
+	case game.TerrainHills, game.TerrainMountain, game.TerrainSnowyPeak,
+		game.TerrainVolcanoCore, game.TerrainVolcanoCoreDormant,
+		game.TerrainCraterLake, game.TerrainVolcanoSlope, game.TerrainAshland:
 		return FamilyMountain
 	case game.TerrainDeepOcean, game.TerrainOcean, game.TerrainBeach:
 		return FamilyWater

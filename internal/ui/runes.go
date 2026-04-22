@@ -78,6 +78,18 @@ var terrainRunes = map[pb.Terrain]string{
 	// Water: wave → heavy wave.
 	pb.Terrain_TERRAIN_OCEAN:      "≈", // approximately equal (wavelets)
 	pb.Terrain_TERRAIN_DEEP_OCEAN: "≋", // triple tilde (deeper)
+
+	// Volcanic family: active core → cold crater → crater lake → slope → ashland.
+	// Runes picked to stay visually distinct from the existing biome set —
+	// in particular crater lake uses ⊙ (not ≈) so it does not collide with
+	// river/ocean glyphs, and ashland uses ▒ (not ·) so it does not collide
+	// with plains. Colours in styles.go do the heavy lifting on state
+	// recognition, but the glyphs alone must already read as "volcano".
+	pb.Terrain_TERRAIN_VOLCANO_CORE:         "▼", // U+25BC, inverted filled triangle — crater seen top-down
+	pb.Terrain_TERRAIN_VOLCANO_CORE_DORMANT: "○", // U+25CB, empty circle — cold basin, no fire
+	pb.Terrain_TERRAIN_CRATER_LAKE:          "⊙", // U+2299, circled dot operator — filled centre reads as "pool of water" distinct from empty-circle dormant core
+	pb.Terrain_TERRAIN_VOLCANO_SLOPE:        "◭", // U+25ED, upper-left-half filled triangle — magma-streaked slope
+	pb.Terrain_TERRAIN_ASHLAND:              "▒", // U+2592, medium shade — burnt dust layer
 }
 
 // UI chrome glyphs — visual separators and bullets that stay stable across

@@ -62,6 +62,9 @@ func TestRidgeScaleJitterRange(t *testing.T) {
 // TestRidgeDeterminism asserts the full ridge-blended elevation field is bit-identical
 // across two independently-constructed generators with the same seed.
 func TestRidgeDeterminism(t *testing.T) {
+	if testing.Short() {
+		t.Skip("100-coord elevation sweep across two generators")
+	}
 	const seed int64 = 98765
 	g1 := NewWorldGenerator(seed)
 	g2 := NewWorldGenerator(seed)
@@ -241,6 +244,9 @@ func ridgeAddedMask(withMask, baselineMask []bool) []bool {
 // the size-weighted mean cannot reliably hit given how irregular the
 // baseline already is.
 func TestRidgeIncreasesMountainElongation(t *testing.T) {
+	if testing.Short() {
+		t.Skip("4-seed 256x256 elongation shape sweep")
+	}
 	const side = 256
 	const seeds = 4
 	const minArea = 6
@@ -302,6 +308,9 @@ func TestRidgeIncreasesMountainElongation(t *testing.T) {
 // SNOWY_PEAK + HILLS tile counts with vs without ridge blending across a 256×256
 // sample. Drift > ±30% is the documented acceptance window.
 func TestRidgeMountainCountWithinTolerance(t *testing.T) {
+	if testing.Short() {
+		t.Skip("256x256 mountain tile count sweep")
+	}
 	const side = 256
 	const seed int64 = 2026
 	const half = side / 2
@@ -344,6 +353,9 @@ func TestRidgeMountainCountWithinTolerance(t *testing.T) {
 // ridge lift + clamp. The invariant matters because biome thresholds are defined inside
 // that interval — an overflow would silently bypass the snowy-peak band.
 func TestRidgeElevationBounded(t *testing.T) {
+	if testing.Short() {
+		t.Skip("600x600 elevation bounds scan")
+	}
 	g := NewWorldGenerator(13579)
 	for x := -300; x <= 300; x += 7 {
 		for y := -300; y <= 300; y += 7 {
@@ -391,6 +403,9 @@ func TestSmoothstepShape(t *testing.T) {
 // test — duplicated here so ridge regressions surface inside this file
 // rather than in the general biome coverage suite.
 func TestRidgeDoesNotBreakBiomeReachability(t *testing.T) {
+	if testing.Short() {
+		t.Skip("8 seeds x 256^2 tiles; run without -short for full coverage")
+	}
 	const seeds = 8
 	const side = 256
 	const half = side / 2
@@ -406,6 +421,9 @@ func TestRidgeDoesNotBreakBiomeReachability(t *testing.T) {
 	}
 
 	for _, terrain := range game.AllTerrains() {
+		if isVolcanicTerrain(terrain) {
+			continue
+		}
 		if hist[terrain] == 0 {
 			t.Errorf("terrain %q never appeared after ridge blending", terrain)
 		}

@@ -357,6 +357,68 @@ func TestLookTileKnownAndUnknown(t *testing.T) {
 	}
 }
 
+// TestTerrainRunesCoverAllWireValues asserts every non-UNSPECIFIED Terrain
+// enum value has both a rune and a style entry. A future proto addition
+// that forgets to update runes.go or styles.go trips this test instead of
+// silently rendering as "?" on the player's screen.
+func TestTerrainRunesCoverAllWireValues(t *testing.T) {
+	t.Parallel()
+	for n, name := range pb.Terrain_name {
+		if name == "TERRAIN_UNSPECIFIED" {
+			continue
+		}
+		v := pb.Terrain(n)
+		if _, ok := terrainRunes[v]; !ok {
+			t.Errorf("terrainRunes missing entry for %s", name)
+		}
+		if _, ok := terrainStyles[v]; !ok {
+			t.Errorf("terrainStyles missing entry for %s", name)
+		}
+	}
+}
+
+// TestTerrainRunesVolcanicGlyphsDistinct asserts the five volcanic biomes
+// each use a glyph different from every non-volcanic biome. Ashland and
+// CraterLake in particular must NOT collide with plains / ocean / river
+// glyphs — the whole point of new runes is that a player reading the map
+// instantly knows a volcano is on-screen.
+func TestTerrainRunesVolcanicGlyphsDistinct(t *testing.T) {
+	t.Parallel()
+	volcanic := []pb.Terrain{
+		pb.Terrain_TERRAIN_VOLCANO_CORE,
+		pb.Terrain_TERRAIN_VOLCANO_CORE_DORMANT,
+		pb.Terrain_TERRAIN_CRATER_LAKE,
+		pb.Terrain_TERRAIN_VOLCANO_SLOPE,
+		pb.Terrain_TERRAIN_ASHLAND,
+	}
+	nonVolcanic := map[pb.Terrain]string{}
+	for n, name := range pb.Terrain_name {
+		v := pb.Terrain(n)
+		if name == "TERRAIN_UNSPECIFIED" {
+			continue
+		}
+		isVolcanic := false
+		for _, vb := range volcanic {
+			if v == vb {
+				isVolcanic = true
+				break
+			}
+		}
+		if !isVolcanic {
+			nonVolcanic[v] = name
+		}
+	}
+	for _, vb := range volcanic {
+		r := terrainRunes[vb]
+		for nv, name := range nonVolcanic {
+			if terrainRunes[nv] == r {
+				t.Errorf("volcanic terrain %s rune %q collides with %s",
+					pb.Terrain_name[int32(vb)], r, name)
+			}
+		}
+	}
+}
+
 // landmarkSnapshot builds a Snapshot that places the local player at
 // playerWorld and a landmark of the given kind at landmarkWorld. Both coords
 // must fit inside a viewport large enough to hold them; the helper creates a

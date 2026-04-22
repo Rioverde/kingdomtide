@@ -138,18 +138,28 @@ func run() error {
 
 // buildWorld constructs the production world: a procedural tile source keyed
 // on seed, a matching NoiseRegionSource for Voronoi regions, a
-// NoiseLandmarkSource for Layer 1.5 landmarks, and the seed itself threaded
-// through so AnchorAt stays deterministic. Split out of run for testability
-// and so the wiring is visible at a glance.
+// NoiseLandmarkSource for Layer 1.5 landmarks, a NoiseVolcanoSource for the
+// multi-tile volcano layer, a NoiseDepositSource for the resource-deposit
+// layer, and the seed itself threaded through so AnchorAt stays
+// deterministic. Split out of run for testability and so the wiring is
+// visible at a glance. Source order matters: the volcano source
+// depends on the landmark source for anchor-collision rejection, and
+// the deposit source depends on both volcano (for obsidian / sulfur
+// structural placement) and landmark (for point-like collision
+// rejection), so deposits are constructed last.
 func buildWorld(seed int64) *game.World {
 	wg := worldgen.NewChunkedSource(seed)
 	regionSrc := worldgen.NewNoiseRegionSource(seed)
 	landmarkSrc := worldgen.NewNoiseLandmarkSource(seed, regionSrc, wg.Generator())
+	volcanoSrc := worldgen.NewNoiseVolcanoSource(seed, wg.Generator(), landmarkSrc)
+	depositSrc := worldgen.NewNoiseDepositSource(seed, wg.Generator(), landmarkSrc, volcanoSrc)
 	return game.NewWorld(
 		wg,
 		game.WithSeed(seed),
 		game.WithRegionSource(regionSrc),
 		game.WithLandmarkSource(landmarkSrc),
+		game.WithVolcanoSource(volcanoSrc),
+		game.WithDepositSource(depositSrc),
 	)
 }
 

@@ -32,6 +32,11 @@ func TestFamilyOfAllTerrains(t *testing.T) {
 		{game.TerrainHills, FamilyMountain},
 		{game.TerrainMountain, FamilyMountain},
 		{game.TerrainSnowyPeak, FamilyMountain},
+		{game.TerrainVolcanoCore, FamilyMountain},
+		{game.TerrainVolcanoCoreDormant, FamilyMountain},
+		{game.TerrainCraterLake, FamilyMountain},
+		{game.TerrainVolcanoSlope, FamilyMountain},
+		{game.TerrainAshland, FamilyMountain},
 	}
 
 	// Sanity: AllTerrains must be fully covered by the cases above. If the

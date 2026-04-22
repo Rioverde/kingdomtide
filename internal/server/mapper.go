@@ -171,6 +171,15 @@ var terrainPBMapping = map[game.Terrain]pb.Terrain{
 	game.TerrainSnowyPeak: pb.Terrain_TERRAIN_SNOWY_PEAK,
 	game.TerrainOcean:     pb.Terrain_TERRAIN_OCEAN,
 	game.TerrainDeepOcean: pb.Terrain_TERRAIN_DEEP_OCEAN,
+
+	// Volcanic terrains — multi-tile volcano footprints overwrite the
+	// base biome at worldgen query time and travel the wire as ordinary
+	// Terrain values so the client renders from per-tile terrain alone.
+	game.TerrainVolcanoCore:        pb.Terrain_TERRAIN_VOLCANO_CORE,
+	game.TerrainVolcanoCoreDormant: pb.Terrain_TERRAIN_VOLCANO_CORE_DORMANT,
+	game.TerrainCraterLake:         pb.Terrain_TERRAIN_CRATER_LAKE,
+	game.TerrainVolcanoSlope:       pb.Terrain_TERRAIN_VOLCANO_SLOPE,
+	game.TerrainAshland:            pb.Terrain_TERRAIN_ASHLAND,
 }
 
 // terrainToPB looks up t in terrainPBMapping. Unknown terrains fall back
@@ -294,16 +303,27 @@ func landmarkKindPB(k game.LandmarkKind) pb.LandmarkKind {
 	return lookupOr(landmarkKindPBMapping, k, pb.LandmarkKind_LANDMARK_KIND_NONE)
 }
 
-// tileFromDomain builds a wire Tile from a domain tile, overlaying the
-// player occupant when present and stamping the landmark onto the tile.
-// The terrain / overlays / structure conversions all live in one spot.
+// tileFromDomain builds a wire Tile from a domain tile, applying any
+// volcano terrain override before mapping, overlaying the player
+// occupant when present, and stamping the landmark onto the tile. The
+// terrain / overlays / structure conversions all live in one spot.
 // overlays is carried through as an opaque bitmask — the domain and
 // the client agree on flag values. A zero-value Landmark (Kind ==
 // LandmarkNone) yields a nil wire landmark and is therefore omitted
 // from the encoding.
-func tileFromDomain(t game.Tile, landmark game.Landmark) *pb.Tile {
+//
+// override is a per-tile terrain substitution from the volcano
+// pipeline — when hasOverride is false the base Terrain is used
+// unchanged. Passing the override in explicitly (rather than
+// re-querying the world from inside the mapper) keeps tileFromDomain
+// deterministic and unit-testable without a world.
+func tileFromDomain(t game.Tile, landmark game.Landmark, override game.Terrain, hasOverride bool) *pb.Tile {
+	terrain := t.Terrain
+	if hasOverride {
+		terrain = override
+	}
 	out := &pb.Tile{
-		Terrain:   terrainToPB(t.Terrain),
+		Terrain:   terrainToPB(terrain),
 		Overlays:  uint32(t.Overlays),
 		Structure: structureToPB(t.Structure),
 	}
@@ -348,8 +368,10 @@ func landmarkAtTile(lc *landmarkCache, worldX, worldY int) game.Landmark {
 // not re-entered per snapshot here. Pass a nil region when no
 // RegionSource is configured (tests, legacy paths) and the Snapshot
 // omits the region field. Pass a nil lc when no LandmarkSource is
-// configured; tiles will carry no landmark.
-func snapshotOf(w *game.World, center game.Position, viewW, viewH int, region *pb.Region, lc *landmarkCache) *pb.Snapshot {
+// configured; tiles will carry no landmark. Pass a nil vc when no
+// VolcanoSource is configured; tiles will carry their base terrain
+// unchanged.
+func snapshotOf(w *game.World, center game.Position, viewW, viewH int, region *pb.Region, lc *landmarkCache, vc *volcanoCache) *pb.Snapshot {
 	viewW, viewH = clampViewport(viewW, viewH)
 	halfW := viewW / 2
 	halfH := viewH / 2
@@ -361,7 +383,8 @@ func snapshotOf(w *game.World, center game.Position, viewW, viewH int, region *p
 			p := game.Position{X: originX + dx, Y: originY + dy}
 			t, _ := w.TileAt(p)
 			lm := landmarkAtTile(lc, p.X, p.Y)
-			tiles = append(tiles, tileFromDomain(t, lm))
+			override, hasOverride := volcanoOverrideAtTile(vc, p)
+			tiles = append(tiles, tileFromDomain(t, lm, override, hasOverride))
 		}
 	}
 	return &pb.Snapshot{
@@ -372,6 +395,17 @@ func snapshotOf(w *game.World, center game.Position, viewW, viewH int, region *p
 		Entities: entitiesOf(w),
 		Region:   region,
 	}
+}
+
+// volcanoOverrideAtTile returns the override terrain at p via the
+// volcano cache, or ("", false) when vc is nil (no volcano source
+// configured). Split into a named helper so snapshotOf stays readable
+// at a glance and the nil-source branch has one obvious home.
+func volcanoOverrideAtTile(vc *volcanoCache, p game.Position) (game.Terrain, bool) {
+	if vc == nil {
+		return "", false
+	}
+	return vc.TerrainOverrideAt(p)
 }
 
 // entitiesOf returns one Entity per player currently in the world, sorted

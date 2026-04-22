@@ -385,6 +385,9 @@ func TestRiverCacheHits(t *testing.T) {
 // realistic band. A ceiling catches "every gully is a river"; a floor
 // catches a gate that suppresses all rivers.
 func TestRiverDensityRealistic(t *testing.T) {
+	if testing.Short() {
+		t.Skip("8-seed 16x16 chunk river density sweep")
+	}
 	var totalLand, totalRiver int
 
 	for s := int64(1); s <= 8; s++ {

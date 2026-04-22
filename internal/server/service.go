@@ -67,6 +67,7 @@ type Service struct {
 	viewports map[string]viewportDims
 	regions   *regionCache
 	landmarks *landmarkCache
+	volcanoes *volcanoCache
 }
 
 // NewService constructs a Service around the given world. If log is nil,
@@ -93,6 +94,9 @@ func NewService(w *game.World, log *slog.Logger) *Service {
 	}
 	if src := w.LandmarkSource(); src != nil {
 		svc.landmarks = newLandmarkCache(src, DefaultLandmarkCacheCapacity)
+	}
+	if src := w.VolcanoSource(); src != nil {
+		svc.volcanoes = newVolcanoCache(src, DefaultVolcanoCacheCapacity)
 	}
 	return svc
 }
@@ -250,7 +254,7 @@ func (s *Service) bootJoin(
 	}
 	s.viewports[playerID] = dims
 	spawn := spawnFromEvents(events)
-	snap := snapshotOf(s.world, spawn, dims.width, dims.height, s.regionAt(spawn), s.landmarks)
+	snap := snapshotOf(s.world, spawn, dims.width, dims.height, s.regionAt(spawn), s.landmarks, s.volcanoes)
 	return spawn, snap, events, nil
 }
 
@@ -364,7 +368,7 @@ func (s *Service) sendError(id, msg, code string) {
 // client composes localized display text using its own Model.lang.
 func (s *Service) snapshotFor(id string, pos game.Position) *pb.Snapshot {
 	dims := s.viewports[id]
-	return snapshotOf(s.world, pos, dims.width, dims.height, s.regionAt(pos), s.landmarks)
+	return snapshotOf(s.world, pos, dims.width, dims.height, s.regionAt(pos), s.landmarks, s.volcanoes)
 }
 
 // applyCmd is a convenience wrapper used by cleanup: take the mutex,

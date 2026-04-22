@@ -104,6 +104,32 @@ var terrainStyles = map[pb.Terrain]lipgloss.Style{
 	pb.Terrain_TERRAIN_SNOWY_PEAK: lipgloss.NewStyle().Foreground(lipgloss.Color("231")).Bold(true),
 	pb.Terrain_TERRAIN_OCEAN:      lipgloss.NewStyle().Foreground(lipgloss.Color("33")),
 	pb.Terrain_TERRAIN_DEEP_OCEAN: lipgloss.NewStyle().Foreground(lipgloss.Color("18")),
+
+	// Volcanic palette — hex comments document the 256-color xterm codes so
+	// readers do not have to reverse-lookup the palette. Active core is a
+	// bright lava orange on a near-black rim, bold so the glyph stands out
+	// across the dim volcano slope ring. Dormant core drops to a cold grey
+	// over dark basalt — same rune as an empty cup, no glow. Crater lake
+	// reuses the still-water blue palette of ocean but adds a deeper basin
+	// backdrop to read as "contained water". Slope is burnt umber on dark
+	// rock; ashland is ash grey on charcoal, low contrast on purpose so
+	// the dead ring fades compared to the adjacent burning core.
+	pb.Terrain_TERRAIN_VOLCANO_CORE: lipgloss.NewStyle().
+		Foreground(lipgloss.Color("202")). // #ff3300 bright lava orange
+		Background(lipgloss.Color("52")).  // #1a0000 near-black rim
+		Bold(true),
+	pb.Terrain_TERRAIN_VOLCANO_CORE_DORMANT: lipgloss.NewStyle().
+		Foreground(lipgloss.Color("240")). // #585858 cold grey
+		Background(lipgloss.Color("235")), // #262626 dark basalt
+	pb.Terrain_TERRAIN_CRATER_LAKE: lipgloss.NewStyle().
+		Foreground(lipgloss.Color("39")). // #00afff clear blue
+		Background(lipgloss.Color("24")), // #005f87 deep water
+	pb.Terrain_TERRAIN_VOLCANO_SLOPE: lipgloss.NewStyle().
+		Foreground(lipgloss.Color("130")). // #af5f00 burnt umber
+		Background(lipgloss.Color("237")), // #3a3a3a dark slope
+	pb.Terrain_TERRAIN_ASHLAND: lipgloss.NewStyle().
+		Foreground(lipgloss.Color("245")). // #8a8a8a ash grey
+		Background(lipgloss.Color("234")), // #1c1c1c charcoal
 }
 
 // lookTile returns the rune + style for a wire tile's terrain. Overlay

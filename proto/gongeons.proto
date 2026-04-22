@@ -41,6 +41,11 @@ enum Terrain {
   TERRAIN_SNOWY_PEAK  = 14;
   TERRAIN_OCEAN       = 15;
   TERRAIN_DEEP_OCEAN  = 16;
+  TERRAIN_VOLCANO_CORE         = 17;
+  TERRAIN_VOLCANO_CORE_DORMANT = 18;
+  TERRAIN_CRATER_LAKE          = 19;
+  TERRAIN_VOLCANO_SLOPE        = 20;
+  TERRAIN_ASHLAND              = 21;
 }
 
 // OccupantKind distinguishes entities on a tile. OCCUPANT_MONSTER is reserved

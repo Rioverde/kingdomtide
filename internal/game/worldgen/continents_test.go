@@ -73,6 +73,9 @@ func TestContinentNoiseSeedIsolation(t *testing.T) {
 // connected-component pass on ocean cells, and asserts that the mean
 // component size at least doubles with blending enabled.
 func TestContinentReducesOceanFragmentation(t *testing.T) {
+	if testing.Short() {
+		t.Skip("256x256 ocean fragmentation flood-fill sweep")
+	}
 	const side = 256
 	const seed int64 = 4646
 
@@ -187,6 +190,9 @@ func TestRiverDensityUnderContinents(t *testing.T) {
 // threshold. Kept as a regular test so future tuners can re-run it via
 // `go test -run Calibration -v`.
 func TestRiverThresholdCalibration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("32-seed 128x128 threshold calibration sweep")
+	}
 	const seeds = 32
 	const side = 128
 	const half = side / 2

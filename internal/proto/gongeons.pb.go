@@ -27,23 +27,28 @@ const (
 type Terrain int32
 
 const (
-	Terrain_TERRAIN_UNSPECIFIED Terrain = 0
-	Terrain_TERRAIN_PLAINS      Terrain = 1
-	Terrain_TERRAIN_GRASSLAND   Terrain = 2
-	Terrain_TERRAIN_MEADOW      Terrain = 3
-	Terrain_TERRAIN_BEACH       Terrain = 4
-	Terrain_TERRAIN_DESERT      Terrain = 5
-	Terrain_TERRAIN_SAVANNA     Terrain = 6
-	Terrain_TERRAIN_FOREST      Terrain = 7
-	Terrain_TERRAIN_JUNGLE      Terrain = 8
-	Terrain_TERRAIN_TAIGA       Terrain = 9
-	Terrain_TERRAIN_TUNDRA      Terrain = 10
-	Terrain_TERRAIN_SNOW        Terrain = 11
-	Terrain_TERRAIN_HILLS       Terrain = 12
-	Terrain_TERRAIN_MOUNTAIN    Terrain = 13
-	Terrain_TERRAIN_SNOWY_PEAK  Terrain = 14
-	Terrain_TERRAIN_OCEAN       Terrain = 15
-	Terrain_TERRAIN_DEEP_OCEAN  Terrain = 16
+	Terrain_TERRAIN_UNSPECIFIED          Terrain = 0
+	Terrain_TERRAIN_PLAINS               Terrain = 1
+	Terrain_TERRAIN_GRASSLAND            Terrain = 2
+	Terrain_TERRAIN_MEADOW               Terrain = 3
+	Terrain_TERRAIN_BEACH                Terrain = 4
+	Terrain_TERRAIN_DESERT               Terrain = 5
+	Terrain_TERRAIN_SAVANNA              Terrain = 6
+	Terrain_TERRAIN_FOREST               Terrain = 7
+	Terrain_TERRAIN_JUNGLE               Terrain = 8
+	Terrain_TERRAIN_TAIGA                Terrain = 9
+	Terrain_TERRAIN_TUNDRA               Terrain = 10
+	Terrain_TERRAIN_SNOW                 Terrain = 11
+	Terrain_TERRAIN_HILLS                Terrain = 12
+	Terrain_TERRAIN_MOUNTAIN             Terrain = 13
+	Terrain_TERRAIN_SNOWY_PEAK           Terrain = 14
+	Terrain_TERRAIN_OCEAN                Terrain = 15
+	Terrain_TERRAIN_DEEP_OCEAN           Terrain = 16
+	Terrain_TERRAIN_VOLCANO_CORE         Terrain = 17
+	Terrain_TERRAIN_VOLCANO_CORE_DORMANT Terrain = 18
+	Terrain_TERRAIN_CRATER_LAKE          Terrain = 19
+	Terrain_TERRAIN_VOLCANO_SLOPE        Terrain = 20
+	Terrain_TERRAIN_ASHLAND              Terrain = 21
 )
 
 // Enum value maps for Terrain.
@@ -66,25 +71,35 @@ var (
 		14: "TERRAIN_SNOWY_PEAK",
 		15: "TERRAIN_OCEAN",
 		16: "TERRAIN_DEEP_OCEAN",
+		17: "TERRAIN_VOLCANO_CORE",
+		18: "TERRAIN_VOLCANO_CORE_DORMANT",
+		19: "TERRAIN_CRATER_LAKE",
+		20: "TERRAIN_VOLCANO_SLOPE",
+		21: "TERRAIN_ASHLAND",
 	}
 	Terrain_value = map[string]int32{
-		"TERRAIN_UNSPECIFIED": 0,
-		"TERRAIN_PLAINS":      1,
-		"TERRAIN_GRASSLAND":   2,
-		"TERRAIN_MEADOW":      3,
-		"TERRAIN_BEACH":       4,
-		"TERRAIN_DESERT":      5,
-		"TERRAIN_SAVANNA":     6,
-		"TERRAIN_FOREST":      7,
-		"TERRAIN_JUNGLE":      8,
-		"TERRAIN_TAIGA":       9,
-		"TERRAIN_TUNDRA":      10,
-		"TERRAIN_SNOW":        11,
-		"TERRAIN_HILLS":       12,
-		"TERRAIN_MOUNTAIN":    13,
-		"TERRAIN_SNOWY_PEAK":  14,
-		"TERRAIN_OCEAN":       15,
-		"TERRAIN_DEEP_OCEAN":  16,
+		"TERRAIN_UNSPECIFIED":          0,
+		"TERRAIN_PLAINS":               1,
+		"TERRAIN_GRASSLAND":            2,
+		"TERRAIN_MEADOW":               3,
+		"TERRAIN_BEACH":                4,
+		"TERRAIN_DESERT":               5,
+		"TERRAIN_SAVANNA":              6,
+		"TERRAIN_FOREST":               7,
+		"TERRAIN_JUNGLE":               8,
+		"TERRAIN_TAIGA":                9,
+		"TERRAIN_TUNDRA":               10,
+		"TERRAIN_SNOW":                 11,
+		"TERRAIN_HILLS":                12,
+		"TERRAIN_MOUNTAIN":             13,
+		"TERRAIN_SNOWY_PEAK":           14,
+		"TERRAIN_OCEAN":                15,
+		"TERRAIN_DEEP_OCEAN":           16,
+		"TERRAIN_VOLCANO_CORE":         17,
+		"TERRAIN_VOLCANO_CORE_DORMANT": 18,
+		"TERRAIN_CRATER_LAKE":          19,
+		"TERRAIN_VOLCANO_SLOPE":        20,
+		"TERRAIN_ASHLAND":              21,
 	}
 )
 
@@ -2175,7 +2190,7 @@ const file_gongeons_proto_rawDesc = "" +
 	"\x06reason\x18\x02 \x01(\tR\x06reason\"=\n" +
 	"\rErrorResponse\x12\x18\n" +
 	"\amessage\x18\x01 \x01(\tR\amessage\x12\x12\n" +
-	"\x04code\x18\x02 \x01(\tR\x04code*\xea\x02\n" +
+	"\x04code\x18\x02 \x01(\tR\x04code*\xef\x03\n" +
 	"\aTerrain\x12\x17\n" +
 	"\x13TERRAIN_UNSPECIFIED\x10\x00\x12\x12\n" +
 	"\x0eTERRAIN_PLAINS\x10\x01\x12\x15\n" +
@@ -2194,7 +2209,12 @@ const file_gongeons_proto_rawDesc = "" +
 	"\x10TERRAIN_MOUNTAIN\x10\r\x12\x16\n" +
 	"\x12TERRAIN_SNOWY_PEAK\x10\x0e\x12\x11\n" +
 	"\rTERRAIN_OCEAN\x10\x0f\x12\x16\n" +
-	"\x12TERRAIN_DEEP_OCEAN\x10\x10*S\n" +
+	"\x12TERRAIN_DEEP_OCEAN\x10\x10\x12\x18\n" +
+	"\x14TERRAIN_VOLCANO_CORE\x10\x11\x12 \n" +
+	"\x1cTERRAIN_VOLCANO_CORE_DORMANT\x10\x12\x12\x17\n" +
+	"\x13TERRAIN_CRATER_LAKE\x10\x13\x12\x19\n" +
+	"\x15TERRAIN_VOLCANO_SLOPE\x10\x14\x12\x13\n" +
+	"\x0fTERRAIN_ASHLAND\x10\x15*S\n" +
 	"\fOccupantKind\x12\x18\n" +
 	"\x14OCCUPANT_UNSPECIFIED\x10\x00\x12\x13\n" +
 	"\x0fOCCUPANT_PLAYER\x10\x01\x12\x14\n" +

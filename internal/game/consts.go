@@ -47,6 +47,15 @@ const (
 	TerrainMountain  Terrain = "mountain"
 	TerrainSnowyPeak Terrain = "snowy_peak"
 
+	// Volcanic terrains — multi-tile volcano footprints overwrite base biomes.
+	// Core and CoreDormant are impassable; CraterLake behaves as inland water;
+	// Slope and Ashland are land-passable.
+	TerrainVolcanoCore        Terrain = "volcano_core"
+	TerrainVolcanoCoreDormant Terrain = "volcano_core_dormant"
+	TerrainCraterLake         Terrain = "crater_lake"
+	TerrainVolcanoSlope       Terrain = "volcano_slope"
+	TerrainAshland            Terrain = "ashland"
+
 	// Damage multipliers for different body parts.
 	HeadDamageMultiplier = 2.0
 	BodyDamageMultiplier = 1.0
@@ -98,5 +107,10 @@ func AllTerrains() []Terrain {
 		TerrainHills,
 		TerrainMountain,
 		TerrainSnowyPeak,
+		TerrainVolcanoCore,
+		TerrainVolcanoCoreDormant,
+		TerrainCraterLake,
+		TerrainVolcanoSlope,
+		TerrainAshland,
 	}
 }

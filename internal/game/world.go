@@ -44,6 +44,16 @@ type World struct {
 	// May be nil; if nil, LandmarksIn returns nil so callers need not
 	// special-case the missing source.
 	landmarkSource LandmarkSource
+	// volcanoSource produces the canonical volcano list per super-chunk
+	// and resolves per-tile volcanic terrain overrides. May be nil; if
+	// nil, VolcanoAt returns nil and VolcanoTerrainOverride returns
+	// ("", false) so callers need not special-case the missing source.
+	volcanoSource VolcanoSource
+	// depositSource produces the canonical resource deposit lookups.
+	// May be nil; all three DepositAt / DepositsIn / DepositsNear
+	// methods return the empty result when unset so callers need not
+	// special-case the missing source.
+	depositSource DepositSource
 }
 
 // WorldOption configures optional fields on a World during construction.
@@ -82,6 +92,34 @@ func WithLandmarkSource(source LandmarkSource) WorldOption {
 	return func(w *World) {
 		if source != nil {
 			w.landmarkSource = source
+		}
+	}
+}
+
+// WithVolcanoSource attaches a VolcanoSource. If nil is passed, the
+// option is a no-op and VolcanoAt keeps returning nil while
+// VolcanoTerrainOverride keeps returning ("", false) — callers that
+// genuinely want to clear an already-set source should build a new
+// World. Mirrors WithLandmarkSource so the two optional backends wire
+// up through the same functional-option shape.
+func WithVolcanoSource(source VolcanoSource) WorldOption {
+	return func(w *World) {
+		if source != nil {
+			w.volcanoSource = source
+		}
+	}
+}
+
+// WithDepositSource attaches a DepositSource. If nil is passed, the
+// option is a no-op and the deposit accessors keep returning their
+// empty results — callers that genuinely want to clear an already-set
+// source should build a new World. Mirrors the other resource-layer
+// options so every backend wires through the same functional-option
+// shape.
+func WithDepositSource(source DepositSource) WorldOption {
+	return func(w *World) {
+		if source != nil {
+			w.depositSource = source
 		}
 	}
 }
@@ -146,6 +184,21 @@ func (w *World) LandmarkSource() LandmarkSource {
 	return w.landmarkSource
 }
 
+// VolcanoSource returns the configured volcano source, or nil when the
+// world was constructed without one. Callers (e.g. the server's volcano
+// cache) branch on the result to decide whether to wire a cache. Mirrors
+// LandmarkSource so the two optional backends follow the same accessor shape.
+func (w *World) VolcanoSource() VolcanoSource {
+	return w.volcanoSource
+}
+
+// DepositSource returns the configured deposit source, or nil when the
+// world was constructed without one. Callers branch on the result to
+// decide whether to wire caching or skip deposit-aware code paths.
+func (w *World) DepositSource() DepositSource {
+	return w.depositSource
+}
+
 // RegionAt returns the region covering the given world position. It
 // resolves the nearest Voronoi anchor for (p.X, p.Y) and delegates to
 // the configured RegionSource keyed by that anchor's SuperChunkCoord.
@@ -173,6 +226,63 @@ func (w *World) LandmarksIn(sc SuperChunkCoord) []Landmark {
 		return nil
 	}
 	return w.landmarkSource.LandmarksIn(sc)
+}
+
+// VolcanoAt returns the volcanoes inside the super-chunk sc. Delegates
+// to whatever VolcanoSource the World was constructed with. Returns nil
+// when no VolcanoSource is wired — the server's per-sc cache can treat
+// a nil result the same as "no volcanoes here" without a separate
+// branch for the missing-source case.
+func (w *World) VolcanoAt(sc SuperChunkCoord) []Volcano {
+	if w.volcanoSource == nil {
+		return nil
+	}
+	return w.volcanoSource.VolcanoAt(sc)
+}
+
+// VolcanoTerrainOverride returns the volcanic terrain that replaces the
+// base biome at tile t, or ("", false) when t is not covered by any
+// volcano footprint (or no VolcanoSource is wired). Callers blend the
+// override on top of the base TileSource so a volcano's core, slope, or
+// ashland ring shows the correct terrain without mutating the tile
+// backend.
+func (w *World) VolcanoTerrainOverride(t Position) (Terrain, bool) {
+	if w.volcanoSource == nil {
+		return "", false
+	}
+	return w.volcanoSource.TerrainOverrideAt(t)
+}
+
+// DepositAt returns the resource deposit covering tile p, or
+// (Deposit{}, false) when no deposit sits on p or no DepositSource is
+// wired. Called by the future prospect action, quest generation, and
+// tests that need a deterministic lookup.
+func (w *World) DepositAt(p Position) (Deposit, bool) {
+	if w.depositSource == nil {
+		return Deposit{}, false
+	}
+	return w.depositSource.DepositAt(p)
+}
+
+// DepositsIn returns every deposit whose Position lies inside rect.
+// Returns nil when no DepositSource is wired. Used by Phase-5a city
+// placement to seed the candidate pool with resource-anchor tiles.
+func (w *World) DepositsIn(rect Rect) []Deposit {
+	if w.depositSource == nil {
+		return nil
+	}
+	return w.depositSource.DepositsIn(rect)
+}
+
+// DepositsNear returns every deposit within Chebyshev radius of p,
+// sorted by distance ascending. Returns nil when no DepositSource is
+// wired. Used by the future contextual info-panel when the player
+// approaches a feature.
+func (w *World) DepositsNear(p Position, radius int) []Deposit {
+	if w.depositSource == nil {
+		return nil
+	}
+	return w.depositSource.DepositsNear(p, radius)
 }
 
 // InBounds reports whether p is a valid tile coordinate. For the current
@@ -288,7 +398,9 @@ func (t Terrain) Passable() bool {
 		TerrainTaiga,
 		TerrainForest,
 		TerrainJungle,
-		TerrainHills:
+		TerrainHills,
+		TerrainVolcanoSlope,
+		TerrainAshland:
 		return true
 	default:
 		return false
