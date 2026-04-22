@@ -109,6 +109,15 @@ other = "Stats"
 [stats.empty]
 other = "(no stats yet)"
 
+[stats.hp]
+other = "HP"
+
+[stats.mp]
+other = "MP"
+
+[stats.speed]
+other = "SPD"
+
 [panel.events_header]
 other = "Events"
 

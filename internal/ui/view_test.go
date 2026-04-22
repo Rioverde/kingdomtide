@@ -420,6 +420,125 @@ func TestTileRenderIsTwoCells(t *testing.T) {
 	}
 }
 
+// statsModel returns a Model in phasePlaying with a confirmed CoreStats
+// built from the given six raw ability scores, mirroring what
+// confirmCharacterCreation stores.
+func statsModel(str, dex, con, intel, wis, cha int) *Model {
+	m := New(context.Background(), "localhost:0")
+	m.setPhase(phasePlaying)
+	m.termWidth = 120
+	m.termHeight = 40
+	m.nameInput.SetValue("Aldric")
+	cs := game.CoreStats{
+		Strength:     str,
+		Dexterity:    dex,
+		Constitution: con,
+		Intelligence: intel,
+		Wisdom:       wis,
+		Charisma:     cha,
+	}
+	m.coreStats = cs
+	m.currentHP = cs.MaxHP()
+	return m
+}
+
+// TestStatsBoxRendersFullBlock verifies that renderStatsBox, when coreStats is
+// set, emits all six stat labels and both positive/negative modifier signs.
+func TestStatsBoxRendersFullBlock(t *testing.T) {
+	t.Parallel()
+	// STR 15 → +2, DEX 8 → -1, CON 14 → +2, INT 10 → 0, WIS 8 → -1, CHA 10 → 0.
+	// Point Buy cost: 9+0+7+2+0+2 = 20 ≠ 27, so we use a non-validated set here
+	// because renderStatsBox only reads coreStats directly — no validation.
+	m := statsModel(15, 8, 14, 10, 8, 10)
+	out := m.renderStatsBox()
+
+	wantLabels := []string{"STR", "DEX", "CON", "INT", "WIS", "CHA"}
+	for _, lbl := range wantLabels {
+		if !strings.Contains(out, lbl) {
+			t.Errorf("renderStatsBox: stat label %q not found in output", lbl)
+		}
+	}
+	// STR 15 → "+2", DEX 8 → "-1"
+	if !strings.Contains(out, "+2") {
+		t.Error("renderStatsBox: expected positive modifier '+2' not found")
+	}
+	if !strings.Contains(out, "-1") {
+		t.Error("renderStatsBox: expected negative modifier '-1' not found")
+	}
+	// Player name must appear.
+	if !strings.Contains(out, "Aldric") {
+		t.Error("renderStatsBox: player name 'Aldric' not found")
+	}
+}
+
+// TestStatsBoxHPDerived verifies that CON 14 yields MaxHP = 10 + 2*6 = 22
+// and renders as "HP 22/22".
+func TestStatsBoxHPDerived(t *testing.T) {
+	t.Parallel()
+	// All 10s except CON=14: Modifier(14)=+2, MaxHP = 10 + 2*6 = 22.
+	m := statsModel(10, 10, 14, 10, 10, 10)
+	out := m.renderStatsBox()
+
+	if !strings.Contains(out, "22/22") {
+		t.Errorf("renderStatsBox: expected 'HP 22/22' for CON 14, got:\n%s", out)
+	}
+}
+
+// TestStatsBoxModifierSigns verifies the three sign cases: positive, zero,
+// negative are all formatted correctly in renderStatsBox output.
+// Uses a model with STR=5 (mod -3), DEX=10 (mod 0), CON=15 (mod +2),
+// all others 10 — coreStats set directly so Point Buy validation is skipped.
+func TestStatsBoxModifierSigns(t *testing.T) {
+	t.Parallel()
+	m := New(context.Background(), "localhost:0")
+	m.setPhase(phasePlaying)
+	m.termWidth = 120
+	m.termHeight = 40
+	m.coreStats = game.CoreStats{
+		Strength:     5,  // mod -3
+		Dexterity:    10, // mod  0
+		Constitution: 15, // mod +2
+		Intelligence: 10,
+		Wisdom:       10,
+		Charisma:     10,
+	}
+	m.currentHP = m.coreStats.MaxHP()
+
+	out := m.renderStatsBox()
+
+	if !strings.Contains(out, "+2") {
+		t.Errorf("renderStatsBox: expected '+2' for CON 15, not found in:\n%s", out)
+	}
+	if !strings.Contains(out, " 0") {
+		t.Errorf("renderStatsBox: expected ' 0' for DEX 10, not found in:\n%s", out)
+	}
+	if !strings.Contains(out, "-3") {
+		t.Errorf("renderStatsBox: expected '-3' for STR 5, not found in:\n%s", out)
+	}
+}
+
+// TestStatsBoxEmptyBeforeJoin verifies that before character creation is
+// confirmed (coreStats zero value) the panel shows the placeholder text
+// instead of stat rows, preserving backward compat for earlier phases.
+func TestStatsBoxEmptyBeforeJoin(t *testing.T) {
+	t.Parallel()
+	m := New(context.Background(), "localhost:0")
+	m.setPhase(phasePlaying)
+	m.termWidth = 120
+	m.termHeight = 40
+	// coreStats is the zero value — no stats confirmed yet.
+	out := m.renderStatsBox()
+
+	if !strings.Contains(out, "no stats") {
+		t.Error("renderStatsBox before join: expected placeholder '(no stats yet)' not found")
+	}
+	for _, lbl := range []string{"STR", "DEX", "CON", "INT", "WIS", "CHA"} {
+		if strings.Contains(out, lbl) {
+			t.Errorf("renderStatsBox before join: stat label %q should not appear before join", lbl)
+		}
+	}
+}
+
 // TestViewportFillsLargeTerminal verifies that on a very large terminal
 // (200×80) the viewport expands to fill the available space rather than
 // getting pinned at a DF-style classic cap. Odd-sided requirement for

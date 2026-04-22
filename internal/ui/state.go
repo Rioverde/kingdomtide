@@ -141,6 +141,14 @@ type Model struct {
 	selectedStat int
 	statsError   string
 
+	// coreStats is the confirmed ability distribution carried forward from
+	// phaseCharacterCreation into phasePlaying. Zero value until the player
+	// completes character creation and the phase transitions to Connecting.
+	// currentHP tracks the player's hit points client-side; it is set to
+	// coreStats.MaxHP() on join and will be updated by combat events later.
+	coreStats game.CoreStats
+	currentHP int
+
 	// help renders the bottom-bar keybinding hint from Keys. Width is
 	// updated on every tea.WindowSizeMsg so the short view truncates
 	// gracefully on narrow terminals.
