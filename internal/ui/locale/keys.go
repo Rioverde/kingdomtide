@@ -92,6 +92,15 @@ const (
 	// KeyStatsEmpty is shown inside the stats panel when no stat data is
 	// available yet. Future: replace with HP/Agility/Intellect list rendering.
 	KeyStatsEmpty = "stats.empty"
+
+	// KeyStatsHP is the label for the hit-points row in the stats panel.
+	KeyStatsHP = "stats.hp"
+
+	// KeyStatsMP is the label for the mana-points row in the stats panel.
+	KeyStatsMP = "stats.mp"
+
+	// KeyStatsSpeed is the label for the derived-speed row in the stats panel.
+	KeyStatsSpeed = "stats.speed"
 )
 
 // Title screen keys.
@@ -238,6 +247,9 @@ func AllKeys() []string {
 		KeyPanelEmptyList,
 		KeyPanelStatsHeader,
 		KeyStatsEmpty,
+		KeyStatsHP,
+		KeyStatsMP,
+		KeyStatsSpeed,
 
 		KeyTitleText,
 		KeyTitleTagline,
