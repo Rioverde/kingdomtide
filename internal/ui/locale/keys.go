@@ -53,6 +53,14 @@ const (
 	KeyErrorInvalidArgument = "error.invalid_argument"
 	KeyErrorInvalidProtocol = "error.invalid_protocol"
 	KeyErrorRuleViolation   = "error.rule_violation"
+	KeyErrorInvalidStats    = "error.invalid_stats"
+
+	// Intent-failure reason keys — carried by IntentFailedEvent so the
+	// client renders a localized blocked / invalid hint without the server
+	// shipping any player-facing text. Domain code constructs events with
+	// the matching game.ReasonIntent* constant which shares this string.
+	KeyErrorIntentMoveBlocked = "error.intent.move_blocked"
+	KeyErrorIntentMoveInvalid = "error.intent.move_invalid"
 )
 
 // Input widget keys.
@@ -90,6 +98,28 @@ const (
 const (
 	KeyTitleText    = "title.text"
 	KeyTitleTagline = "title.tagline"
+)
+
+// Character-creation (phaseCharacterCreation, CS4) keys. The screen renders
+// a Point Buy distributor: header, remaining-budget readout, six labelled
+// ability rows with per-row cost, keybinding hints, and a localized error
+// line when the distribution is rejected on confirm.
+const (
+	KeyCreationHeader    = "creation.header"
+	KeyCreationRemaining = "creation.remaining"
+
+	KeyCreationStatStrength     = "creation.stat.strength"
+	KeyCreationStatDexterity    = "creation.stat.dexterity"
+	KeyCreationStatConstitution = "creation.stat.constitution"
+	KeyCreationStatIntelligence = "creation.stat.intelligence"
+	KeyCreationStatWisdom       = "creation.stat.wisdom"
+	KeyCreationStatCharisma     = "creation.stat.charisma"
+
+	KeyCreationCost         = "creation.cost"
+	KeyCreationHintAdjust   = "creation.hint.adjust"
+	KeyCreationHintConfirm  = "creation.hint.confirm"
+	KeyCreationErrorBudget  = "creation.error.budget"
+	KeyCreationErrorRange   = "creation.error.range"
 )
 
 // Event log message keys.
@@ -190,6 +220,9 @@ func AllKeys() []string {
 		KeyErrorInvalidArgument,
 		KeyErrorInvalidProtocol,
 		KeyErrorRuleViolation,
+		KeyErrorInvalidStats,
+		KeyErrorIntentMoveBlocked,
+		KeyErrorIntentMoveInvalid,
 
 		KeyInputNameLabel,
 		KeyInputPrompt,
@@ -208,6 +241,20 @@ func AllKeys() []string {
 
 		KeyTitleText,
 		KeyTitleTagline,
+
+		KeyCreationHeader,
+		KeyCreationRemaining,
+		KeyCreationStatStrength,
+		KeyCreationStatDexterity,
+		KeyCreationStatConstitution,
+		KeyCreationStatIntelligence,
+		KeyCreationStatWisdom,
+		KeyCreationStatCharisma,
+		KeyCreationCost,
+		KeyCreationHintAdjust,
+		KeyCreationHintConfirm,
+		KeyCreationErrorBudget,
+		KeyCreationErrorRange,
 
 		KeyLogJoined,
 		KeyLogLeft,

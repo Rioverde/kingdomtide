@@ -76,6 +76,15 @@ other = "Protocol error."
 [error.rule_violation]
 other = "Rule violation."
 
+[error.invalid_stats]
+other = "Invalid character stats — must follow Point Buy rules."
+
+[error.intent.move_blocked]
+other = "Blocked."
+
+[error.intent.move_invalid]
+other = "Invalid move."
+
 [input.name_label]
 other = "Your name:"
 
@@ -117,6 +126,49 @@ other = "G · O · N · G · E · O · N · S"
 
 [title.tagline]
 other = "Let the dice fall where they may."
+
+# Character creation (phaseCharacterCreation, CS4). The screen renders a
+# Point Buy distributor with six ability rows, a running remaining-budget
+# readout, and a localized error line on bad confirm.
+
+[creation.header]
+other = "Character Creation"
+
+[creation.remaining]
+other = "Remaining points: {{.Remaining}} / 27"
+
+[creation.stat.strength]
+other = "STR"
+
+[creation.stat.dexterity]
+other = "DEX"
+
+[creation.stat.constitution]
+other = "CON"
+
+[creation.stat.intelligence]
+other = "INT"
+
+[creation.stat.wisdom]
+other = "WIS"
+
+[creation.stat.charisma]
+other = "CHA"
+
+[creation.cost]
+other = "cost {{.Cost}}"
+
+[creation.hint.adjust]
+other = "←/→ to adjust · ↑/↓ to select"
+
+[creation.hint.confirm]
+other = "Enter: confirm · Esc: back"
+
+[creation.error.budget]
+other = "Must distribute exactly 27 points."
+
+[creation.error.range]
+other = "Each stat must be between 8 and 15."
 
 [log.joined]
 other = "{{.Name}} joined"

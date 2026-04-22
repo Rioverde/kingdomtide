@@ -28,14 +28,14 @@ func TestEnterNameTypingAndSubmit(t *testing.T) {
 		t.Fatalf("name buffer = %q, want %q", m.nameInput.Value(), "bob")
 	}
 
-	// Submit: should transition to phaseConnecting and return a Cmd.
-	model, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	// Submit: a valid name advances to phaseCharacterCreation so the
+	// player can distribute their Point Buy budget before we dial.
+	// No Cmd is returned at this step — dialing is deferred to the
+	// subsequent confirm on the creation screen.
+	model, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	m = model.(*Model)
-	if m.phase != phaseConnecting {
-		t.Fatalf("phase = %d, want phaseConnecting", m.phase)
-	}
-	if cmd == nil {
-		t.Fatalf("expected a Cmd from Enter on non-empty name")
+	if m.phase != phaseCharacterCreation {
+		t.Fatalf("phase = %d, want phaseCharacterCreation", m.phase)
 	}
 }
 

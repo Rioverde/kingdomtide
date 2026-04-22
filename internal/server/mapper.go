@@ -36,10 +36,14 @@ func clientMessageToCommand(m *pb.ClientMessage, playerID string) (game.Command,
 	switch v := m.GetPayload().(type) {
 	case *pb.ClientMessage_Join:
 		name := ""
+		var stats game.CoreStats
 		if v.Join != nil {
 			name = v.Join.GetName()
+			stats = coreStatsFromPB(v.Join.GetStats())
+		} else {
+			stats = game.DefaultCoreStats()
 		}
-		return game.JoinCmd{PlayerID: playerID, Name: name}, nil
+		return game.JoinCmd{PlayerID: playerID, Name: name, Stats: stats}, nil
 	case *pb.ClientMessage_Move:
 		if v.Move == nil {
 			return nil, fmt.Errorf("move: %w", errEmptyPayload)
@@ -51,6 +55,37 @@ func clientMessageToCommand(m *pb.ClientMessage, playerID string) (game.Command,
 		}, nil
 	default:
 		return nil, errEmptyPayload
+	}
+}
+
+// coreStatsFromPB converts a wire CoreStats into the domain type. A nil
+// input is treated as "client omitted the field" and yields the neutral
+// baseline, so callers that want to reject missing stats must check for
+// nil themselves before calling.
+func coreStatsFromPB(s *pb.CoreStats) game.CoreStats {
+	if s == nil {
+		return game.DefaultCoreStats()
+	}
+	return game.CoreStats{
+		Strength:     int(s.GetStrength()),
+		Dexterity:    int(s.GetDexterity()),
+		Constitution: int(s.GetConstitution()),
+		Intelligence: int(s.GetIntelligence()),
+		Wisdom:       int(s.GetWisdom()),
+		Charisma:     int(s.GetCharisma()),
+	}
+}
+
+// coreStatsToPB converts a domain CoreStats into its wire form. Returns a
+// non-nil pointer for every input so the caller never has to check.
+func coreStatsToPB(s game.CoreStats) *pb.CoreStats {
+	return &pb.CoreStats{
+		Strength:     int32(s.Strength),
+		Dexterity:    int32(s.Dexterity),
+		Constitution: int32(s.Constitution),
+		Intelligence: int32(s.Intelligence),
+		Wisdom:       int32(s.Wisdom),
+		Charisma:     int32(s.Charisma),
 	}
 }
 
@@ -79,6 +114,8 @@ func eventToServerMessage(e game.Event) *pb.ServerMessage {
 			From:     positionPB(v.From),
 			To:       positionPB(v.To),
 		}}}
+	case game.IntentFailedEvent:
+		ev = &pb.Event{Payload: &pb.Event_IntentFailed{IntentFailed: intentFailedPB(v)}}
 	default:
 		return nil
 	}
@@ -88,6 +125,17 @@ func eventToServerMessage(e game.Event) *pb.ServerMessage {
 // positionPB converts a domain Position into its wire form.
 func positionPB(p game.Position) *pb.Position {
 	return &pb.Position{X: int32(p.X), Y: int32(p.Y)}
+}
+
+// intentFailedPB converts a domain IntentFailedEvent into its wire form.
+// Reason is forwarded unchanged — it is a stable locale catalog key (see
+// game.ReasonIntent* constants) the client resolves through its i18n
+// bundle, keeping the server language-agnostic.
+func intentFailedPB(e game.IntentFailedEvent) *pb.IntentFailed {
+	return &pb.IntentFailed{
+		EntityId: e.EntityID,
+		Reason:   e.Reason,
+	}
 }
 
 // structurePBMapping translates the domain StructureKind enum to its wire

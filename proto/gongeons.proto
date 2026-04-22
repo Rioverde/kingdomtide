@@ -217,18 +217,35 @@ message ClientMessage {
   }
 }
 
+// CoreStats mirrors game.CoreStats for the join handshake. The client
+// sends the six D&D 5e ability scores the player assembled during
+// character creation (CS4); the server validates the Point Buy 27 budget
+// before accepting and rejects a bad distribution with error.invalid_stats.
+// When the whole message is omitted the server substitutes a neutral
+// baseline (all 10s) so legacy clients keep working.
+message CoreStats {
+  int32 strength     = 1;
+  int32 dexterity    = 2;
+  int32 constitution = 3;
+  int32 intelligence = 4;
+  int32 wisdom       = 5;
+  int32 charisma     = 6;
+}
+
 // JoinRequest is the first message a client sends. The server assigns a
 // PlayerID in JoinAccepted and begins broadcasting events to this stream.
 // viewport_width and viewport_height are the desired Snapshot dimensions
 // for this client; zero means "use server defaults". language is the
 // client's preferred locale as a BCP 47 tag (e.g. "en", "ru"); empty
 // means the server picks "en" as default — locale catalog wiring is handled
-// server-side.
+// server-side. stats carries the character's D&D 5e ability distribution;
+// omit it (or send zeroes) to get the server's neutral fallback.
 message JoinRequest {
-  string name            = 1;
-  int32  viewport_width  = 2;
-  int32  viewport_height = 3;
-  string language        = 4;
+  string    name            = 1;
+  int32     viewport_width  = 2;
+  int32     viewport_height = 3;
+  string    language        = 4;
+  CoreStats stats           = 5;
 }
 
 // ViewportCmd updates the Snapshot dimensions the server should use for
@@ -289,6 +306,7 @@ message Event {
     PlayerJoined player_joined = 1;
     PlayerLeft   player_left   = 2;
     EntityMoved  entity_moved  = 3;
+    IntentFailed intent_failed = 4;
   }
 }
 
@@ -304,6 +322,18 @@ message EntityMoved {
   string   entity_id = 1;
   Position from      = 2;
   Position to        = 3;
+}
+
+// IntentFailed reports that an entity's pending intent (MoveIntent, future
+// AttackIntent, ...) could not resolve at Tick time — destination blocked,
+// target dead, etc. Energy is NOT deducted on the server (refund
+// semantics): the intent slot is cleared so the entity becomes idle and
+// its next input is free. reason is a stable locale catalog key (e.g.
+// "error.intent.move_blocked"); the client renders the player-facing text
+// via its i18n bundle, keeping the wire language-agnostic.
+message IntentFailed {
+  string entity_id = 1;
+  string reason    = 2;
 }
 
 message ErrorResponse {

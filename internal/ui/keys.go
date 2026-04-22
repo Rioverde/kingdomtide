@@ -8,6 +8,18 @@ import "github.com/charmbracelet/bubbles/key"
 type KeyMap struct {
 	Up, Down, Left, Right key.Binding
 	Quit                  key.Binding
+
+	// Character-creation screen (phaseCharacterCreation).
+	// StatPrev / StatNext move the cursor between ability rows, with wrap.
+	// StatIncrease / StatDecrease adjust the selected ability score subject
+	// to range and budget guards. Confirm validates the distribution and
+	// advances to phaseConnecting; Back returns to phaseEnterName.
+	StatPrev     key.Binding
+	StatNext     key.Binding
+	StatIncrease key.Binding
+	StatDecrease key.Binding
+	Confirm      key.Binding
+	Back         key.Binding
 }
 
 // ShortHelp returns the single-line help rendered in the status bar.
@@ -32,5 +44,12 @@ var Keys = KeyMap{
 	Down:  key.NewBinding(key.WithKeys("s", "down"), key.WithHelp("s/↓", "south")),
 	Left:  key.NewBinding(key.WithKeys("a", "left"), key.WithHelp("a/←", "west")),
 	Right: key.NewBinding(key.WithKeys("d", "right"), key.WithHelp("d/→", "east")),
-	Quit:  key.NewBinding(key.WithKeys("q", "ctrl+c", "esc"), key.WithHelp("q/esc", "quit")),
+	Quit:  key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q/ctrl+c", "quit")),
+
+	StatPrev:     key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "prev stat")),
+	StatNext:     key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "next stat")),
+	StatIncrease: key.NewBinding(key.WithKeys("right", "=", "+", "l"), key.WithHelp("→/+", "increase")),
+	StatDecrease: key.NewBinding(key.WithKeys("left", "-", "h"), key.WithHelp("←/-", "decrease")),
+	Confirm:      key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "confirm")),
+	Back:         key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back")),
 }

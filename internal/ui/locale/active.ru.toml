@@ -76,6 +76,15 @@ other = "Ошибка протокола."
 [error.rule_violation]
 other = "Нарушение правил."
 
+[error.invalid_stats]
+other = "Неверные характеристики персонажа — должны соответствовать Point Buy."
+
+[error.intent.move_blocked]
+other = "Заблокировано."
+
+[error.intent.move_invalid]
+other = "Неверный ход."
+
 [input.name_label]
 other = "Твоё имя:"
 
@@ -117,6 +126,49 @@ other = "G · O · N · G · E · O · N · S"
 
 [title.tagline]
 other = "Пусть кости лягут как лягут."
+
+# Создание персонажа (phaseCharacterCreation, CS4). Point Buy — шесть
+# строк характеристик, счётчик оставшихся очков, сообщение об ошибке
+# при неверном распределении.
+
+[creation.header]
+other = "Создание персонажа"
+
+[creation.remaining]
+other = "Осталось очков: {{.Remaining}} / 27"
+
+[creation.stat.strength]
+other = "СИЛ"
+
+[creation.stat.dexterity]
+other = "ЛОВ"
+
+[creation.stat.constitution]
+other = "ТЕЛ"
+
+[creation.stat.intelligence]
+other = "ИНТ"
+
+[creation.stat.wisdom]
+other = "МУД"
+
+[creation.stat.charisma]
+other = "ХАР"
+
+[creation.cost]
+other = "цена {{.Cost}}"
+
+[creation.hint.adjust]
+other = "←/→ изменить · ↑/↓ выбрать"
+
+[creation.hint.confirm]
+other = "Enter: подтвердить · Esc: назад"
+
+[creation.error.budget]
+other = "Нужно распределить ровно 27 очков."
+
+[creation.error.range]
+other = "Каждая характеристика должна быть в диапазоне [8, 15]."
 
 [log.joined]
 other = "{{.Name}} вошёл в игру"

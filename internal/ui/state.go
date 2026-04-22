@@ -12,11 +12,13 @@ import (
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
+	"github.com/charmbracelet/ssh"
 	"google.golang.org/grpc"
 
 	"github.com/Rioverde/gongeons/internal/game"
 	"github.com/Rioverde/gongeons/internal/game/worldgen"
 	pb "github.com/Rioverde/gongeons/internal/proto"
+	"github.com/Rioverde/gongeons/internal/server"
 	"github.com/Rioverde/gongeons/internal/ui/locale"
 )
 
@@ -40,9 +42,32 @@ type phase int
 
 const (
 	phaseEnterName phase = iota
+	// phaseCharacterCreation runs after a valid name is submitted and
+	// before the client dials the server. The player distributes the 5e
+	// Point Buy budget (game.PointBuyBudget) across six abilities; Enter
+	// advances to phaseConnecting once the distribution balances, Esc
+	// returns to phaseEnterName.
+	phaseCharacterCreation
 	phaseConnecting
 	phasePlaying
 	phaseDisconnected
+)
+
+// Number of ability scores shown on the character-creation screen —
+// the six D&D 5e core stats (STR, DEX, CON, INT, WIS, CHA). Named so
+// the handful of call sites that iterate the array stay self-documenting.
+const statsCount = 6
+
+// Stat index constants for m.stats — keep in lockstep with the order
+// NewStatsPointBuy takes its arguments in so the translation from UI state
+// to domain constructor stays a one-liner.
+const (
+	statIdxStrength = iota
+	statIdxDexterity
+	statIdxConstitution
+	statIdxIntelligence
+	statIdxWisdom
+	statIdxCharisma
 )
 
 // playerInfo is everything the UI knows about a remote or local player.
@@ -107,6 +132,15 @@ type Model struct {
 	// Enter-name screen.
 	nameInput textinput.Model
 
+	// Character-creation screen (CS4). stats holds the six ability scores
+	// being edited — indexed by statIdxStrength .. statIdxCharisma so the
+	// order matches NewStatsPointBuy arguments. selectedStat is the row
+	// under the cursor; statsError is the localized message rendered under
+	// the stat table when validation fails on confirm.
+	stats        [statsCount]int
+	selectedStat int
+	statsError   string
+
 	// help renders the bottom-bar keybinding hint from Keys. Width is
 	// updated on every tea.WindowSizeMsg so the short view truncates
 	// gracefully on narrow terminals.
@@ -170,6 +204,19 @@ type Model struct {
 	conn   *grpc.ClientConn
 	stream pb.GameService_PlayClient
 	outbox chan *pb.ClientMessage
+
+	// Session-mode plumbing. sessionSvc is non-nil only when the Model
+	// was constructed via NewSession (i.e. running under SSH/wish with
+	// a direct in-process Service handle). sess is the ssh.Session the
+	// Bubble Tea program is bound to — carried so the Model can inspect
+	// the peer's terminal on init if no tea.WindowSizeMsg has landed yet.
+	// sessionUnsub clears the subscriber entry on the Service; called on
+	// disconnect or Ctrl-D. sessionEvents is the in-process event
+	// stream consumed by pumpSessionEventsCmd.
+	sessionSvc    sessionDriver
+	sess          ssh.Session
+	sessionUnsub  func()
+	sessionEvents <-chan server.SessionEvent
 
 	// Terminal dimensions reported by tea.WindowSizeMsg.
 	termWidth  int
@@ -236,4 +283,39 @@ func (m *Model) appendLogJoin(line string) {
 // appendLogLeave appends a grey-styled leave event entry.
 func (m *Model) appendLogLeave(line string) {
 	m.appendLog(line, logKindLeave)
+}
+
+// resetStatsForCreation seeds the six ability scores to the 5e Point Buy
+// baseline (all at game.PointBuyMin) and parks the cursor on the first
+// row. Called on every entry to phaseCharacterCreation — both the forward
+// path from phaseEnterName and the backward path via Esc — so the player
+// sees a clean baseline instead of stale values from a previous pass.
+func (m *Model) resetStatsForCreation() {
+	for i := range m.stats {
+		m.stats[i] = game.PointBuyMin
+	}
+	m.selectedStat = 0
+	m.statsError = ""
+}
+
+// pointBuyUsed returns the total Point Buy cost of the current stats
+// distribution. Each score's price comes from game.PointBuyCost, which
+// returns 0 for out-of-range inputs — so even a malformed distribution
+// still yields a finite number and the remaining-budget line renders
+// without a panic.
+func (m *Model) pointBuyUsed() int {
+	used := 0
+	for _, s := range m.stats {
+		used += game.PointBuyCost(s)
+	}
+	return used
+}
+
+// pointBuyRemaining returns the unspent budget under the current
+// distribution. Positive means points are still available; zero means the
+// distribution is complete; negative should never happen under the
+// increment/decrement guards but is carried through so the UI can flash
+// a warning if the invariant ever breaks.
+func (m *Model) pointBuyRemaining() int {
+	return game.PointBuyBudget - m.pointBuyUsed()
 }
