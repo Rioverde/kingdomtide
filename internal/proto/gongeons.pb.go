@@ -1583,9 +1583,19 @@ type Snapshot struct {
 	Entities []*Entity              `protobuf:"bytes,5,rep,name=entities,proto3" json:"entities,omitempty"`
 	// region at this player's position (per-player, not shared). Clients
 	// use it for status-bar rendering, tint, and boundary-crossing events.
-	Region        *Region `protobuf:"bytes,6,opt,name=region,proto3" json:"region,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Region *Region `protobuf:"bytes,6,opt,name=region,proto3" json:"region,omitempty"`
+	// self_energy is the receiving player's current Energy counter for the
+	// tick system. int32 because proto has no native int; domain values
+	// are always non-negative. Private to the snapshot subject — never sent
+	// in broadcasts to other players.
+	SelfEnergy int32 `protobuf:"varint,7,opt,name=self_energy,json=selfEnergy,proto3" json:"self_energy,omitempty"`
+	// self_energy_cost is the Energy required to perform a standard action
+	// (BaseActionCost = 12). Sent as a constant so the client can render
+	// the denominator of the energy bar (e.g. "8/12") without hard-coding
+	// the server constant.
+	SelfEnergyCost int32 `protobuf:"varint,8,opt,name=self_energy_cost,json=selfEnergyCost,proto3" json:"self_energy_cost,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *Snapshot) Reset() {
@@ -1658,6 +1668,20 @@ func (x *Snapshot) GetRegion() *Region {
 		return x.Region
 	}
 	return nil
+}
+
+func (x *Snapshot) GetSelfEnergy() int32 {
+	if x != nil {
+		return x.SelfEnergy
+	}
+	return 0
+}
+
+func (x *Snapshot) GetSelfEnergyCost() int32 {
+	if x != nil {
+		return x.SelfEnergyCost
+	}
+	return 0
 }
 
 // Event is a domain event the server broadcasts to every connected client.
@@ -2119,14 +2143,17 @@ const file_gongeons_proto_rawDesc = "" +
 	"\tplayer_id\x18\x01 \x01(\tR\bplayerId\x12+\n" +
 	"\x05spawn\x18\x02 \x01(\v2\x15.gongeons.v1.PositionR\x05spawn\x12\x1d\n" +
 	"\n" +
-	"world_seed\x18\x03 \x01(\x03R\tworldSeed\"\xee\x01\n" +
+	"world_seed\x18\x03 \x01(\x03R\tworldSeed\"\xb9\x02\n" +
 	"\bSnapshot\x12\x14\n" +
 	"\x05width\x18\x01 \x01(\x05R\x05width\x12\x16\n" +
 	"\x06height\x18\x02 \x01(\x05R\x06height\x12-\n" +
 	"\x06origin\x18\x03 \x01(\v2\x15.gongeons.v1.PositionR\x06origin\x12'\n" +
 	"\x05tiles\x18\x04 \x03(\v2\x11.gongeons.v1.TileR\x05tiles\x12/\n" +
 	"\bentities\x18\x05 \x03(\v2\x13.gongeons.v1.EntityR\bentities\x12+\n" +
-	"\x06region\x18\x06 \x01(\v2\x13.gongeons.v1.RegionR\x06region\"\x91\x02\n" +
+	"\x06region\x18\x06 \x01(\v2\x13.gongeons.v1.RegionR\x06region\x12\x1f\n" +
+	"\vself_energy\x18\a \x01(\x05R\n" +
+	"selfEnergy\x12(\n" +
+	"\x10self_energy_cost\x18\b \x01(\x05R\x0eselfEnergyCost\"\x91\x02\n" +
 	"\x05Event\x12@\n" +
 	"\rplayer_joined\x18\x01 \x01(\v2\x19.gongeons.v1.PlayerJoinedH\x00R\fplayerJoined\x12:\n" +
 	"\vplayer_left\x18\x02 \x01(\v2\x17.gongeons.v1.PlayerLeftH\x00R\n" +

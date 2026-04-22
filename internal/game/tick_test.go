@@ -58,8 +58,8 @@ func TestNewPlayerJoinDefaults(t *testing.T) {
 	if p.Speed != SpeedNormal {
 		t.Errorf("Speed = %d, want %d", p.Speed, SpeedNormal)
 	}
-	if p.Energy != baseActionCost {
-		t.Errorf("Energy = %d, want %d", p.Energy, baseActionCost)
+	if p.Energy != BaseActionCost {
+		t.Errorf("Energy = %d, want %d", p.Energy, BaseActionCost)
 	}
 	if p.Initiative != 0 {
 		t.Errorf("Initiative = %d, want 0", p.Initiative)
@@ -121,8 +121,8 @@ func TestEnqueueIntentUnknownPlayer(t *testing.T) {
 // and friends below, which cover the real tick-resolution contract.
 
 func TestMoveIntentCost(t *testing.T) {
-	if got := (MoveIntent{DX: 1}).Cost(); got != baseActionCost {
-		t.Errorf("MoveIntent.Cost() = %d, want %d", got, baseActionCost)
+	if got := (MoveIntent{DX: 1}).Cost(); got != BaseActionCost {
+		t.Errorf("MoveIntent.Cost() = %d, want %d", got, BaseActionCost)
 	}
 }
 
@@ -157,7 +157,7 @@ func firstMoved(t *testing.T, events []Event) EntityMovedEvent {
 func TestTickResolvesPendingMoveIntent(t *testing.T) {
 	w := newTickTestWorld(t)
 	p := joinPlayer(t, w)
-	// Default-post-join: Speed=12, Energy=12 (baseActionCost).
+	// Default-post-join: Speed=12, Energy=12 (BaseActionCost).
 	if err := w.EnqueueIntent("p1", MoveIntent{DX: 1, DY: 0}); err != nil {
 		t.Fatalf("EnqueueIntent: %v", err)
 	}
@@ -171,18 +171,23 @@ func TestTickResolvesPendingMoveIntent(t *testing.T) {
 	if p.Intent != nil {
 		t.Errorf("Intent = %v, want nil after resolution", p.Intent)
 	}
-	// Start Energy = baseActionCost, then Tick adds Speed (12) and spends
-	// Cost (12): net Energy = 12 + 12 - 12 = 12.
-	if p.Energy != baseActionCost {
-		t.Errorf("Energy = %d, want %d (baseActionCost + Speed - Cost)",
-			p.Energy, baseActionCost)
+	// Accumulation is clamped at BaseActionCost on every tick, so the
+	// post-resolution Energy is always zero for Speed >= Cost entities:
+	// min(12 + 12, 12) = 12, then 12 - 12 = 0.
+	if p.Energy != 0 {
+		t.Errorf("Energy = %d, want 0 (clamped accumulation then full Cost deduction)",
+			p.Energy)
 	}
 }
 
+// TestTickSkipsEntitiesWithoutIntent checks that a tick on an entity with
+// no pending Intent emits no events and leaves the Intent slot empty. The
+// idle clamp caps Energy at BaseActionCost so a long idle session cannot
+// produce displayed values like "1056/12" — any value >= cost rounds to
+// exactly cost and the UI bar simply shows saturated.
 func TestTickSkipsEntitiesWithoutIntent(t *testing.T) {
 	w := newTickTestWorld(t)
 	p := joinPlayer(t, w)
-	startEnergy := p.Energy
 
 	events := w.Tick()
 
@@ -192,45 +197,61 @@ func TestTickSkipsEntitiesWithoutIntent(t *testing.T) {
 	if p.Intent != nil {
 		t.Errorf("Intent = %v, want nil", p.Intent)
 	}
-	if p.Energy != startEnergy+p.Speed {
-		t.Errorf("Energy = %d, want %d (startEnergy + Speed)",
-			p.Energy, startEnergy+p.Speed)
+	if p.Energy != BaseActionCost {
+		t.Errorf("Energy = %d, want %d (idle clamp to BaseActionCost)",
+			p.Energy, BaseActionCost)
 	}
 }
 
+// TestTickIdleClampHoldsSteady exercises the clamp across many idle ticks:
+// Energy must reach BaseActionCost and stay pinned there regardless of
+// Speed. Without the clamp, Energy would grow by Speed every tick forever.
+func TestTickIdleClampHoldsSteady(t *testing.T) {
+	w := newTickTestWorld(t)
+	p := joinPlayer(t, w)
+	p.Energy = 0
+	p.Speed = SpeedFast // larger than BaseActionCost so the clamp is observable
+
+	for range 20 {
+		_ = w.Tick()
+	}
+	if p.Energy != BaseActionCost {
+		t.Errorf("Energy after 20 idle ticks = %d, want %d (idle clamp)",
+			p.Energy, BaseActionCost)
+	}
+	if p.Intent != nil {
+		t.Errorf("Intent = %v, want nil", p.Intent)
+	}
+}
+
+// TestTickAccumulatesEnergyBelowCost verifies that a drained entity fires its
+// intent on the first tick where energy meets cost. Speed is SpeedNormal (12),
+// which equals BaseActionCost — mcalcMove has zero leftover so the gain is
+// fully deterministic and test results are not seed-dependent. Starting at
+// Energy=0 the accumulation in one tick is exactly BaseActionCost, which
+// satisfies the cost check and fires the intent.
 func TestTickAccumulatesEnergyBelowCost(t *testing.T) {
 	w := newTickTestWorld(t)
 	p := joinPlayer(t, w)
-	// Slow player starting drained: two ticks needed to reach cost.
-	p.Speed = SpeedSlow
+	// SpeedNormal % BaseActionCost == 0: mcalcMove is deterministic.
+	p.Speed = SpeedNormal
 	p.Energy = 0
 	if err := w.EnqueueIntent("p1", MoveIntent{DX: 1, DY: 0}); err != nil {
 		t.Fatalf("EnqueueIntent: %v", err)
 	}
 
 	events := w.Tick()
-	if len(events) != 0 {
-		t.Errorf("tick 1 events = %d, want 0 (energy below cost)", len(events))
-	}
-	if p.Energy != SpeedSlow {
-		t.Errorf("tick 1 Energy = %d, want %d", p.Energy, SpeedSlow)
-	}
-	if p.Intent == nil {
-		t.Fatalf("tick 1 Intent = nil, want still pending")
-	}
-
-	events = w.Tick()
+	// min(0 + 12, 12) = 12 >= cost(12): fires on the first tick.
 	if len(events) != 1 {
-		t.Errorf("tick 2 events = %d, want 1", len(events))
+		t.Errorf("tick 1 events = %d, want 1 (energy reached cost)", len(events))
 	}
 	_ = firstMoved(t, events)
-	// After tick 2: Energy = 2*SpeedSlow - baseActionCost = 18 - 12 = 6.
-	if p.Energy != 2*SpeedSlow-baseActionCost {
-		t.Errorf("tick 2 Energy = %d, want %d",
-			p.Energy, 2*SpeedSlow-baseActionCost)
+	// min(0+12,12)=12, then 12-12=0.
+	if p.Energy != 0 {
+		t.Errorf("Energy = %d, want 0 (clamp then Cost deducted)", p.Energy)
 	}
 	if p.Intent != nil {
-		t.Errorf("tick 2 Intent = %v, want nil", p.Intent)
+		t.Errorf("Intent = %v, want nil (consumed)", p.Intent)
 	}
 }
 
@@ -239,7 +260,6 @@ func TestTickRefundsOnFail(t *testing.T) {
 	// intent targets the wall — the destination is blocked.
 	w := NewWorld(wallAtSource{wall: Position{X: 1, Y: 0}})
 	p := joinPlayerAt(t, w, "p1", "Alice")
-	startEnergy := p.Energy
 	from, _ := w.PositionOf("p1")
 	if err := w.EnqueueIntent("p1", MoveIntent{DX: 1, DY: 0}); err != nil {
 		t.Fatalf("EnqueueIntent: %v", err)
@@ -261,10 +281,12 @@ func TestTickRefundsOnFail(t *testing.T) {
 		t.Errorf("failed.Reason = %q, want %q",
 			failed.Reason, ReasonIntentMoveBlocked)
 	}
-	// Refund: Energy grew by Speed but the cost was NOT deducted.
-	if p.Energy != startEnergy+p.Speed {
-		t.Errorf("Energy = %d, want %d (startEnergy + Speed, no refund deduction)",
-			p.Energy, startEnergy+p.Speed)
+	// Refund: cost is NOT deducted, but accumulation still clamps at
+	// BaseActionCost — so the post-fail Energy is the clamp ceiling, not
+	// startEnergy+Speed (which would exceed the cap).
+	if p.Energy != BaseActionCost {
+		t.Errorf("Energy = %d, want %d (clamped, no Cost deduction on fail)",
+			p.Energy, BaseActionCost)
 	}
 	if p.Intent != nil {
 		t.Errorf("Intent = %v, want nil (consumed)", p.Intent)
@@ -281,8 +303,8 @@ func TestTickDeterministicOrder(t *testing.T) {
 	fast := joinPlayerAt(t, w, "bbbb", "Fast")
 	slow.Speed = SpeedNormal
 	fast.Speed = SpeedVeryFast
-	slow.Energy = baseActionCost
-	fast.Energy = baseActionCost
+	slow.Energy = BaseActionCost
+	fast.Energy = BaseActionCost
 	if err := w.EnqueueIntent("aaaa", MoveIntent{DX: 0, DY: 1}); err != nil {
 		t.Fatalf("enqueue slow: %v", err)
 	}
@@ -314,8 +336,8 @@ func TestTickInitiativeTiebreaker(t *testing.T) {
 	// Equal Speed — only Initiative separates them.
 	lowInit.Speed = SpeedNormal
 	highInit.Speed = SpeedNormal
-	lowInit.Energy = baseActionCost
-	highInit.Energy = baseActionCost
+	lowInit.Energy = BaseActionCost
+	highInit.Energy = BaseActionCost
 	_ = w.EnqueueIntent("aaaa", MoveIntent{DX: 0, DY: 1})
 	_ = w.EnqueueIntent("bbbb", MoveIntent{DX: 0, DY: 1})
 
@@ -329,13 +351,15 @@ func TestTickInitiativeTiebreaker(t *testing.T) {
 	}
 }
 
+// TestTickOneActionPerEntityPerTick locks in the one-action-per-tick cap:
+// even a fast entity (Speed > BaseActionCost) that has an Intent ready at
+// tick start resolves exactly one action and the Intent slot is then
+// cleared, so a stale Intent cannot fire twice inside the same Tick.
 func TestTickOneActionPerEntityPerTick(t *testing.T) {
 	w := newTickTestWorld(t)
 	p := joinPlayer(t, w)
-	// Stock the player with enough energy for three actions — only one
-	// should fire in a single Tick; the surplus carries over.
-	p.Speed = SpeedNormal
-	p.Energy = baseActionCost * 3
+	p.Speed = SpeedVeryFast // 24 — clamp would permit two actions worth of Speed
+	p.Energy = BaseActionCost
 	_ = w.EnqueueIntent("p1", MoveIntent{DX: 1, DY: 0})
 
 	events := w.Tick()
@@ -344,12 +368,9 @@ func TestTickOneActionPerEntityPerTick(t *testing.T) {
 		t.Fatalf("events = %d, want 1 (one action per tick cap)", len(events))
 	}
 	_ = firstMoved(t, events)
-	// After tick: Energy = start(36) + Speed(12) - Cost(12) = 36; Intent
-	// consumed and NOT re-fired even though Energy still covers two more
-	// actions.
-	wantEnergy := baseActionCost*3 + SpeedNormal - baseActionCost
-	if p.Energy != wantEnergy {
-		t.Errorf("Energy = %d, want %d", p.Energy, wantEnergy)
+	// min(12 + 24, 12) = 12, resolve, 12 - 12 = 0.
+	if p.Energy != 0 {
+		t.Errorf("Energy = %d, want 0 (clamp then Cost deducted)", p.Energy)
 	}
 	if p.Intent != nil {
 		t.Errorf("Intent = %v, want nil (consumed, not auto-rearmed)", p.Intent)
@@ -362,8 +383,8 @@ func TestTickMultipleTicksMultipleMoves(t *testing.T) {
 	fast := joinPlayerAt(t, w, "bbbb", "Fast")
 	slow.Speed = SpeedNormal
 	fast.Speed = SpeedVeryFast
-	slow.Energy = baseActionCost
-	fast.Energy = baseActionCost
+	slow.Energy = BaseActionCost
+	fast.Energy = BaseActionCost
 
 	const ticks = 5
 	slowMoves, fastMoves := 0, 0
@@ -418,12 +439,53 @@ func TestTickResolveUnknownIntent(t *testing.T) {
 	}
 }
 
+// TestMcalcMoveDistribution verifies that mcalcMove produces the correct
+// long-run average and bimodal distribution for a fractional speed. With
+// Speed=9 and BaseActionCost=12 the expected gain per tick is exactly 9
+// (0 × 3/12 + 12 × 9/12). Over 10 000 draws the sample mean must be
+// within 5% of that expectation, and both possible outputs (0 and 12) must
+// appear — proving the distribution is not degenerate.
+func TestMcalcMoveDistribution(t *testing.T) {
+	w := NewWorld(tickTestSource{}, WithSeed(42))
+
+	const (
+		draws    = 10_000
+		speed    = 9
+		wantMean = float64(speed) // E[mcalcMove(9)] = 9
+		tol      = 0.05           // 5% relative tolerance
+	)
+
+	var total int
+	saw0, saw12 := false, false
+	for range draws {
+		g := w.mcalcMove(speed)
+		total += g
+		if g == 0 {
+			saw0 = true
+		}
+		if g == BaseActionCost {
+			saw12 = true
+		}
+	}
+
+	got := float64(total) / float64(draws)
+	if got < wantMean*(1-tol) || got > wantMean*(1+tol) {
+		t.Errorf("mcalcMove(%d) mean = %.4f, want %.4f ± %.0f%%", speed, got, wantMean, tol*100)
+	}
+	if !saw0 {
+		t.Errorf("mcalcMove(%d) never returned 0; distribution appears non-bimodal", speed)
+	}
+	if !saw12 {
+		t.Errorf("mcalcMove(%d) never returned %d; distribution appears non-bimodal", speed, BaseActionCost)
+	}
+}
+
 // stubIntent is an Intent concrete type unknown to resolveIntent's
 // switch, used only by TestTickResolveUnknownIntent.
 type stubIntent struct{}
 
 func (stubIntent) isIntent() {}
-func (stubIntent) Cost() int { return baseActionCost }
+func (stubIntent) Cost() int { return BaseActionCost }
 
 // newTestMonster creates a Monster with sensible tick-ready defaults for
 // use in M4 tests. Speed and Energy must be set by the caller when the
@@ -440,7 +502,9 @@ func newTestMonster(t *testing.T, id, name string) *Monster {
 }
 
 // TestTickAccumulatesMonsterEnergy verifies that a monster with no Intent
-// accumulates Speed into Energy each tick and emits no events.
+// saturates at the idle clamp (BaseActionCost) after enough ticks to reach
+// it, and then holds steady regardless of how many additional ticks pass.
+// Without the clamp, an idle monster would drift Energy upward forever.
 func TestTickAccumulatesMonsterEnergy(t *testing.T) {
 	w := newTickTestWorld(t)
 	m := newTestMonster(t, "m1", "Zombie")
@@ -454,9 +518,9 @@ func TestTickAccumulatesMonsterEnergy(t *testing.T) {
 		}
 	}
 
-	want := ticks * SpeedNormal
-	if m.Energy != want {
-		t.Errorf("Energy = %d, want %d (%d ticks * SpeedNormal)", m.Energy, want, ticks)
+	if m.Energy != BaseActionCost {
+		t.Errorf("Energy = %d, want %d (idle clamp to BaseActionCost)",
+			m.Energy, BaseActionCost)
 	}
 	if m.Intent != nil {
 		t.Errorf("Intent = %v, want nil", m.Intent)
@@ -469,7 +533,7 @@ func TestTickAccumulatesMonsterEnergy(t *testing.T) {
 func TestTickResolvesMonsterMoveIntent(t *testing.T) {
 	w := newTickTestWorld(t)
 	m := newTestMonster(t, "m1", "Wolf")
-	m.Energy = baseActionCost // pre-charged so it fires on the first tick
+	m.Energy = BaseActionCost // pre-charged so it fires on the first tick
 	w.AddMonster(m)
 
 	m.Intent = MoveIntent{DX: 1, DY: 0}
@@ -489,10 +553,10 @@ func TestTickResolvesMonsterMoveIntent(t *testing.T) {
 	if m.Intent != nil {
 		t.Errorf("Intent = %v, want nil (consumed)", m.Intent)
 	}
-	// Energy: started at baseActionCost, tick adds Speed, then cost is deducted.
-	wantEnergy := baseActionCost + SpeedNormal - baseActionCost
-	if m.Energy != wantEnergy {
-		t.Errorf("Energy = %d, want %d", m.Energy, wantEnergy)
+	// Energy: accumulation clamped at BaseActionCost, then full cost
+	// deducted on successful resolution → exactly zero.
+	if m.Energy != 0 {
+		t.Errorf("Energy = %d, want 0 (clamp then Cost deducted)", m.Energy)
 	}
 }
 
@@ -503,12 +567,12 @@ func TestTickOrdersPlayersAndMonstersTogether(t *testing.T) {
 
 	player := joinPlayerAt(t, w, "p-slow", "Slow")
 	player.Speed = SpeedNormal
-	player.Energy = baseActionCost
+	player.Energy = BaseActionCost
 	_ = w.EnqueueIntent("p-slow", MoveIntent{DX: 0, DY: 1})
 
 	monster := newTestMonster(t, "m-fast", "FastWolf")
 	monster.Speed = SpeedVeryFast
-	monster.Energy = baseActionCost
+	monster.Energy = BaseActionCost
 	monster.Intent = MoveIntent{DX: 0, DY: 1}
 	// Place the monster away from the player's spawn so both moves resolve —
 	// collision semantics now block a monster and a player from sharing a tile.
@@ -540,7 +604,7 @@ func TestMonsterMoveBlocked(t *testing.T) {
 	w := NewWorld(wallAtSource{wall: wall})
 
 	monster := newTestMonster(t, "m1", "Ogre")
-	monster.Energy = baseActionCost // pre-charged so it fires on first tick
+	monster.Energy = BaseActionCost // pre-charged so it fires on first tick
 	monster.Intent = MoveIntent{DX: 1, DY: 0}
 	w.AddMonster(monster)
 
@@ -562,11 +626,11 @@ func TestMonsterMoveBlocked(t *testing.T) {
 		t.Errorf("Position = %+v, want origin (blocked move must not mutate)",
 			monster.Position)
 	}
-	// Tick added Speed then refunded the cost, so Energy reflects one
-	// tick's worth of accumulation from the pre-charged baseline.
-	wantEnergy := baseActionCost + SpeedNormal
-	if monster.Energy != wantEnergy {
-		t.Errorf("Energy = %d, want %d (refund on failure)", monster.Energy, wantEnergy)
+	// Refund on failure keeps Energy at the clamp ceiling: accumulation
+	// capped at BaseActionCost, no Cost deduction.
+	if monster.Energy != BaseActionCost {
+		t.Errorf("Energy = %d, want %d (clamp, no Cost deducted on fail)",
+			monster.Energy, BaseActionCost)
 	}
 }
 
@@ -586,7 +650,7 @@ func TestMonsterMoveBlockedByPlayer(t *testing.T) {
 	w.occupants[player.Position] = player
 
 	monster := newTestMonster(t, "m1", "Goblin")
-	monster.Energy = baseActionCost
+	monster.Energy = BaseActionCost
 	monster.Intent = MoveIntent{DX: 1, DY: 0}
 	w.AddMonster(monster)
 
@@ -608,7 +672,7 @@ func TestPlayerMoveBlockedByMonster(t *testing.T) {
 	w := newTickTestWorld(t)
 
 	player := joinPlayerAt(t, w, "p1", "Alice")
-	player.Energy = baseActionCost
+	player.Energy = BaseActionCost
 
 	monster := newTestMonster(t, "m1", "Wolf")
 	monster.Position = Position{X: 1, Y: 0}

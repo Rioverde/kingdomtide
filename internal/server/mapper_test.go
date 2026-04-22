@@ -244,3 +244,4 @@ func TestSnapshotOfShape(t *testing.T) {
 			len(got.GetTiles()), DefaultViewportWidth*DefaultViewportHeight)
 	}
 }
+

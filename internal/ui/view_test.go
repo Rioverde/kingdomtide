@@ -2,6 +2,7 @@ package ui
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -536,6 +537,108 @@ func TestStatsBoxEmptyBeforeJoin(t *testing.T) {
 		if strings.Contains(out, lbl) {
 			t.Errorf("renderStatsBox before join: stat label %q should not appear before join", lbl)
 		}
+	}
+}
+
+// TestStatsBoxNoEnergyRow verifies that the Energy UI has been retired:
+// the stats panel is a pure player-resource readout (HP, MP, SPD) and
+// the tick-system's Energy counter is not exposed. Regression guard for
+// the design decision to hide Energy — if a label re-appears here the
+// decision was reverted by accident.
+func TestStatsBoxNoEnergyRow(t *testing.T) {
+	t.Parallel()
+	m := statsModel(10, 10, 10, 10, 10, 10)
+	out := m.renderStatsBox()
+
+	for _, forbidden := range []string{"ENG", "ЭНРГ"} {
+		if strings.Contains(out, forbidden) {
+			t.Errorf("renderStatsBox: label %q found; Energy must not appear in UI", forbidden)
+		}
+	}
+}
+
+// TestStatsBoxHPBar verifies that the HP row carries a filled progress
+// bar proportional to currentHP/maxHP and the numeric "current/max"
+// suffix. The bar uses the shared progressBar helper. MaxHP is read
+// from the domain formula so the test stays stable if the formula is
+// retuned (the test documents the RENDER shape, not the balance).
+func TestStatsBoxHPBar(t *testing.T) {
+	t.Parallel()
+	cs := game.CoreStats{
+		Strength: 10, Dexterity: 10, Constitution: 14,
+		Intelligence: 10, Wisdom: 10, Charisma: 10,
+	}
+	m := statsModel(cs.Strength, cs.Dexterity, cs.Constitution,
+		cs.Intelligence, cs.Wisdom, cs.Charisma)
+	maxHP := cs.MaxHP()
+	m.currentHP = maxHP / 2
+	out := m.renderStatsBox()
+
+	bar := styles.hpBar.Render(progressBar(m.currentHP, maxHP, resourceBarWidth))
+	want := fmt.Sprintf("HP  %s %d/%d", bar, m.currentHP, maxHP)
+	if !strings.Contains(out, want) {
+		t.Errorf("HP row missing expected bar+counts.\nwant substring: %q\ngot:\n%s", want, out)
+	}
+}
+
+// TestStatsBoxMPBar verifies that characters with any Mana get an MP row
+// with a visible bar. Current MP is pinned at the cap (spending not
+// modelled yet), so the bar always renders saturated. Mana value is
+// derived from the domain formula, so the test documents the RENDER
+// shape independent of game-balance tuning.
+func TestStatsBoxMPBar(t *testing.T) {
+	t.Parallel()
+	cs := game.CoreStats{
+		Strength: 10, Dexterity: 10, Constitution: 10,
+		Intelligence: 14, Wisdom: 10, Charisma: 10,
+	}
+	m := statsModel(cs.Strength, cs.Dexterity, cs.Constitution,
+		cs.Intelligence, cs.Wisdom, cs.Charisma)
+	mp := cs.Mana()
+	out := m.renderStatsBox()
+
+	bar := styles.mpBar.Render(progressBar(mp, mp, resourceBarWidth))
+	want := fmt.Sprintf("MP  %s %d/%d", bar, mp, mp)
+	if !strings.Contains(out, want) {
+		t.Errorf("MP row missing expected bar+counts.\nwant substring: %q\ngot:\n%s", want, out)
+	}
+}
+
+// TestProgressBar locks in the shape of the shared bar helper: zero-guard,
+// saturation behaviour, and proportional fill. Future stat bars (HP, mana,
+// …) will reuse this helper, so the test covers the whole contract rather
+// than only the current Energy call site.
+func TestProgressBar(t *testing.T) {
+	t.Parallel()
+
+	full := string(barFilled)
+	empty := string(barEmpty)
+
+	tests := []struct {
+		name             string
+		current, max, wd int
+		want             string
+	}{
+		{"width zero returns empty", 5, 10, 0, ""},
+		{"max zero is empty bar", 3, 0, 4, strings.Repeat(empty, 4)},
+		{"negative current is empty bar", -2, 10, 4, strings.Repeat(empty, 4)},
+		{"saturated fills fully", 12, 12, 6, strings.Repeat(full, 6)},
+		{"over-max still saturates", 99, 12, 6, strings.Repeat(full, 6)},
+		{"half fills half", 6, 12, 6, strings.Repeat(full, 3) + strings.Repeat(empty, 3)},
+		{"floor rounds down", 5, 12, 6, strings.Repeat(full, 2) + strings.Repeat(empty, 4)},
+		{"single cell empty", 0, 12, 1, empty},
+		{"single cell full", 12, 12, 1, full},
+	}
+	for _, tt := range tests {
+		tc := tt
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := progressBar(tc.current, tc.max, tc.wd)
+			if got != tc.want {
+				t.Errorf("progressBar(%d,%d,%d) = %q, want %q",
+					tc.current, tc.max, tc.wd, got, tc.want)
+			}
+		})
 	}
 }
 

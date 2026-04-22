@@ -178,10 +178,3 @@ func (h *sessionHub) trySend(playerID string, ch chan SessionEvent, evt SessionE
 		return false
 	}
 }
-
-// count returns the number of active session subscribers. Test-only.
-func (h *sessionHub) count() int {
-	h.mu.RLock()
-	defer h.mu.RUnlock()
-	return len(h.subs)
-}

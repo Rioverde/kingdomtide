@@ -205,8 +205,8 @@ func TestPlayerJoinWithStats(t *testing.T) {
 	if p.Initiative != stats.DerivedInitiative() {
 		t.Errorf("Initiative = %d, want %d", p.Initiative, stats.DerivedInitiative())
 	}
-	if p.Energy != baseActionCost {
-		t.Errorf("Energy = %d, want %d", p.Energy, baseActionCost)
+	if p.Energy != BaseActionCost {
+		t.Errorf("Energy = %d, want %d", p.Energy, BaseActionCost)
 	}
 	if p.Intent != nil {
 		t.Errorf("Intent = %v, want nil", p.Intent)

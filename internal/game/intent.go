@@ -28,7 +28,7 @@ func (MoveIntent) isIntent() {}
 
 // Cost reports the Energy charged when the move resolves successfully.
 // Moves run at the baseline rate; faster or slower actions override this.
-func (MoveIntent) Cost() int { return baseActionCost }
+func (MoveIntent) Cost() int { return BaseActionCost }
 
 // Compile-time proof that every concrete intent satisfies Intent.
 var _ Intent = MoveIntent{}
