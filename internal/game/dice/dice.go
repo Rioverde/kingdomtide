@@ -233,3 +233,7 @@ func (e *ParseError) Error() string {
 	}
 	return fmt.Sprintf("dice: %s in %q", e.Msg, e.Expr)
 }
+
+// Compile-time proof that *ParseError satisfies the error interface —
+// catches interface drift at build time.
+var _ error = (*ParseError)(nil)

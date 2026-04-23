@@ -409,6 +409,13 @@ type convolutionCacheKey struct {
 	fudge        bool
 }
 
+// convolutionCache memoises the per-key result so repeated Stats()
+// calls on the same expression pay the O(S^N) enumeration exactly once.
+// sync.Map fits here — keys are disjoint (every distinct dice-group
+// shape hashes to its own entry) and the access pattern is
+// mostly-read-after-first-write: compute once, read forever. A plain
+// map + sync.RWMutex would work too but adds a lock-contention layer
+// under heavy concurrent Stats() calls from balance tests.
 var convolutionCache sync.Map
 
 // convolveKeepDropStats enumerates the full joint distribution of N
