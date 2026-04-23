@@ -8,7 +8,9 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/Rioverde/gongeons/internal/game/naming"
-	"github.com/Rioverde/gongeons/internal/game/worldgen"
+	"github.com/Rioverde/gongeons/internal/game/worldgen/cities"
+	"github.com/Rioverde/gongeons/internal/game/worldgen/landmark"
+	"github.com/Rioverde/gongeons/internal/game/worldgen/region"
 )
 
 // loadFlatKeys reads a TOML catalog from disk and returns every fully-qualified
@@ -81,9 +83,9 @@ func TestNamingCatalogCoverage(t *testing.T) {
 		bounds naming.Bounds
 	}
 	domains := []domainCase{
-		{"region", "region", worldgen.RegionBounds()},
-		{"landmark", "landmark", worldgen.LandmarkBounds()},
-		{"settlement", "settlement", worldgen.SettlementBounds()},
+		{"region", "region", region.Bounds()},
+		{"landmark", "landmark", landmark.Bounds()},
+		{"settlement", "settlement", cities.Bounds()},
 	}
 
 	for _, c := range catalogs {

@@ -11,10 +11,16 @@ const (
 	// biome cells are reachable with the multi-octave Simplex noise used by the generator.
 
 	elevationDeepOcean = 0.38
-	elevationOcean     = 0.44
-	elevationBeach     = 0.46
-	elevationHills     = 0.58
-	elevationMountain  = 0.63
+	// ElevationOcean is the [0,1] cutoff below which terrain classifies as ocean.
+	// River tracing and worldgen root tests gate on this value — export it here
+	// so they can read it from a single authoritative source.
+	ElevationOcean = 0.44
+	elevationBeach  = 0.46
+	elevationHills  = 0.58
+	// ElevationMountain is the [0,1] cutoff at and above which terrain enters the
+	// mountain band. River head validation and worldgen tests use this to gate
+	// high-elevation candidates.
+	ElevationMountain  = 0.63
 	elevationSnowyPeak = 0.68
 
 	// Temperature bands: cold / temperate / hot.
@@ -40,7 +46,7 @@ func Biome(elevation, temperature, moisture float64) world.Terrain {
 	if elevation < elevationDeepOcean {
 		return world.TerrainDeepOcean
 	}
-	if elevation < elevationOcean {
+	if elevation < ElevationOcean {
 		return world.TerrainOcean
 	}
 	if elevation < elevationBeach {
@@ -57,7 +63,7 @@ func Biome(elevation, temperature, moisture float64) world.Terrain {
 	if elevation < elevationHills {
 		return lowlandBiome(temperature, moisture)
 	}
-	if elevation < elevationMountain {
+	if elevation < ElevationMountain {
 		// Hill band: cold and wet hills turn into pine taiga, other hills keep their
 		// generic rocky look. Hot dry hills read as desert mesa.
 		if temperature < temperatureCold && moisture > moistureDry {

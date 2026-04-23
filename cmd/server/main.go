@@ -150,7 +150,7 @@ func run() error {
 // rejection), so deposits are constructed last.
 func buildWorld(seed int64) *world.World {
 	wg := worldgen.NewChunkedSource(seed)
-	regionSrc := worldgen.NewNoiseRegionSource(seed)
+	regionSrc := worldgen.NewNoiseRegionSource(seed, wg.Generator())
 	landmarkSrc := worldgen.NewNoiseLandmarkSource(seed, regionSrc, wg.Generator())
 	volcanoSrc := worldgen.NewNoiseVolcanoSource(seed, wg.Generator(), landmarkSrc)
 	depositSrc := worldgen.NewNoiseDepositSource(seed, wg.Generator(), landmarkSrc, volcanoSrc)

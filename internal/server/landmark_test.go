@@ -21,7 +21,7 @@ const testLandmarkSeed int64 = 0x1a2b3c4d5e6f7a8b
 // path in cmd/server/main.go.
 func testLandmarkWorld() *world.World {
 	wg := worldgen.NewChunkedSource(testLandmarkSeed)
-	regionSrc := worldgen.NewNoiseRegionSource(testLandmarkSeed)
+	regionSrc := worldgen.NewNoiseRegionSource(testLandmarkSeed, wg.Generator())
 	landmarkSrc := worldgen.NewNoiseLandmarkSource(testLandmarkSeed, regionSrc, wg.Generator())
 	return world.NewWorld(
 		wg,
@@ -98,7 +98,7 @@ func (c *countingLandmarkSource) LandmarksIn(sc geom.SuperChunkCoord) []world.La
 // lookups must be served from the LRU.
 func TestLandmarkCacheHitRate(t *testing.T) {
 	wg := worldgen.NewChunkedSource(testLandmarkSeed)
-	regionSrc := worldgen.NewNoiseRegionSource(testLandmarkSeed)
+	regionSrc := worldgen.NewNoiseRegionSource(testLandmarkSeed, wg.Generator())
 	inner := worldgen.NewNoiseLandmarkSource(testLandmarkSeed, regionSrc, wg.Generator())
 
 	counter := &countingLandmarkSource{inner: inner}
@@ -125,7 +125,7 @@ func TestLandmarkCacheHitRate(t *testing.T) {
 // future refactors. Hit-rate correctness is covered by TestLandmarkCacheHitRate.
 func TestLandmarkCacheRace(t *testing.T) {
 	wg := worldgen.NewChunkedSource(testLandmarkSeed)
-	regionSrc := worldgen.NewNoiseRegionSource(testLandmarkSeed)
+	regionSrc := worldgen.NewNoiseRegionSource(testLandmarkSeed, wg.Generator())
 	inner := worldgen.NewNoiseLandmarkSource(testLandmarkSeed, regionSrc, wg.Generator())
 
 	counter := &countingLandmarkSource{inner: inner}

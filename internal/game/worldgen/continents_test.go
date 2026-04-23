@@ -5,6 +5,7 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/Rioverde/gongeons/internal/game/worldgen/biome"
 	"github.com/Rioverde/gongeons/internal/game/worldgen/chunk"
 )
 
@@ -23,9 +24,9 @@ func TestContinentNoiseDeterministic(t *testing.T) {
 
 	g1 := NewWorldGenerator(seed)
 	for _, c := range coords {
-		a := g1.elevationAt(float64(c.x), float64(c.y))
-		b := g1.elevationAt(float64(c.x), float64(c.y))
-		cc := g1.elevationAt(float64(c.x), float64(c.y))
+		a := g1.ElevationAtFloat(float64(c.x), float64(c.y))
+		b := g1.ElevationAtFloat(float64(c.x), float64(c.y))
+		cc := g1.ElevationAtFloat(float64(c.x), float64(c.y))
 		if a != b || b != cc {
 			t.Errorf("three in-process calls diverged at (%d,%d): %v %v %v", c.x, c.y, a, b, cc)
 		}
@@ -34,8 +35,8 @@ func TestContinentNoiseDeterministic(t *testing.T) {
 	// Re-create the generator; same seed must yield bit-identical output.
 	g2 := NewWorldGenerator(seed)
 	for _, c := range coords {
-		a := g1.elevationAt(float64(c.x), float64(c.y))
-		b := g2.elevationAt(float64(c.x), float64(c.y))
+		a := g1.ElevationAtFloat(float64(c.x), float64(c.y))
+		b := g2.ElevationAtFloat(float64(c.x), float64(c.y))
 		if a != b {
 			t.Errorf("fresh generator diverged at (%d,%d): %v vs %v", c.x, c.y, a, b)
 		}
@@ -56,8 +57,8 @@ func TestContinentNoiseSeedIsolation(t *testing.T) {
 	for i := range n {
 		x := (i%10)*37 - 185
 		y := (i/10)*41 - 205
-		a := g1.elevationAt(float64(x), float64(y))
-		b := g2.elevationAt(float64(x), float64(y))
+		a := g1.ElevationAtFloat(float64(x), float64(y))
+		b := g2.ElevationAtFloat(float64(x), float64(y))
 		if a != b {
 			differ++
 		}
@@ -90,12 +91,12 @@ func TestContinentReducesOceanFragmentation(t *testing.T) {
 		for x := range side {
 			fx, fy := float64(x), float64(y)
 
-			blended := g.elevationAt(fx, fy)
+			blended := g.ElevationAtFloat(fx, fy)
 			rawOnly := g.elevation.Eval2Normalized(fx, fy)
 
 			idx := y*side + x
-			oceanWith[idx] = blended < elevationOcean
-			oceanWithout[idx] = rawOnly < elevationOcean
+			oceanWith[idx] = blended < biome.ElevationOcean
+			oceanWithout[idx] = rawOnly < biome.ElevationOcean
 		}
 	}
 
@@ -209,7 +210,7 @@ func TestRiverThresholdCalibration(t *testing.T) {
 			for x := -half; x < half; x++ {
 				fx, fy := float64(x), float64(y)
 				raws = append(raws, g.elevation.Eval2Normalized(fx, fy))
-				blends = append(blends, g.elevationAt(fx, fy))
+				blends = append(blends, g.ElevationAtFloat(fx, fy))
 			}
 		}
 	}
@@ -244,11 +245,11 @@ func tailFraction(sorted []float64, threshold float64) float64 {
 }
 
 // TestContinentBlendWeightsSumToOne asserts that continentBlendElev + continentBlendCont
-// equals 1.0 within floating-point tolerance. The blend in elevationAt is additive, so
+// equals 1.0 within floating-point tolerance. The blend in ElevationAtFloat is additive, so
 // weights must sum to 1.0 to keep the output in [0,1] given two normalised inputs. A unit
 // test is the low-ceremony choice: it fires in CI without requiring a build-time constant
 // expression and leaves the numerical intent as executable documentation. If a future edit
-// changes one weight without the other, the hard clamp in elevationAt would silently mask
+// changes one weight without the other, the hard clamp in ElevationAtFloat would silently mask
 // the drift — this test surfaces the break immediately.
 func TestContinentBlendWeightsSumToOne(t *testing.T) {
 	const sum = continentBlendElev + continentBlendCont

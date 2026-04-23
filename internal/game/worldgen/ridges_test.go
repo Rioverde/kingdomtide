@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/Rioverde/gongeons/internal/game/world"
+	"github.com/Rioverde/gongeons/internal/game/worldgen/biome"
 )
 
 // TestRidgeScaleJitterDeterministic pins the contract that two WorldGenerators built from
@@ -73,10 +74,10 @@ func TestRidgeDeterminism(t *testing.T) {
 	for i := range 100 {
 		x := (i%10)*173 - 800
 		y := (i/10)*191 - 900
-		a := g1.elevationAt(float64(x), float64(y))
-		b := g2.elevationAt(float64(x), float64(y))
+		a := g1.ElevationAtFloat(float64(x), float64(y))
+		b := g2.ElevationAtFloat(float64(x), float64(y))
 		if a != b {
-			t.Errorf("elevationAt(%d, %d) diverged: %v vs %v", x, y, a, b)
+			t.Errorf("ElevationAtFloat(%d, %d) diverged: %v vs %v", x, y, a, b)
 		}
 	}
 }
@@ -95,7 +96,7 @@ func mountainMaskForGen(side int, elevAt func(fx, fy float64) float64) []bool {
 			elev := elevAt(fx, fy)
 			// We label the whole mountain + snowy-peak band as "mountain" here —
 			// the goal is to measure the shape of the high-elevation spine.
-			if elev >= elevationMountain {
+			if elev >= biome.ElevationMountain {
 				mask[y*side+x] = true
 			}
 		}
@@ -263,7 +264,7 @@ func TestRidgeIncreasesMountainElongation(t *testing.T) {
 			return continentBlendElev*elev + continentBlendCont*cont
 		}
 
-		withMask := mountainMaskForGen(side, g.elevationAt)
+		withMask := mountainMaskForGen(side, g.ElevationAtFloat)
 		baselineMask := mountainMaskForGen(side, baselineElev)
 		addedMask := ridgeAddedMask(withMask, baselineMask)
 
@@ -327,10 +328,10 @@ func TestRidgeMountainCountWithinTolerance(t *testing.T) {
 			cont := g.continent.Eval2Normalized(fx, fy)
 			baselineElev := continentBlendElev*elev + continentBlendCont*cont
 
-			if baselineElev >= elevationMountain {
+			if baselineElev >= biome.ElevationMountain {
 				countBaseline++
 			}
-			if g.elevationAt(fx, fy) >= elevationMountain {
+			if g.ElevationAtFloat(fx, fy) >= biome.ElevationMountain {
 				countRidge++
 			}
 		}
@@ -359,9 +360,9 @@ func TestRidgeElevationBounded(t *testing.T) {
 	g := NewWorldGenerator(13579)
 	for x := -300; x <= 300; x += 7 {
 		for y := -300; y <= 300; y += 7 {
-			e := g.elevationAt(float64(x), float64(y))
+			e := g.ElevationAtFloat(float64(x), float64(y))
 			if e < 0.0 || e > 1.0 {
-				t.Fatalf("elevationAt(%d, %d) = %v, outside [0, 1]", x, y, e)
+				t.Fatalf("ElevationAtFloat(%d, %d) = %v, outside [0, 1]", x, y, e)
 			}
 		}
 	}
