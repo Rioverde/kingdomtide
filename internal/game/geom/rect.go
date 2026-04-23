@@ -1,4 +1,4 @@
-package game
+package geom
 
 // Rect is an axis-aligned tile rectangle on the square grid. MinX/MinY
 // are inclusive, MaxX/MaxY are exclusive — the same half-open convention

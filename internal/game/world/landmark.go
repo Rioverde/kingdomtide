@@ -1,6 +1,9 @@
-package game
+package world
 
-import "github.com/Rioverde/gongeons/internal/game/naming/parts"
+import (
+	"github.com/Rioverde/gongeons/internal/game/geom"
+	"github.com/Rioverde/gongeons/internal/game/naming/parts"
+)
 
 // LandmarkKind identifies a natural or ancient landmark visible in the
 // world. Landmarks live on Layer 1.5 — tied to geography and pre-
@@ -63,7 +66,7 @@ func (k LandmarkKind) String() string {
 // and catalog indices the client uses to render the final display
 // string via the locale catalog.
 type Landmark struct {
-	Coord Position
+	Coord geom.Position
 	Kind  LandmarkKind
 	Name  parts.Parts
 }
@@ -81,5 +84,5 @@ type Landmark struct {
 // emitted as structured, language-agnostic Parts records; the client
 // composes localized display text locally.
 type LandmarkSource interface {
-	LandmarksIn(sc SuperChunkCoord) []Landmark
+	LandmarksIn(sc geom.SuperChunkCoord) []Landmark
 }

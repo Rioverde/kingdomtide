@@ -1,6 +1,10 @@
-package game
+package world
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/Rioverde/gongeons/internal/game/geom"
+)
 
 func TestVolcanoState_Key(t *testing.T) {
 	cases := []struct {
@@ -67,22 +71,22 @@ func TestVolcanoZone_Key(t *testing.T) {
 }
 
 func TestVolcano_ZoneAt(t *testing.T) {
-	core := Position{X: 0, Y: 0}
-	slopeA := Position{X: 1, Y: 0}
-	slopeB := Position{X: 0, Y: 1}
-	ash := Position{X: 2, Y: 0}
-	miss := Position{X: 10, Y: 10}
+	core := geom.Position{X: 0, Y: 0}
+	slopeA := geom.Position{X: 1, Y: 0}
+	slopeB := geom.Position{X: 0, Y: 1}
+	ash := geom.Position{X: 2, Y: 0}
+	miss := geom.Position{X: 10, Y: 10}
 
 	v := Volcano{
 		Anchor:       core,
 		State:        VolcanoActive,
-		CoreTiles:    []Position{core},
-		SlopeTiles:   []Position{slopeA, slopeB},
-		AshlandTiles: []Position{ash},
+		CoreTiles:    []geom.Position{core},
+		SlopeTiles:   []geom.Position{slopeA, slopeB},
+		AshlandTiles: []geom.Position{ash},
 	}
 
 	cases := []struct {
-		tile Position
+		tile geom.Position
 		want VolcanoZone
 	}{
 		{core, VolcanoZoneCore},
@@ -103,7 +107,7 @@ func TestVolcano_ZeroValue(t *testing.T) {
 	if v.State != VolcanoStateUnknown {
 		t.Fatalf("zero-value Volcano.State = %v, want VolcanoStateUnknown", v.State)
 	}
-	if got := v.ZoneAt(Position{X: 0, Y: 0}); got != VolcanoZoneNone {
+	if got := v.ZoneAt(geom.Position{X: 0, Y: 0}); got != VolcanoZoneNone {
 		t.Fatalf("zero-value Volcano.ZoneAt = %v, want VolcanoZoneNone", got)
 	}
 	if v.CoreTiles != nil || v.SlopeTiles != nil || v.AshlandTiles != nil {

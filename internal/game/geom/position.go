@@ -1,4 +1,4 @@
-package game
+package geom
 
 // Position is a square-grid coordinate in an infinite world. X grows to the
 // right, Y grows downward, and the origin (0, 0) is the default spawn anchor.

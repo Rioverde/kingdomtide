@@ -4,20 +4,21 @@ import (
 	"math/rand/v2"
 	"testing"
 
-	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/geom"
+	"github.com/Rioverde/gongeons/internal/game/world"
 )
 
 // fixedCharacterSource forces every super-chunk to a single region
 // character. Used to isolate region-bias behaviour from noise-driven
 // character assignment.
 type fixedCharacterSource struct {
-	character game.RegionCharacter
+	character world.RegionCharacter
 }
 
-func (f fixedCharacterSource) RegionAt(sc game.SuperChunkCoord) game.Region {
-	return game.Region{
+func (f fixedCharacterSource) RegionAt(sc geom.SuperChunkCoord) world.Region {
+	return world.Region{
 		Coord:     sc,
-		Anchor:    game.AnchorOf(0, sc),
+		Anchor:    geom.AnchorOf(0, sc),
 		Character: f.character,
 	}
 }
@@ -36,7 +37,7 @@ func TestLandmarksInDeterminism(t *testing.T) {
 
 	rng := rand.New(rand.NewPCG(1, 2))
 	for range 50 {
-		sc := game.SuperChunkCoord{
+		sc := geom.SuperChunkCoord{
 			X: rng.IntN(400) - 200,
 			Y: rng.IntN(400) - 200,
 		}
@@ -60,7 +61,7 @@ func TestLandmarksInWithinBudget(t *testing.T) {
 	const trials = 10000
 	var totalLandmarks, fullSCs int
 	for range trials {
-		sc := game.SuperChunkCoord{
+		sc := geom.SuperChunkCoord{
 			X: rng.IntN(2000) - 1000,
 			Y: rng.IntN(2000) - 1000,
 		}
@@ -91,20 +92,20 @@ func TestLandmarksInSubCellCoverage(t *testing.T) {
 	rng := rand.New(rand.NewPCG(11, 17))
 	const trials = 10000
 	for range trials {
-		sc := game.SuperChunkCoord{
+		sc := geom.SuperChunkCoord{
 			X: rng.IntN(2000) - 1000,
 			Y: rng.IntN(2000) - 1000,
 		}
 		got := src.LandmarksIn(sc)
 
-		scMinX := sc.X * game.SuperChunkSize
-		scMinY := sc.Y * game.SuperChunkSize
+		scMinX := sc.X * geom.SuperChunkSize
+		scMinY := sc.Y * geom.SuperChunkSize
 		// cellHit[0..3] tracks NW, NE, SW, SE respectively.
 		var cellHit [landmarkSubCellsPerSC]bool
 		for _, l := range got {
 			dx := l.Coord.X - scMinX
 			dy := l.Coord.Y - scMinY
-			if dx < 0 || dx >= game.SuperChunkSize || dy < 0 || dy >= game.SuperChunkSize {
+			if dx < 0 || dx >= geom.SuperChunkSize || dy < 0 || dy >= geom.SuperChunkSize {
 				t.Fatalf("sc=%v: landmark %+v outside super-chunk", sc, l)
 			}
 			xHigh := dx >= landmarkSubCellSize
@@ -176,11 +177,11 @@ func TestLandmarksInViewportCoverage(t *testing.T) {
 // rectangle [oX, eX) x [oY, eY) and reports whether any of their
 // landmarks fall inside the rectangle.
 func viewportHasLandmark(src *NoiseLandmarkSource, oX, oY, eX, eY int) bool {
-	scMin := game.WorldToSuperChunk(oX, oY)
-	scMax := game.WorldToSuperChunk(eX-1, eY-1)
+	scMin := geom.WorldToSuperChunk(oX, oY)
+	scMax := geom.WorldToSuperChunk(eX-1, eY-1)
 	for scY := scMin.Y; scY <= scMax.Y; scY++ {
 		for scX := scMin.X; scX <= scMax.X; scX++ {
-			for _, l := range src.LandmarksIn(game.SuperChunkCoord{X: scX, Y: scY}) {
+			for _, l := range src.LandmarksIn(geom.SuperChunkCoord{X: scX, Y: scY}) {
 				if l.Coord.X >= oX && l.Coord.X < eX &&
 					l.Coord.Y >= oY && l.Coord.Y < eY {
 					return true
@@ -197,13 +198,13 @@ func TestLandmarksInTerrainFit(t *testing.T) {
 	rng := rand.New(rand.NewPCG(21, 23))
 	const trials = 1000
 	for range trials {
-		sc := game.SuperChunkCoord{
+		sc := geom.SuperChunkCoord{
 			X: rng.IntN(400) - 200,
 			Y: rng.IntN(400) - 200,
 		}
 		got := src.LandmarksIn(sc)
 		for _, l := range got {
-			if l.Kind == game.LandmarkShrine {
+			if l.Kind == world.LandmarkShrine {
 				// Shrine is the any-terrain fallback kind.
 				continue
 			}
@@ -225,25 +226,25 @@ func TestLandmarksInRegionBias(t *testing.T) {
 	// between the two surveys is the character bias itself — otherwise
 	// the underlying noise might dilute Ancient coverage below 2x.
 	wg := NewWorldGenerator(seed)
-	ancientSrc := NewNoiseLandmarkSource(seed, fixedCharacterSource{character: game.RegionAncient}, wg)
-	normalSrc := NewNoiseLandmarkSource(seed, fixedCharacterSource{character: game.RegionNormal}, wg)
+	ancientSrc := NewNoiseLandmarkSource(seed, fixedCharacterSource{character: world.RegionAncient}, wg)
+	normalSrc := NewNoiseLandmarkSource(seed, fixedCharacterSource{character: world.RegionNormal}, wg)
 
 	rng := rand.New(rand.NewPCG(31, 37))
 	const trials = 10000
 
 	var ancientCount, normalCount int
 	for range trials {
-		sc := game.SuperChunkCoord{
+		sc := geom.SuperChunkCoord{
 			X: rng.IntN(1000) - 500,
 			Y: rng.IntN(1000) - 500,
 		}
 		for _, l := range ancientSrc.LandmarksIn(sc) {
-			if l.Kind == game.LandmarkObelisk || l.Kind == game.LandmarkStandingStones {
+			if l.Kind == world.LandmarkObelisk || l.Kind == world.LandmarkStandingStones {
 				ancientCount++
 			}
 		}
 		for _, l := range normalSrc.LandmarksIn(sc) {
-			if l.Kind == game.LandmarkObelisk || l.Kind == game.LandmarkStandingStones {
+			if l.Kind == world.LandmarkObelisk || l.Kind == world.LandmarkStandingStones {
 				normalCount++
 			}
 		}
@@ -271,11 +272,11 @@ func TestLandmarksInRegionBias(t *testing.T) {
 func TestLandmarksInKindCoverage(t *testing.T) {
 	src := newTestSource(t, 314)
 
-	seen := make(map[game.LandmarkKind]int, landmarkSubCellsPerSC)
+	seen := make(map[world.LandmarkKind]int, landmarkSubCellsPerSC)
 	rng := rand.New(rand.NewPCG(41, 43))
 	const trials = 10000
 	for range trials {
-		sc := game.SuperChunkCoord{
+		sc := geom.SuperChunkCoord{
 			X: rng.IntN(2000) - 1000,
 			Y: rng.IntN(2000) - 1000,
 		}
@@ -283,13 +284,13 @@ func TestLandmarksInKindCoverage(t *testing.T) {
 			seen[l.Kind]++
 		}
 	}
-	kinds := []game.LandmarkKind{
-		game.LandmarkTower,
-		game.LandmarkGiantTree,
-		game.LandmarkStandingStones,
-		game.LandmarkObelisk,
-		game.LandmarkChasm,
-		game.LandmarkShrine,
+	kinds := []world.LandmarkKind{
+		world.LandmarkTower,
+		world.LandmarkGiantTree,
+		world.LandmarkStandingStones,
+		world.LandmarkObelisk,
+		world.LandmarkChasm,
+		world.LandmarkShrine,
 	}
 	for _, k := range kinds {
 		if seen[k] == 0 {

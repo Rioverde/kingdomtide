@@ -1,4 +1,6 @@
-package game
+package world
+
+import "github.com/Rioverde/gongeons/internal/game/geom"
 
 // VolcanoState is the lifecycle state of a volcano. It governs the core
 // terrain variant (active vs dormant vs extinct) and, later, whether the
@@ -95,18 +97,18 @@ func (z VolcanoZone) String() string { return z.Key() }
 // surrounding passable zones. A volcano with a nil or empty CoreTiles
 // slice is malformed and should be dropped by callers.
 type Volcano struct {
-	Anchor       Position
+	Anchor       geom.Position
 	State        VolcanoState
-	CoreTiles    []Position
-	SlopeTiles   []Position
-	AshlandTiles []Position
+	CoreTiles    []geom.Position
+	SlopeTiles   []geom.Position
+	AshlandTiles []geom.Position
 }
 
 // ZoneAt reports which footprint ring contains t, or VolcanoZoneNone
 // when t sits outside the volcano entirely. The check is a linear scan
 // — footprints are small (dozens of tiles at most) and the call path is
 // cold, so the simple form beats building a set.
-func (v Volcano) ZoneAt(t Position) VolcanoZone {
+func (v Volcano) ZoneAt(t geom.Position) VolcanoZone {
 	for _, p := range v.CoreTiles {
 		if p.Equal(t) {
 			return VolcanoZoneCore
@@ -139,6 +141,6 @@ func (v Volcano) ZoneAt(t Position) VolcanoZone {
 // volcanoes in this super-chunk". TerrainOverrideAt returns ("", false)
 // when t is not covered by any volcano footprint.
 type VolcanoSource interface {
-	VolcanoAt(sc SuperChunkCoord) []Volcano
-	TerrainOverrideAt(t Position) (Terrain, bool)
+	VolcanoAt(sc geom.SuperChunkCoord) []Volcano
+	TerrainOverrideAt(t geom.Position) (Terrain, bool)
 }

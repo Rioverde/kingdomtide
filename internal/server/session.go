@@ -6,7 +6,11 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/world"
+	"github.com/Rioverde/gongeons/internal/game/calendar"
+	"github.com/Rioverde/gongeons/internal/game/event"
+	"github.com/Rioverde/gongeons/internal/game/geom"
+	"github.com/Rioverde/gongeons/internal/game/stats"
 	pb "github.com/Rioverde/gongeons/internal/proto"
 )
 
@@ -17,21 +21,21 @@ import (
 // first frame synchronously before wiring the channel-based event feed.
 //
 // Calendar carries the server's authoritative calendar cadence so the
-// SSH-mode client can construct a local game.Calendar mirror without a
+// SSH-mode client can construct a local calendar.Calendar mirror without a
 // round-trip. Zero-valued Calendar (ticksPerDay == 0) indicates the
 // service has no Calendar wired and the client should skip the date
 // HUD. This is the session-mode analogue of JoinAccepted.calendar on
 // the gRPC path.
 type SessionJoinResult struct {
 	PlayerID  string
-	Spawn     game.Position
+	Spawn     geom.Position
 	WorldSeed int64
 	Snapshot  *pb.Snapshot
-	Calendar  game.Calendar
+	Calendar  calendar.Calendar
 	// Events carries the events produced by the Join itself (one
 	// PlayerJoined). Returned so the caller can broadcast them to other
 	// subscribers without having to peek at the internal state.
-	Events []game.Event
+	Events []event.Event
 }
 
 // JoinSession admits a new SSH-mode player under the world mutex and
@@ -46,7 +50,7 @@ type SessionJoinResult struct {
 func (s *Service) JoinSession(
 	name string,
 	dims ViewportDims,
-	stats game.CoreStats,
+	stats stats.CoreStats,
 ) (SessionJoinResult, error) {
 	if name == "" {
 		return SessionJoinResult{}, errors.New("session join: name required")
@@ -108,7 +112,7 @@ func (s *Service) Subscribe(ctx context.Context, playerID string) (<-chan Sessio
 // joined (the ApplyCommand path returns ErrPlayerNotFound which we
 // swallow since nothing to clean up).
 func (s *Service) LeaveSession(playerID string) {
-	leaveEvents, err := s.applyCmd(game.LeaveCmd{PlayerID: playerID})
+	leaveEvents, err := s.applyCmd(world.LeaveCmd{PlayerID: playerID})
 	if err != nil {
 		return
 	}
@@ -127,7 +131,7 @@ func (s *Service) LeaveSession(playerID string) {
 // serverErrorMsg path.
 func (s *Service) EnqueueMoveSession(playerID string, dx, dy int) error {
 	s.mu.Lock()
-	err := s.world.EnqueueIntent(playerID, game.MoveIntent{DX: dx, DY: dy})
+	err := s.world.EnqueueIntent(playerID, world.MoveIntent{DX: dx, DY: dy})
 	s.mu.Unlock()
 	return err
 }
@@ -156,7 +160,7 @@ func (s *Service) UpdateSessionViewport(playerID string, width, height int) {
 // publishEventsToSessions fans out a batch of domain events to every
 // session subscriber. Follows the non-blocking invariant enforced by
 // sessionHub.trySend so a slow session never stalls DoTick.
-func (s *Service) publishEventsToSessions(events []game.Event) {
+func (s *Service) publishEventsToSessions(events []event.Event) {
 	if s.sessions == nil || len(events) == 0 {
 		return
 	}

@@ -3,7 +3,8 @@ package worldgen
 import (
 	"testing"
 
-	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/geom"
+	"github.com/Rioverde/gongeons/internal/game/world"
 )
 
 // BenchmarkPickVolcanoAnchors measures one full Poisson-disk + acceptance
@@ -27,11 +28,11 @@ func BenchmarkGrowFootprint(b *testing.B) {
 	const seed int64 = 42
 	wg := NewWorldGenerator(seed)
 
-	states := []game.VolcanoState{game.VolcanoActive, game.VolcanoDormant, game.VolcanoExtinct}
+	states := []world.VolcanoState{world.VolcanoActive, world.VolcanoDormant, world.VolcanoExtinct}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		st := states[i%len(states)]
-		anchor := game.Position{X: i * 97, Y: i * 131}
+		anchor := geom.Position{X: i * 97, Y: i * 131}
 		_, _, _ = growFootprint(anchor, st, seed, wg, nil)
 	}
 }
@@ -49,7 +50,7 @@ func BenchmarkTerrainOverrideAt_Cold(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		// Fresh source each iteration so every call hits cold super-regions.
 		src := NewNoiseVolcanoSource(seed, wg, lm)
-		_, _ = src.TerrainOverrideAt(game.Position{X: i * 10000, Y: i * 10000})
+		_, _ = src.TerrainOverrideAt(geom.Position{X: i * 10000, Y: i * 10000})
 	}
 }
 
@@ -68,7 +69,7 @@ func BenchmarkTerrainOverrideAt_Warm(b *testing.B) {
 			_ = src.ensureSuperRegion(superRegion{X: x, Y: y})
 		}
 	}
-	p := game.Position{X: 42, Y: 42}
+	p := geom.Position{X: 42, Y: 42}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -90,6 +91,6 @@ func BenchmarkVolcanoAt(b *testing.B) {
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = src.VolcanoAt(game.SuperChunkCoord{X: 0, Y: 0})
+		_ = src.VolcanoAt(geom.SuperChunkCoord{X: 0, Y: 0})
 	}
 }

@@ -4,8 +4,8 @@ import (
 	"reflect"
 	"sort"
 	"testing"
-
-	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/geom"
+	"github.com/Rioverde/gongeons/internal/game/world"
 )
 
 // newPointTestSource wires a deposit source with real landmark and
@@ -24,9 +24,9 @@ func newPointTestSource(tb testing.TB, seed int64) *NoiseDepositSource {
 // point-like deposits. Filter keeps tests insensitive to zonal and fish
 // counts so a fix to a zonal threshold does not cascade into point
 // assertions.
-func collectPointDeposits(src *NoiseDepositSource, minSCX, minSCY, maxSCX, maxSCY int) []game.Deposit {
+func collectPointDeposits(src *NoiseDepositSource, minSCX, minSCY, maxSCX, maxSCY int) []world.Deposit {
 	all := collectDeposits(src, minSCX, minSCY, maxSCX, maxSCY)
-	out := make([]game.Deposit, 0, len(all))
+	out := make([]world.Deposit, 0, len(all))
 	for _, d := range all {
 		if _, ok := pointMinDistance[d.Kind]; ok {
 			out = append(out, d)
@@ -102,7 +102,7 @@ func TestPointDeposits_MinSpacingPerKind(t *testing.T) {
 
 	for _, sr := range []superRegion{{0, 0}, {1, 0}, {0, 1}, {1, 1}, {-1, 0}} {
 		deposits := pointDepositsInRegion(seed, sr, wg, lm, vs)
-		byKind := make(map[game.DepositKind][]game.Position)
+		byKind := make(map[world.DepositKind][]geom.Position)
 		for _, d := range deposits {
 			byKind[d.Kind] = append(byKind[d.Kind], d.Position)
 		}
@@ -139,7 +139,7 @@ func TestPointDeposits_LandmarkRejection(t *testing.T) {
 	vs := NewNoiseVolcanoSource(seed, wg, lm)
 	src := NewNoiseDepositSource(seed, wg, lm, vs)
 
-	points := make(map[game.Position]game.Deposit)
+	points := make(map[geom.Position]world.Deposit)
 	for _, d := range collectPointDeposits(src, -4, -4, 4, 4) {
 		points[d.Position] = d
 	}
@@ -147,7 +147,7 @@ func TestPointDeposits_LandmarkRejection(t *testing.T) {
 	landmarkCount := 0
 	for scY := -4; scY < 4; scY++ {
 		for scX := -4; scX < 4; scX++ {
-			for _, l := range lm.LandmarksIn(game.SuperChunkCoord{X: scX, Y: scY}) {
+			for _, l := range lm.LandmarksIn(geom.SuperChunkCoord{X: scX, Y: scY}) {
 				landmarkCount++
 				if dep, collide := points[l.Coord]; collide {
 					t.Errorf(
@@ -178,7 +178,7 @@ func TestPointDeposits_VolcanoRejection(t *testing.T) {
 	vs := NewNoiseVolcanoSource(seed, wg, lm)
 	src := NewNoiseDepositSource(seed, wg, lm, vs)
 
-	points := make(map[game.Position]game.Deposit)
+	points := make(map[geom.Position]world.Deposit)
 	for _, d := range collectPointDeposits(src, -4, -4, 4, 4) {
 		points[d.Position] = d
 	}
@@ -186,9 +186,9 @@ func TestPointDeposits_VolcanoRejection(t *testing.T) {
 	volcanoCount := 0
 	for scY := -4; scY < 4; scY++ {
 		for scX := -4; scX < 4; scX++ {
-			for _, v := range vs.VolcanoAt(game.SuperChunkCoord{X: scX, Y: scY}) {
+			for _, v := range vs.VolcanoAt(geom.SuperChunkCoord{X: scX, Y: scY}) {
 				volcanoCount++
-				check := func(zone string, tiles []game.Position) {
+				check := func(zone string, tiles []geom.Position) {
 					for _, p := range tiles {
 						if dep, collide := points[p]; collide {
 							t.Errorf(
@@ -273,9 +273,9 @@ func TestPointDeposits_RareSparseAbsence(t *testing.T) {
 				gems := 0
 				for _, d := range deposits {
 					switch d.Kind {
-					case game.DepositStone:
+					case world.DepositStone:
 						stone++
-					case game.DepositGems:
+					case world.DepositGems:
 						gems++
 					}
 				}
@@ -317,10 +317,10 @@ func TestTileBlocked_WaterRejects(t *testing.T) {
 	for y := 0; y < 200; y++ {
 		for x := 0; x < 200; x++ {
 			tile := wg.TileAt(x, y)
-			if tile.Terrain != game.TerrainOcean && tile.Terrain != game.TerrainDeepOcean {
+			if tile.Terrain != world.TerrainOcean && tile.Terrain != world.TerrainDeepOcean {
 				continue
 			}
-			p := game.Position{X: x, Y: y}
+			p := geom.Position{X: x, Y: y}
 			if !tileBlocked(p, wg, nil, nil) {
 				t.Fatalf("ocean tile %+v terrain=%q was not blocked", p, tile.Terrain)
 			}
@@ -340,19 +340,19 @@ func TestTileBlocked_NilLandmarkAndVolcano(t *testing.T) {
 
 	// Find a mountain / hills / plains / desert tile — any non-water
 	// land tile — and a water tile, then probe both.
-	var land, water game.Position
+	var land, water geom.Position
 	landFound, waterFound := false, false
 	for y := 0; y < 400 && (!landFound || !waterFound); y++ {
 		for x := 0; x < 400; x++ {
 			tile := wg.TileAt(x, y)
-			p := game.Position{X: x, Y: y}
+			p := geom.Position{X: x, Y: y}
 			switch tile.Terrain {
-			case game.TerrainMountain, game.TerrainHills, game.TerrainPlains, game.TerrainDesert:
+			case world.TerrainMountain, world.TerrainHills, world.TerrainPlains, world.TerrainDesert:
 				if !landFound {
 					land = p
 					landFound = true
 				}
-			case game.TerrainOcean, game.TerrainDeepOcean:
+			case world.TerrainOcean, world.TerrainDeepOcean:
 				if !waterFound {
 					water = p
 					waterFound = true

@@ -4,8 +4,10 @@ import (
 	"math"
 	"testing"
 
-	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/geom"
 	"github.com/Rioverde/gongeons/internal/game/naming"
+	"github.com/Rioverde/gongeons/internal/game/world"
+	"github.com/Rioverde/gongeons/internal/game/worldgen/biome"
 )
 
 // TestRegionNameDeterminism anchors the purity contract of RegionName —
@@ -13,18 +15,18 @@ import (
 // times it is called in any order.
 func TestRegionNameDeterminism(t *testing.T) {
 	const seed int64 = 42
-	sc := game.SuperChunkCoord{X: 3, Y: -5}
+	sc := geom.SuperChunkCoord{X: 3, Y: -5}
 
-	want := RegionName(game.RegionBlighted, FamilyForest, seed, sc)
+	want := RegionName(world.RegionBlighted, biome.FamilyForest, seed, sc)
 	for i := range 5 {
-		got := RegionName(game.RegionBlighted, FamilyForest, seed, sc)
+		got := RegionName(world.RegionBlighted, biome.FamilyForest, seed, sc)
 		if got != want {
 			t.Fatalf("iteration %d: RegionName = %+v, want %+v", i, got, want)
 		}
 	}
 
 	// Different seed must give a different body seed (statistically).
-	other := RegionName(game.RegionBlighted, FamilyForest, seed+1, sc)
+	other := RegionName(world.RegionBlighted, biome.FamilyForest, seed+1, sc)
 	if other.BodySeed == want.BodySeed {
 		t.Logf("same BodySeed %x for different seeds — unlikely but not impossible", want.BodySeed)
 	}
@@ -35,19 +37,19 @@ func TestRegionNameDeterminism(t *testing.T) {
 // the character's key without panicking.
 func TestRegionNameAllCharactersProduceParts(t *testing.T) {
 	const seed int64 = 1234
-	sc := game.SuperChunkCoord{X: 0, Y: 0}
+	sc := geom.SuperChunkCoord{X: 0, Y: 0}
 
-	characters := []game.RegionCharacter{
-		game.RegionNormal,
-		game.RegionBlighted,
-		game.RegionFey,
-		game.RegionAncient,
-		game.RegionSavage,
-		game.RegionHoly,
-		game.RegionWild,
+	characters := []world.RegionCharacter{
+		world.RegionNormal,
+		world.RegionBlighted,
+		world.RegionFey,
+		world.RegionAncient,
+		world.RegionSavage,
+		world.RegionHoly,
+		world.RegionWild,
 	}
 	for _, c := range characters {
-		p := RegionName(c, FamilyPlain, seed, sc)
+		p := RegionName(c, biome.FamilyPlain, seed, sc)
 		if p.Character != c.Key() {
 			t.Errorf("RegionName(%s).Character = %q, want %q", c, p.Character, c.Key())
 		}
@@ -65,8 +67,8 @@ func TestRegionNameBodySeedVariety(t *testing.T) {
 
 	seen := make(map[int64]struct{}, total)
 	for i := range total {
-		sc := game.SuperChunkCoord{X: i, Y: i * 13}
-		p := RegionName(game.RegionFey, FamilyForest, seed, sc)
+		sc := geom.SuperChunkCoord{X: i, Y: i * 13}
+		p := RegionName(world.RegionFey, biome.FamilyForest, seed, sc)
 		seen[p.BodySeed] = struct{}{}
 	}
 
@@ -86,8 +88,8 @@ func TestRegionNameFormatCoverage(t *testing.T) {
 
 	charPrefix := 0
 	for i := range total {
-		sc := game.SuperChunkCoord{X: i, Y: -i}
-		name := RegionName(game.RegionNormal, FamilyMountain, seed, sc)
+		sc := geom.SuperChunkCoord{X: i, Y: -i}
+		name := RegionName(world.RegionNormal, biome.FamilyMountain, seed, sc)
 		if name.Format == naming.FormatCharacterPrefix {
 			charPrefix++
 		}
@@ -107,7 +109,7 @@ func TestRegionNameFormatCoverage(t *testing.T) {
 func TestHashCoordDistribution(t *testing.T) {
 	seen := make(map[uint64]struct{}, 10000)
 	for i := range 10000 {
-		sc := game.SuperChunkCoord{X: i, Y: i * 7}
+		sc := geom.SuperChunkCoord{X: i, Y: i * 7}
 		seen[hashCoord(sc)] = struct{}{}
 	}
 	if len(seen) < 9000 {

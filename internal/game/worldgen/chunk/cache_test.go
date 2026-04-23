@@ -1,4 +1,4 @@
-package worldgen
+package chunk
 
 import (
 	"math/rand"

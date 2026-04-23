@@ -67,8 +67,8 @@ func TestNamingCatalogCoverage(t *testing.T) {
 	ruKeys := loadFlatKeys(t, catalogPath(t, "active.ru.toml"))
 
 	type catalogCase struct {
-		lang   string
-		keys   map[string]struct{}
+		lang string
+		keys map[string]struct{}
 	}
 	catalogs := []catalogCase{
 		{"en", enKeys},

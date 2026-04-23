@@ -3,7 +3,7 @@ package ui
 import (
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/calendar"
 	pb "github.com/Rioverde/gongeons/internal/proto"
 )
 
@@ -16,9 +16,9 @@ var styles = struct {
 	river       lipgloss.Style
 	unknownTile lipgloss.Style
 
-	title   lipgloss.Style
-	box     lipgloss.Style
-	status  lipgloss.Style
+	title  lipgloss.Style
+	box    lipgloss.Style
+	status lipgloss.Style
 	// rule styles the horizontal divider lines inside the map box
 	// (above the grid, above the status strip). Neutral soft-white so
 	// the rules read as secondary chrome without pulling attention
@@ -82,11 +82,11 @@ var styles = struct {
 //	Spring (120) pale green  — new growth mnemonic
 //	Summer (220) warm yellow — sun mnemonic
 //	Autumn (166) burnt orange — falling leaves mnemonic
-var seasonStyles = map[game.Season]lipgloss.Style{
-	game.SeasonWinter: lipgloss.NewStyle().Foreground(lipgloss.Color("153")),
-	game.SeasonSpring: lipgloss.NewStyle().Foreground(lipgloss.Color("120")),
-	game.SeasonSummer: lipgloss.NewStyle().Foreground(lipgloss.Color("220")),
-	game.SeasonAutumn: lipgloss.NewStyle().Foreground(lipgloss.Color("166")),
+var seasonStyles = map[calendar.Season]lipgloss.Style{
+	calendar.SeasonWinter: lipgloss.NewStyle().Foreground(lipgloss.Color("153")),
+	calendar.SeasonSpring: lipgloss.NewStyle().Foreground(lipgloss.Color("120")),
+	calendar.SeasonSummer: lipgloss.NewStyle().Foreground(lipgloss.Color("220")),
+	calendar.SeasonAutumn: lipgloss.NewStyle().Foreground(lipgloss.Color("166")),
 }
 
 // landmarkStyles pairs each LandmarkKind with its foreground style. Landmarks

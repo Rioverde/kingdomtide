@@ -1,7 +1,7 @@
 //go:build tuning
 
-// run with: go test -tags=tuning -run TestJitterTuning -v ./internal/game/
-package game
+// run with: go test -tags=tuning -run TestJitterTuning -v ./internal/game/geom/
+package geom
 
 import (
 	"fmt"

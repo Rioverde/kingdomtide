@@ -6,8 +6,10 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"google.golang.org/protobuf/testing/protocmp"
-
-	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/calendar"
+	"github.com/Rioverde/gongeons/internal/game/event"
+	"github.com/Rioverde/gongeons/internal/game/geom"
+	"github.com/Rioverde/gongeons/internal/game/world"
 	"github.com/Rioverde/gongeons/internal/game/worldgen"
 	pb "github.com/Rioverde/gongeons/internal/proto"
 )
@@ -18,7 +20,7 @@ func TestClientMessageToCommandJoin(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	jc, ok := cmd.(game.JoinCmd)
+	jc, ok := cmd.(world.JoinCmd)
 	if !ok {
 		t.Fatalf("expected JoinCmd, got %T", cmd)
 	}
@@ -33,7 +35,7 @@ func TestClientMessageToCommandMove(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	mc, ok := cmd.(game.MoveCmd)
+	mc, ok := cmd.(world.MoveCmd)
 	if !ok {
 		t.Fatalf("expected MoveCmd, got %T", cmd)
 	}
@@ -54,7 +56,7 @@ func TestClientMessageToCommandEmpty(t *testing.T) {
 }
 
 func TestEventToServerMessagePlayerJoined(t *testing.T) {
-	ev := game.PlayerJoinedEvent{PlayerID: "p1", Name: "alice", Position: game.Position{X: 3, Y: 4}}
+	ev := event.PlayerJoinedEvent{PlayerID: "p1", Name: "alice", Position: geom.Position{X: 3, Y: 4}}
 	got := eventToServerMessage(ev)
 
 	want := &pb.ServerMessage{
@@ -84,7 +86,7 @@ func TestEventToServerMessagePlayerJoined(t *testing.T) {
 }
 
 func TestEventToServerMessagePlayerLeft(t *testing.T) {
-	ev := game.PlayerLeftEvent{PlayerID: "p1"}
+	ev := event.PlayerLeftEvent{PlayerID: "p1"}
 	got := eventToServerMessage(ev)
 
 	want := &pb.ServerMessage{
@@ -106,10 +108,10 @@ func TestEventToServerMessagePlayerLeft(t *testing.T) {
 }
 
 func TestEventToServerMessageEntityMoved(t *testing.T) {
-	ev := game.EntityMovedEvent{
+	ev := event.EntityMovedEvent{
 		EntityID: "p1",
-		From:     game.Position{X: 1, Y: 2},
-		To:       game.Position{X: 2, Y: 2},
+		From:     geom.Position{X: 1, Y: 2},
+		To:       geom.Position{X: 2, Y: 2},
 	}
 	got := eventToServerMessage(ev)
 
@@ -134,17 +136,17 @@ func TestEventToServerMessageEntityMoved(t *testing.T) {
 }
 
 func TestTerrainToPBMapping(t *testing.T) {
-	cases := map[game.Terrain]pb.Terrain{
-		game.TerrainPlains:    pb.Terrain_TERRAIN_PLAINS,
-		game.TerrainGrassland: pb.Terrain_TERRAIN_GRASSLAND,
-		game.TerrainForest:    pb.Terrain_TERRAIN_FOREST,
-		game.TerrainMountain:  pb.Terrain_TERRAIN_MOUNTAIN,
-		game.TerrainOcean:     pb.Terrain_TERRAIN_OCEAN,
-		game.TerrainDeepOcean: pb.Terrain_TERRAIN_DEEP_OCEAN,
-		game.TerrainBeach:     pb.Terrain_TERRAIN_BEACH,
-		game.TerrainHills:     pb.Terrain_TERRAIN_HILLS,
-		game.Terrain(""):      pb.Terrain_TERRAIN_UNSPECIFIED,
-		game.Terrain("xyz"):   pb.Terrain_TERRAIN_UNSPECIFIED,
+	cases := map[world.Terrain]pb.Terrain{
+		world.TerrainPlains:    pb.Terrain_TERRAIN_PLAINS,
+		world.TerrainGrassland: pb.Terrain_TERRAIN_GRASSLAND,
+		world.TerrainForest:    pb.Terrain_TERRAIN_FOREST,
+		world.TerrainMountain:  pb.Terrain_TERRAIN_MOUNTAIN,
+		world.TerrainOcean:     pb.Terrain_TERRAIN_OCEAN,
+		world.TerrainDeepOcean: pb.Terrain_TERRAIN_DEEP_OCEAN,
+		world.TerrainBeach:     pb.Terrain_TERRAIN_BEACH,
+		world.TerrainHills:     pb.Terrain_TERRAIN_HILLS,
+		world.Terrain(""):      pb.Terrain_TERRAIN_UNSPECIFIED,
+		world.Terrain("xyz"):   pb.Terrain_TERRAIN_UNSPECIFIED,
 	}
 	for in, want := range cases {
 		if got := terrainToPB(in); got != want {
@@ -154,11 +156,11 @@ func TestTerrainToPBMapping(t *testing.T) {
 }
 
 func TestStructureToPBMapping(t *testing.T) {
-	cases := map[game.StructureKind]pb.Structure{
-		game.StructureVillage:     pb.Structure_STRUCTURE_VILLAGE,
-		game.StructureCastle:      pb.Structure_STRUCTURE_CASTLE,
-		game.StructureNone:        pb.Structure_STRUCTURE_UNSPECIFIED,
-		game.StructureKind("xyz"): pb.Structure_STRUCTURE_UNSPECIFIED,
+	cases := map[world.StructureKind]pb.Structure{
+		world.StructureVillage:     pb.Structure_STRUCTURE_VILLAGE,
+		world.StructureCastle:      pb.Structure_STRUCTURE_CASTLE,
+		world.StructureNone:        pb.Structure_STRUCTURE_UNSPECIFIED,
+		world.StructureKind("xyz"): pb.Structure_STRUCTURE_UNSPECIFIED,
 	}
 	for in, want := range cases {
 		if got := structureToPB(in); got != want {
@@ -172,19 +174,19 @@ func TestStructureToPBMapping(t *testing.T) {
 // TestSnapshotOfIncludesStructures to assert the wire Snapshot carries the
 // structure field through.
 type villageTileSource struct {
-	target game.Position
+	target geom.Position
 }
 
-func (s villageTileSource) TileAt(x, y int) game.Tile {
-	if (game.Position{X: x, Y: y}) == s.target {
-		return game.Tile{Terrain: game.TerrainPlains, Structure: game.StructureVillage}
+func (s villageTileSource) TileAt(x, y int) world.Tile {
+	if (geom.Position{X: x, Y: y}) == s.target {
+		return world.Tile{Terrain: world.TerrainPlains, Structure: world.StructureVillage}
 	}
-	return game.Tile{Terrain: game.TerrainPlains}
+	return world.Tile{Terrain: world.TerrainPlains}
 }
 
 func TestSnapshotOfIncludesStructures(t *testing.T) {
-	target := game.Position{X: 3, Y: 4}
-	w := game.NewWorldFromSource(villageTileSource{target: target})
+	target := geom.Position{X: 3, Y: 4}
+	w := world.NewWorldFromSource(villageTileSource{target: target})
 
 	// Centre the viewport on the target so the local index is trivially
 	// computable from the viewport dimensions.
@@ -210,11 +212,11 @@ func TestSnapshotOfIncludesStructures(t *testing.T) {
 
 func TestSnapshotOfShape(t *testing.T) {
 	w := worldgen.NewWorld(42)
-	events, err := w.ApplyCommand(game.JoinCmd{PlayerID: "p1", Name: "alice"})
+	events, err := w.ApplyCommand(world.JoinCmd{PlayerID: "p1", Name: "alice"})
 	if err != nil {
 		t.Fatalf("apply join: %v", err)
 	}
-	spawn := events[0].(game.PlayerJoinedEvent).Position
+	spawn := events[0].(event.PlayerJoinedEvent).Position
 
 	got := snapshotOf(w, spawn, DefaultViewportWidth, DefaultViewportHeight, nil, nil, nil)
 
@@ -250,27 +252,27 @@ func TestSnapshotOfShape(t *testing.T) {
 // predictable and any deviation is attributable to the override.
 type plainsTileSource struct{}
 
-func (plainsTileSource) TileAt(x, y int) game.Tile {
+func (plainsTileSource) TileAt(x, y int) world.Tile {
 	_ = x
 	_ = y
-	return game.Tile{Terrain: game.TerrainPlains}
+	return world.Tile{Terrain: world.TerrainPlains}
 }
 
-// fakeOverrideVolcanoSource is a test-only game.VolcanoSource that
+// fakeOverrideVolcanoSource is a test-only world.VolcanoSource that
 // returns the configured overrides map for TerrainOverrideAt and an
 // empty slice for VolcanoAt. The snapshot path only reads
 // TerrainOverrideAt, so VolcanoAt is left as a no-op that satisfies
 // the interface without additional fixture wiring.
 type fakeOverrideVolcanoSource struct {
-	overrides map[game.Position]game.Terrain
+	overrides map[geom.Position]world.Terrain
 }
 
-func (f fakeOverrideVolcanoSource) VolcanoAt(sc game.SuperChunkCoord) []game.Volcano {
+func (f fakeOverrideVolcanoSource) VolcanoAt(sc geom.SuperChunkCoord) []world.Volcano {
 	_ = sc
 	return nil
 }
 
-func (f fakeOverrideVolcanoSource) TerrainOverrideAt(p game.Position) (game.Terrain, bool) {
+func (f fakeOverrideVolcanoSource) TerrainOverrideAt(p geom.Position) (world.Terrain, bool) {
 	t, ok := f.overrides[p]
 	return t, ok
 }
@@ -281,12 +283,12 @@ func (f fakeOverrideVolcanoSource) TerrainOverrideAt(p game.Position) (game.Terr
 // emit TERRAIN_VOLCANO_CORE at that tile's snapshot slot while every
 // other slot stays TERRAIN_PLAINS.
 func TestSnapshotOf_VolcanoTerrainOverride(t *testing.T) {
-	target := game.Position{X: 2, Y: 3}
-	overrides := map[game.Position]game.Terrain{
-		target: game.TerrainVolcanoCore,
+	target := geom.Position{X: 2, Y: 3}
+	overrides := map[geom.Position]world.Terrain{
+		target: world.TerrainVolcanoCore,
 	}
 	src := fakeOverrideVolcanoSource{overrides: overrides}
-	w := game.NewWorldFromSource(plainsTileSource{}, game.WithVolcanoSource(src))
+	w := world.NewWorldFromSource(plainsTileSource{}, world.WithVolcanoSource(src))
 	vc := newVolcanoCache(src, DefaultVolcanoCacheCapacity)
 
 	// Centre the viewport on target so the index is trivial.
@@ -320,8 +322,8 @@ func TestSnapshotOf_VolcanoTerrainOverride(t *testing.T) {
 // tolerates a nil volcanoCache and emits base biomes unchanged for
 // every tile.
 func TestSnapshotOf_NilVolcanoCache_NoOverride(t *testing.T) {
-	centre := game.Position{X: 0, Y: 0}
-	w := game.NewWorldFromSource(plainsTileSource{})
+	centre := geom.Position{X: 0, Y: 0}
+	w := world.NewWorldFromSource(plainsTileSource{})
 
 	snap := snapshotOf(w, centre, DefaultViewportWidth, DefaultViewportHeight, nil, nil, nil)
 
@@ -338,16 +340,16 @@ func TestSnapshotOf_NilVolcanoCache_NoOverride(t *testing.T) {
 // unchanged when hasOverride is false. Unit-level so a future refactor
 // cannot silently drop the override branch.
 func TestTileFromDomain_OverrideApplied(t *testing.T) {
-	base := game.Tile{Terrain: game.TerrainForest}
-	lm := game.Landmark{}
+	base := world.Tile{Terrain: world.TerrainForest}
+	lm := world.Landmark{}
 
-	withOverride := tileFromDomain(base, lm, game.TerrainVolcanoCore, true)
+	withOverride := tileFromDomain(base, lm, world.TerrainVolcanoCore, true)
 	if got := withOverride.GetTerrain(); got != pb.Terrain_TERRAIN_VOLCANO_CORE {
 		t.Fatalf("override applied: want %v, got %v",
 			pb.Terrain_TERRAIN_VOLCANO_CORE, got)
 	}
 
-	withoutOverride := tileFromDomain(base, lm, game.TerrainVolcanoCore, false)
+	withoutOverride := tileFromDomain(base, lm, world.TerrainVolcanoCore, false)
 	if got := withoutOverride.GetTerrain(); got != pb.Terrain_TERRAIN_FOREST {
 		t.Fatalf("override ignored: want %v, got %v",
 			pb.Terrain_TERRAIN_FOREST, got)
@@ -359,12 +361,12 @@ func TestTileFromDomain_OverrideApplied(t *testing.T) {
 // the server silently emits TERRAIN_UNSPECIFIED for volcano tiles and
 // the client would render the fallback glyph.
 func TestTerrainToPB_VolcanicMapping(t *testing.T) {
-	cases := map[game.Terrain]pb.Terrain{
-		game.TerrainVolcanoCore:        pb.Terrain_TERRAIN_VOLCANO_CORE,
-		game.TerrainVolcanoCoreDormant: pb.Terrain_TERRAIN_VOLCANO_CORE_DORMANT,
-		game.TerrainCraterLake:         pb.Terrain_TERRAIN_CRATER_LAKE,
-		game.TerrainVolcanoSlope:       pb.Terrain_TERRAIN_VOLCANO_SLOPE,
-		game.TerrainAshland:            pb.Terrain_TERRAIN_ASHLAND,
+	cases := map[world.Terrain]pb.Terrain{
+		world.TerrainVolcanoCore:        pb.Terrain_TERRAIN_VOLCANO_CORE,
+		world.TerrainVolcanoCoreDormant: pb.Terrain_TERRAIN_VOLCANO_CORE_DORMANT,
+		world.TerrainCraterLake:         pb.Terrain_TERRAIN_CRATER_LAKE,
+		world.TerrainVolcanoSlope:       pb.Terrain_TERRAIN_VOLCANO_SLOPE,
+		world.TerrainAshland:            pb.Terrain_TERRAIN_ASHLAND,
 	}
 	for in, want := range cases {
 		if got := terrainToPB(in); got != want {
@@ -378,12 +380,12 @@ func TestTerrainToPB_VolcanicMapping(t *testing.T) {
 // tables so a known domain fixture matches its expected wire form
 // field-for-field.
 func TestGameTimeToPB_RoundTrip(t *testing.T) {
-	gt := game.GameTime{
+	gt := calendar.GameTime{
 		Year:       1042,
-		Month:      game.MonthOctober,
+		Month:      calendar.MonthOctober,
 		DayOfMonth: 7,
 		TickOfDay:  123,
-		Season:     game.SeasonAutumn,
+		Season:     calendar.SeasonAutumn,
 	}
 	want := &pb.GameTime{
 		Year:       1042,
@@ -405,19 +407,19 @@ func TestGameTimeToPB_RoundTrip(t *testing.T) {
 // here would surface as a client rendering the calendar with blank
 // month labels.
 func TestMonthToPB_CoversEveryMonth(t *testing.T) {
-	cases := map[game.Month]pb.CalendarMonth{
-		game.MonthJanuary:   pb.CalendarMonth_CALENDAR_MONTH_JANUARY,
-		game.MonthFebruary:  pb.CalendarMonth_CALENDAR_MONTH_FEBRUARY,
-		game.MonthMarch:     pb.CalendarMonth_CALENDAR_MONTH_MARCH,
-		game.MonthApril:     pb.CalendarMonth_CALENDAR_MONTH_APRIL,
-		game.MonthMay:       pb.CalendarMonth_CALENDAR_MONTH_MAY,
-		game.MonthJune:      pb.CalendarMonth_CALENDAR_MONTH_JUNE,
-		game.MonthJuly:      pb.CalendarMonth_CALENDAR_MONTH_JULY,
-		game.MonthAugust:    pb.CalendarMonth_CALENDAR_MONTH_AUGUST,
-		game.MonthSeptember: pb.CalendarMonth_CALENDAR_MONTH_SEPTEMBER,
-		game.MonthOctober:   pb.CalendarMonth_CALENDAR_MONTH_OCTOBER,
-		game.MonthNovember:  pb.CalendarMonth_CALENDAR_MONTH_NOVEMBER,
-		game.MonthDecember:  pb.CalendarMonth_CALENDAR_MONTH_DECEMBER,
+	cases := map[calendar.Month]pb.CalendarMonth{
+		calendar.MonthJanuary:   pb.CalendarMonth_CALENDAR_MONTH_JANUARY,
+		calendar.MonthFebruary:  pb.CalendarMonth_CALENDAR_MONTH_FEBRUARY,
+		calendar.MonthMarch:     pb.CalendarMonth_CALENDAR_MONTH_MARCH,
+		calendar.MonthApril:     pb.CalendarMonth_CALENDAR_MONTH_APRIL,
+		calendar.MonthMay:       pb.CalendarMonth_CALENDAR_MONTH_MAY,
+		calendar.MonthJune:      pb.CalendarMonth_CALENDAR_MONTH_JUNE,
+		calendar.MonthJuly:      pb.CalendarMonth_CALENDAR_MONTH_JULY,
+		calendar.MonthAugust:    pb.CalendarMonth_CALENDAR_MONTH_AUGUST,
+		calendar.MonthSeptember: pb.CalendarMonth_CALENDAR_MONTH_SEPTEMBER,
+		calendar.MonthOctober:   pb.CalendarMonth_CALENDAR_MONTH_OCTOBER,
+		calendar.MonthNovember:  pb.CalendarMonth_CALENDAR_MONTH_NOVEMBER,
+		calendar.MonthDecember:  pb.CalendarMonth_CALENDAR_MONTH_DECEMBER,
 	}
 	for in, want := range cases {
 		got := monthToPB(in)
@@ -429,7 +431,7 @@ func TestMonthToPB_CoversEveryMonth(t *testing.T) {
 		}
 	}
 	// MonthZero is the "not set" sentinel; expect UNSPECIFIED.
-	if got := monthToPB(game.MonthZero); got != pb.CalendarMonth_CALENDAR_MONTH_UNSPECIFIED {
+	if got := monthToPB(calendar.MonthZero); got != pb.CalendarMonth_CALENDAR_MONTH_UNSPECIFIED {
 		t.Errorf("monthToPB(MonthZero): want UNSPECIFIED, got %v", got)
 	}
 }
@@ -438,11 +440,11 @@ func TestMonthToPB_CoversEveryMonth(t *testing.T) {
 // maps to its specific wire counterpart — never to UNSPECIFIED. A
 // regression here would mean season-tinted UI renders as uncoloured.
 func TestSeasonToPB_CoversEverySeason(t *testing.T) {
-	cases := map[game.Season]pb.CalendarSeason{
-		game.SeasonWinter: pb.CalendarSeason_CALENDAR_SEASON_WINTER,
-		game.SeasonSpring: pb.CalendarSeason_CALENDAR_SEASON_SPRING,
-		game.SeasonSummer: pb.CalendarSeason_CALENDAR_SEASON_SUMMER,
-		game.SeasonAutumn: pb.CalendarSeason_CALENDAR_SEASON_AUTUMN,
+	cases := map[calendar.Season]pb.CalendarSeason{
+		calendar.SeasonWinter: pb.CalendarSeason_CALENDAR_SEASON_WINTER,
+		calendar.SeasonSpring: pb.CalendarSeason_CALENDAR_SEASON_SPRING,
+		calendar.SeasonSummer: pb.CalendarSeason_CALENDAR_SEASON_SUMMER,
+		calendar.SeasonAutumn: pb.CalendarSeason_CALENDAR_SEASON_AUTUMN,
 	}
 	for in, want := range cases {
 		got := seasonToPB(in)
@@ -460,16 +462,16 @@ func TestSeasonToPB_CoversEverySeason(t *testing.T) {
 // future tuning change in the domain ripples into this assertion.
 func TestCalendarConfigToPB(t *testing.T) {
 	const epoch = int64(987654321)
-	cal := game.NewCalendar(
-		game.DefaultCalendarConfig.TicksPerDay,
-		game.DefaultCalendarConfig.DaysPerMonth,
-		game.DefaultCalendarConfig.MonthsPerYear,
+	cal := calendar.NewCalendar(
+		calendar.DefaultCalendarConfig.TicksPerDay,
+		calendar.DefaultCalendarConfig.DaysPerMonth,
+		calendar.DefaultCalendarConfig.MonthsPerYear,
 		epoch,
 	)
 	want := &pb.CalendarConfig{
-		TicksPerDay:     game.DefaultCalendarConfig.TicksPerDay,
-		DaysPerMonth:    int32(game.DefaultCalendarConfig.DaysPerMonth),
-		MonthsPerYear:   int32(game.DefaultCalendarConfig.MonthsPerYear),
+		TicksPerDay:     calendar.DefaultCalendarConfig.TicksPerDay,
+		DaysPerMonth:    int32(calendar.DefaultCalendarConfig.DaysPerMonth),
+		MonthsPerYear:   int32(calendar.DefaultCalendarConfig.MonthsPerYear),
 		EpochTickOffset: epoch,
 	}
 	got := calendarConfigToPB(cal)
@@ -486,9 +488,9 @@ func TestCalendarConfigToPB(t *testing.T) {
 // yields Year 0, January, DayOfMonth 1 — that's what must reach the
 // wire.
 func TestSnapshotOf_IncludesGameTime(t *testing.T) {
-	centre := game.Position{X: 0, Y: 0}
-	cal := game.NewCalendar(600, 10, 12, 0)
-	w := game.NewWorldFromSource(plainsTileSource{}, game.WithCalendar(cal))
+	centre := geom.Position{X: 0, Y: 0}
+	cal := calendar.NewCalendar(600, 10, 12, 0)
+	w := world.NewWorldFromSource(plainsTileSource{}, world.WithCalendar(cal))
 
 	snap := snapshotOf(w, centre, DefaultViewportWidth, DefaultViewportHeight, nil, nil, nil)
 
@@ -524,9 +526,9 @@ func TestSnapshotOf_IncludesGameTime(t *testing.T) {
 // field equals N. This is the anchor the client uses to extrapolate
 // GameTime between snapshots.
 func TestSnapshotOf_IncludesCurrentTick(t *testing.T) {
-	centre := game.Position{X: 0, Y: 0}
-	cal := game.NewCalendar(600, 10, 12, 0)
-	w := game.NewWorldFromSource(plainsTileSource{}, game.WithCalendar(cal))
+	centre := geom.Position{X: 0, Y: 0}
+	cal := calendar.NewCalendar(600, 10, 12, 0)
+	w := world.NewWorldFromSource(plainsTileSource{}, world.WithCalendar(cal))
 
 	const want = 5
 	for i := 0; i < want; i++ {
@@ -548,8 +550,8 @@ func TestSnapshotOf_IncludesCurrentTick(t *testing.T) {
 // seasonPBMapping to CALENDAR_SEASON_WINTER rather than UNSPECIFIED.
 // Clients keying off calendar presence must inspect Month, not Season.
 func TestSnapshotOf_NoCalendar_EmitsZeroGameTime(t *testing.T) {
-	centre := game.Position{X: 0, Y: 0}
-	w := game.NewWorldFromSource(plainsTileSource{})
+	centre := geom.Position{X: 0, Y: 0}
+	w := world.NewWorldFromSource(plainsTileSource{})
 
 	snap := snapshotOf(w, centre, DefaultViewportWidth, DefaultViewportHeight, nil, nil, nil)
 
@@ -583,14 +585,14 @@ func TestSnapshotOf_NoCalendar_EmitsZeroGameTime(t *testing.T) {
 // independently of the DoTick emission cadence.
 func TestEventToServerMessage_TimeTick(t *testing.T) {
 	t.Parallel()
-	ev := game.TimeTickEvent{
+	ev := event.TimeTickEvent{
 		CurrentTick: 42,
-		GameTime: game.GameTime{
+		GameTime: calendar.GameTime{
 			Year:       1042,
-			Month:      game.MonthOctober,
+			Month:      calendar.MonthOctober,
 			DayOfMonth: 15,
 			TickOfDay:  120,
-			Season:     game.SeasonAutumn,
+			Season:     calendar.SeasonAutumn,
 		},
 		AtTick: 42,
 	}
@@ -628,8 +630,8 @@ func TestEventToServerMessage_TimeTick(t *testing.T) {
 // the same broadcast path the client sees is exercised.
 func TestDoTick_EmitsTimeTickEverySecond(t *testing.T) {
 	t.Parallel()
-	cal := game.NewCalendar(600, 10, 12, 0)
-	w := game.NewWorldFromSource(plainsTileSource{}, game.WithCalendar(cal))
+	cal := calendar.NewCalendar(600, 10, 12, 0)
+	w := world.NewWorldFromSource(plainsTileSource{}, world.WithCalendar(cal))
 	svc := NewService(w, silentLog())
 
 	outbox, unsub := svc.hub.Subscribe("observer")
@@ -669,8 +671,8 @@ func TestDoTick_EmitsTimeTickEverySecond(t *testing.T) {
 // broadcast cadence.
 func TestDoTick_TimeTickCarriesCurrentTickAndGameTime(t *testing.T) {
 	t.Parallel()
-	cal := game.NewCalendar(600, 10, 12, 0)
-	w := game.NewWorldFromSource(plainsTileSource{}, game.WithCalendar(cal))
+	cal := calendar.NewCalendar(600, 10, 12, 0)
+	w := world.NewWorldFromSource(plainsTileSource{}, world.WithCalendar(cal))
 	svc := NewService(w, silentLog())
 
 	outbox, unsub := svc.hub.Subscribe("observer")
@@ -711,4 +713,3 @@ drained:
 			gt.GetDayOfMonth(), wantDerived.DayOfMonth)
 	}
 }
-

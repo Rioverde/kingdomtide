@@ -5,8 +5,8 @@ import (
 	"sort"
 	"sync"
 	"testing"
-
-	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/geom"
+	"github.com/Rioverde/gongeons/internal/game/world"
 )
 
 // newDepositTestSource wires a fresh NoiseDepositSource for seed.
@@ -22,12 +22,12 @@ func newDepositTestSource(tb testing.TB, seed int64) *NoiseDepositSource {
 // collectDeposits yields every deposit whose position lies inside the
 // SC block [minSCX, maxSCX) x [minSCY, maxSCY). Mirrors the volcano
 // test helper pattern so the two layers stay easy to compare.
-func collectDeposits(src *NoiseDepositSource, minSCX, minSCY, maxSCX, maxSCY int) []game.Deposit {
-	rect := game.Rect{
-		MinX: minSCX * game.SuperChunkSize,
-		MinY: minSCY * game.SuperChunkSize,
-		MaxX: maxSCX * game.SuperChunkSize,
-		MaxY: maxSCY * game.SuperChunkSize,
+func collectDeposits(src *NoiseDepositSource, minSCX, minSCY, maxSCX, maxSCY int) []world.Deposit {
+	rect := geom.Rect{
+		MinX: minSCX * geom.SuperChunkSize,
+		MinY: minSCY * geom.SuperChunkSize,
+		MaxX: maxSCX * geom.SuperChunkSize,
+		MaxY: maxSCY * geom.SuperChunkSize,
 	}
 	return src.DepositsIn(rect)
 }
@@ -48,10 +48,10 @@ func TestNoiseDepositSource_DepositAt_ZonalHit(t *testing.T) {
 	}
 	// Pick the first zonal hit so the assertion is not contingent on
 	// fish appearing in the window.
-	var target game.Deposit
+	var target world.Deposit
 	found := false
 	for _, d := range all {
-		if d.Kind == game.DepositFertile || d.Kind == game.DepositTimber || d.Kind == game.DepositGame {
+		if d.Kind == world.DepositFertile || d.Kind == world.DepositTimber || d.Kind == world.DepositGame {
 			target = d
 			found = true
 			break
@@ -80,10 +80,10 @@ func TestNoiseDepositSource_DepositAt_Miss(t *testing.T) {
 	for y := 0; y < 200; y++ {
 		for x := 0; x < 200; x++ {
 			tile := wg.TileAt(x, y)
-			if tile.Terrain != game.TerrainDeepOcean {
+			if tile.Terrain != world.TerrainDeepOcean {
 				continue
 			}
-			p := game.Position{X: x, Y: y}
+			p := geom.Position{X: x, Y: y}
 			dep, ok := src.DepositAt(p)
 			if ok {
 				t.Fatalf("deep-ocean tile %+v unexpectedly has deposit %+v", p, dep)
@@ -104,7 +104,7 @@ func TestNoiseDepositSource_DepositsIn_RectFilter(t *testing.T) {
 	const seed int64 = 42
 	src := newDepositTestSource(t, seed)
 
-	rect := game.Rect{MinX: 10, MinY: 10, MaxX: 120, MaxY: 120}
+	rect := geom.Rect{MinX: 10, MinY: 10, MaxX: 120, MaxY: 120}
 	in := src.DepositsIn(rect)
 	if len(in) == 0 {
 		t.Fatalf("expected at least one deposit in rect %+v, got 0", rect)
@@ -127,7 +127,7 @@ func TestNoiseDepositSource_DepositsNear_Sorted(t *testing.T) {
 
 	// Pick a center tile that usually sits in-land for seed 42 so the
 	// query radius hits several deposits.
-	center := game.Position{X: 64, Y: 64}
+	center := geom.Position{X: 64, Y: 64}
 	near := src.DepositsNear(center, 40)
 	if len(near) < 2 {
 		t.Skipf("only %d deposits near %+v at seed %d", len(near), center, seed)
@@ -145,7 +145,7 @@ func TestNoiseDepositSource_DepositsNear_Sorted(t *testing.T) {
 	}
 	// Verify (X, Y) tiebreak: for each distinct distance band, positions
 	// inside the band should be sorted by X then Y.
-	byDist := make(map[int][]game.Position)
+	byDist := make(map[int][]geom.Position)
 	for _, d := range near {
 		dist := chebyshev(d.Position, center)
 		byDist[dist] = append(byDist[dist], d.Position)
@@ -169,9 +169,9 @@ func TestNoiseDepositSource_DepositsNear_EmptyOnZeroRadius(t *testing.T) {
 	src := newDepositTestSource(t, seed)
 
 	// Scan for a tile that actually has a deposit.
-	var center game.Position
+	var center geom.Position
 	found := false
-	rect := game.Rect{MinX: 0, MinY: 0, MaxX: 200, MaxY: 200}
+	rect := geom.Rect{MinX: 0, MinY: 0, MaxX: 200, MaxY: 200}
 	for _, d := range src.DepositsIn(rect) {
 		center = d.Position
 		found = true
@@ -200,11 +200,11 @@ func TestNoiseDepositSource_DepositsNear_EmptyAway(t *testing.T) {
 
 	// Find an ocean tile well away from any coast by scanning a
 	// mid-size window.
-	var center game.Position
+	var center geom.Position
 	found := false
 	for y := 0; y < 300 && !found; y++ {
 		for x := 0; x < 300 && !found; x++ {
-			if wg.TileAt(x, y).Terrain != game.TerrainDeepOcean {
+			if wg.TileAt(x, y).Terrain != world.TerrainDeepOcean {
 				continue
 			}
 			// Require a 5-tile buffer of deep ocean so the 3-tile
@@ -212,14 +212,14 @@ func TestNoiseDepositSource_DepositsNear_EmptyAway(t *testing.T) {
 			clear := true
 			for dy := -5; dy <= 5 && clear; dy++ {
 				for dx := -5; dx <= 5; dx++ {
-					if wg.TileAt(x+dx, y+dy).Terrain != game.TerrainDeepOcean {
+					if wg.TileAt(x+dx, y+dy).Terrain != world.TerrainDeepOcean {
 						clear = false
 						break
 					}
 				}
 			}
 			if clear {
-				center = game.Position{X: x, Y: y}
+				center = geom.Position{X: x, Y: y}
 				found = true
 			}
 		}
@@ -245,7 +245,7 @@ func TestNoiseDepositSource_ConcurrentRead(t *testing.T) {
 	src := newDepositTestSource(t, seed)
 
 	reference := collectDeposits(src, -4, -4, 4, 4)
-	refByTile := make(map[game.Position]game.Deposit, len(reference))
+	refByTile := make(map[geom.Position]world.Deposit, len(reference))
 	for _, d := range reference {
 		refByTile[d.Position] = d
 	}
@@ -262,7 +262,7 @@ func TestNoiseDepositSource_ConcurrentRead(t *testing.T) {
 				// Rect query
 				x0 := (g*19 + i*7) % 200
 				y0 := (g*13 + i*11) % 200
-				rect := game.Rect{MinX: x0, MinY: y0, MaxX: x0 + 32, MaxY: y0 + 32}
+				rect := geom.Rect{MinX: x0, MinY: y0, MaxX: x0 + 32, MaxY: y0 + 32}
 				in := src.DepositsIn(rect)
 				for _, d := range in {
 					if !rect.Contains(d.Position) {
@@ -304,7 +304,7 @@ func TestNoiseDepositSource_DeterminismAcrossInstances(t *testing.T) {
 	depA := collectDeposits(a, -4, -4, 4, 4)
 	depB := collectDeposits(b, -4, -4, 4, 4)
 
-	sortDeposits := func(in []game.Deposit) {
+	sortDeposits := func(in []world.Deposit) {
 		sort.Slice(in, func(i, j int) bool {
 			if in[i].Position.X != in[j].Position.X {
 				return in[i].Position.X < in[j].Position.X

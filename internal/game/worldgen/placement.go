@@ -4,7 +4,8 @@ import (
 	"math"
 	"math/rand/v2"
 
-	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/geom"
+	"github.com/Rioverde/gongeons/internal/game/world"
 )
 
 // Super-region constants. A volcanic super-region is a fixed 4x4 grid of
@@ -17,7 +18,7 @@ import (
 // one inside the viewport without feature-flag gymnastics.
 const (
 	volcanoSuperRegionSideSC    = 4
-	volcanoSuperRegionSideTiles = volcanoSuperRegionSideSC * game.SuperChunkSize
+	volcanoSuperRegionSideTiles = volcanoSuperRegionSideSC * geom.SuperChunkSize
 	volcanoMinSpacingTiles      = 100
 	volcanoPoissonK             = 30
 	volcanoBiomeWeightMax       = 1.5
@@ -51,8 +52,8 @@ type superRegion struct {
 
 // superRegionOf returns the super-region that contains sc. Uses floor
 // division so negative super-chunk coords map to negative super-region
-// coords consistently with game.WorldToSuperChunk's floor division.
-func superRegionOf(sc game.SuperChunkCoord) superRegion {
+// coords consistently with geom.WorldToSuperChunk's floor division.
+func superRegionOf(sc geom.SuperChunkCoord) superRegion {
 	return superRegion{
 		X: volcanoFloorDiv(sc.X, volcanoSuperRegionSideSC),
 		Y: volcanoFloorDiv(sc.Y, volcanoSuperRegionSideSC),
@@ -110,14 +111,14 @@ func newVolcanoAnchorRNG(seed int64, sr superRegion) *rand.Rand {
 func pickVolcanoAnchors(
 	seed int64,
 	sr superRegion,
-	lm game.LandmarkSource,
+	lm world.LandmarkSource,
 	wg *WorldGenerator,
-) []game.Position {
+) []geom.Position {
 	rng := newVolcanoAnchorRNG(seed, sr)
 	minX, minY, side := sr.bounds()
 	candidates := bridsonSample(rng, minX, minY, side, side, volcanoMinSpacingTiles, volcanoPoissonK)
 
-	out := make([]game.Position, 0, len(candidates))
+	out := make([]geom.Position, 0, len(candidates))
 	for _, p := range candidates {
 		if !acceptVolcanoAnchor(p, lm, wg, rng) {
 			continue
@@ -140,7 +141,7 @@ func bridsonSample(
 	rng *rand.Rand,
 	minX, minY, width, height int,
 	minDistance, k int,
-) []game.Position {
+) []geom.Position {
 	if width <= 0 || height <= 0 || minDistance <= 0 {
 		return nil
 	}
@@ -155,11 +156,11 @@ func bridsonSample(
 	}
 	cellIndex := func(cx, cy int) int { return cy*cellsX + cx }
 
-	samples := make([]game.Position, 0, 8)
+	samples := make([]geom.Position, 0, 8)
 	active := make([]int, 0, 8)
 
 	// Seed point: pick a uniform first sample inside the rectangle.
-	first := game.Position{
+	first := geom.Position{
 		X: minX + rng.IntN(width),
 		Y: minY + rng.IntN(height),
 	}
@@ -228,7 +229,7 @@ func bridsonSample(
 				continue
 			}
 
-			samples = append(samples, game.Position{X: px, Y: py})
+			samples = append(samples, geom.Position{X: px, Y: py})
 			active = append(active, len(samples)-1)
 			grid[cellIndex(gx, gy)] = len(samples) - 1
 			found = true
@@ -253,8 +254,8 @@ func bridsonSample(
 // RNG keeps the whole placement pipeline deterministic from a single
 // (seed, sr) pair.
 func acceptVolcanoAnchor(
-	p game.Position,
-	lm game.LandmarkSource,
+	p geom.Position,
+	lm world.LandmarkSource,
 	wg *WorldGenerator,
 	rng *rand.Rand,
 ) bool {
@@ -295,18 +296,18 @@ func acceptVolcanoAnchor(
 //	desert/tundra (0.5) → 25% pass rate
 //
 // Water and beach are excluded (weight 0).
-func volcanoBiomeWeight(t game.Terrain) float64 {
+func volcanoBiomeWeight(t world.Terrain) float64 {
 	switch t {
-	case game.TerrainMountain, game.TerrainSnowyPeak:
+	case world.TerrainMountain, world.TerrainSnowyPeak:
 		return 3.0
-	case game.TerrainHills:
+	case world.TerrainHills:
 		return 2.0
-	case game.TerrainForest, game.TerrainTaiga, game.TerrainJungle:
+	case world.TerrainForest, world.TerrainTaiga, world.TerrainJungle:
 		return 1.0
-	case game.TerrainPlains, game.TerrainGrassland,
-		game.TerrainMeadow, game.TerrainSavanna:
+	case world.TerrainPlains, world.TerrainGrassland,
+		world.TerrainMeadow, world.TerrainSavanna:
 		return 0.8
-	case game.TerrainDesert, game.TerrainTundra, game.TerrainSnow:
+	case world.TerrainDesert, world.TerrainTundra, world.TerrainSnow:
 		return 0.5
 	default:
 		// Beach, ocean, deep ocean, existing volcanic terrains, and any
@@ -319,25 +320,25 @@ func volcanoBiomeWeight(t game.Terrain) float64 {
 // OverlayRiver: volcanoes must not spawn on rivers either, not just
 // standing water. Kept local to volcano placement so landmarks.go is
 // untouched.
-func isWaterOrRiverTile(t game.Tile) bool {
+func isWaterOrRiverTile(t world.Tile) bool {
 	switch t.Terrain {
-	case game.TerrainOcean, game.TerrainDeepOcean:
+	case world.TerrainOcean, world.TerrainDeepOcean:
 		return true
 	}
-	return t.Overlays&(game.OverlayLake|game.OverlayRiver) != 0
+	return t.Overlays&(world.OverlayLake|world.OverlayRiver) != 0
 }
 
 // collidesWithLandmark reports whether any landmark in the 3x3 super-chunk
 // neighbourhood around p sits on the exact same tile. Landmarks live on
 // specific tiles, not footprints, so an exact-match check is enough.
-func collidesWithLandmark(p game.Position, lm game.LandmarkSource) bool {
+func collidesWithLandmark(p geom.Position, lm world.LandmarkSource) bool {
 	if lm == nil {
 		return false
 	}
-	home := game.WorldToSuperChunk(p.X, p.Y)
+	home := geom.WorldToSuperChunk(p.X, p.Y)
 	for dy := -1; dy <= 1; dy++ {
 		for dx := -1; dx <= 1; dx++ {
-			sc := game.SuperChunkCoord{X: home.X + dx, Y: home.Y + dy}
+			sc := geom.SuperChunkCoord{X: home.X + dx, Y: home.Y + dy}
 			for _, l := range lm.LandmarksIn(sc) {
 				if l.Coord.Equal(p) {
 					return true

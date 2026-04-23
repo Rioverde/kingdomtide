@@ -8,8 +8,10 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/calendar"
 	"github.com/Rioverde/gongeons/internal/game/naming"
+	"github.com/Rioverde/gongeons/internal/game/stats"
+	"github.com/Rioverde/gongeons/internal/game/world"
 	pb "github.com/Rioverde/gongeons/internal/proto"
 )
 
@@ -176,7 +178,7 @@ func TestRenderCellLayerPrecedence(t *testing.T) {
 		},
 		{
 			name:        "river overrides terrain",
-			tile:        &pb.Tile{Terrain: pb.Terrain_TERRAIN_PLAINS, Overlays: uint32(game.OverlayRiver)},
+			tile:        &pb.Tile{Terrain: pb.Terrain_TERRAIN_PLAINS, Overlays: uint32(world.OverlayRiver)},
 			mustHave:    []string{riverRune},
 			mustNotHave: []string{plainsRune},
 		},
@@ -192,7 +194,7 @@ func TestRenderCellLayerPrecedence(t *testing.T) {
 			name: "village wins over river",
 			tile: &pb.Tile{
 				Terrain:   pb.Terrain_TERRAIN_PLAINS,
-				Overlays:  uint32(game.OverlayRiver),
+				Overlays:  uint32(world.OverlayRiver),
 				Structure: pb.Structure_STRUCTURE_VILLAGE,
 			},
 			mustHave:    []string{villageRune},
@@ -228,7 +230,7 @@ func TestRenderCellLayerPrecedence(t *testing.T) {
 			name: "lake overrides terrain",
 			tile: &pb.Tile{
 				Terrain:  pb.Terrain_TERRAIN_PLAINS,
-				Overlays: uint32(game.OverlayLake),
+				Overlays: uint32(world.OverlayLake),
 			},
 			mustHave:    []string{lakeRune},
 			mustNotHave: []string{plainsRune, riverRune},
@@ -237,7 +239,7 @@ func TestRenderCellLayerPrecedence(t *testing.T) {
 			name: "lake wins over river when both set",
 			tile: &pb.Tile{
 				Terrain:  pb.Terrain_TERRAIN_PLAINS,
-				Overlays: uint32(game.OverlayLake | game.OverlayRiver),
+				Overlays: uint32(world.OverlayLake | world.OverlayRiver),
 			},
 			mustHave:    []string{lakeRune},
 			mustNotHave: []string{riverRune},
@@ -246,7 +248,7 @@ func TestRenderCellLayerPrecedence(t *testing.T) {
 			name: "village wins over lake",
 			tile: &pb.Tile{
 				Terrain:   pb.Terrain_TERRAIN_PLAINS,
-				Overlays:  uint32(game.OverlayLake),
+				Overlays:  uint32(world.OverlayLake),
 				Structure: pb.Structure_STRUCTURE_VILLAGE,
 			},
 			mustHave:    []string{villageRune},
@@ -317,7 +319,7 @@ func TestRenderLandmarkPrecedence(t *testing.T) {
 			tile: &pb.Tile{
 				Terrain:  pb.Terrain_TERRAIN_PLAINS,
 				Landmark: &pb.Landmark{Kind: pb.LandmarkKind_LANDMARK_KIND_SHRINE},
-				Overlays: uint32(game.OverlayRiver),
+				Overlays: uint32(world.OverlayRiver),
 			},
 			mustHave:    []string{shrineRune},
 			mustNotHave: []string{riverRune},
@@ -361,11 +363,11 @@ func TestTileRenderIsTwoCells(t *testing.T) {
 		},
 		{
 			name: "river overlay",
-			tile: &pb.Tile{Terrain: pb.Terrain_TERRAIN_PLAINS, Overlays: uint32(game.OverlayRiver)},
+			tile: &pb.Tile{Terrain: pb.Terrain_TERRAIN_PLAINS, Overlays: uint32(world.OverlayRiver)},
 		},
 		{
 			name: "lake overlay",
-			tile: &pb.Tile{Terrain: pb.Terrain_TERRAIN_PLAINS, Overlays: uint32(game.OverlayLake)},
+			tile: &pb.Tile{Terrain: pb.Terrain_TERRAIN_PLAINS, Overlays: uint32(world.OverlayLake)},
 		},
 		{
 			name: "village structure",
@@ -431,7 +433,7 @@ func statsModel(str, dex, con, intel, wis, cha int) *Model {
 	m.termWidth = 120
 	m.termHeight = 40
 	m.nameInput.SetValue("Aldric")
-	cs := game.CoreStats{
+	cs := stats.CoreStats{
 		Strength:     str,
 		Dexterity:    dex,
 		Constitution: con,
@@ -496,7 +498,7 @@ func TestStatsBoxModifierSigns(t *testing.T) {
 	m.setPhase(phasePlaying)
 	m.termWidth = 120
 	m.termHeight = 40
-	m.coreStats = game.CoreStats{
+	m.coreStats = stats.CoreStats{
 		Strength:     5,  // mod -3
 		Dexterity:    10, // mod  0
 		Constitution: 15, // mod +2
@@ -565,7 +567,7 @@ func TestStatsBoxNoEnergyRow(t *testing.T) {
 // retuned (the test documents the RENDER shape, not the balance).
 func TestStatsBoxHPBar(t *testing.T) {
 	t.Parallel()
-	cs := game.CoreStats{
+	cs := stats.CoreStats{
 		Strength: 10, Dexterity: 10, Constitution: 14,
 		Intelligence: 10, Wisdom: 10, Charisma: 10,
 	}
@@ -589,7 +591,7 @@ func TestStatsBoxHPBar(t *testing.T) {
 // shape independent of game-balance tuning.
 func TestStatsBoxMPBar(t *testing.T) {
 	t.Parallel()
-	cs := game.CoreStats{
+	cs := stats.CoreStats{
 		Strength: 10, Dexterity: 10, Constitution: 10,
 		Intelligence: 14, Wisdom: 10, Charisma: 10,
 	}
@@ -647,12 +649,12 @@ func TestProgressBar(t *testing.T) {
 // server-authoritative delivery means tests no longer need a local
 // Calendar mirror to Derive from. Used by the date HUD rendering
 // tests.
-func setGameTime(m *Model, year int32, month game.Month, day int32) {
-	m.gameTime = game.GameTime{
+func setGameTime(m *Model, year int32, month calendar.Month, day int32) {
+	m.gameTime = calendar.GameTime{
 		Year:       year,
 		Month:      month,
 		DayOfMonth: day,
-		Season:     game.SeasonOf(month),
+		Season:     calendar.SeasonOf(month),
 	}
 }
 
@@ -662,7 +664,7 @@ func setGameTime(m *Model, year int32, month game.Month, day int32) {
 func TestCalendarDateHUD_Rendering(t *testing.T) {
 	t.Parallel()
 	m := playingModel(120, 40)
-	setGameTime(m, 1042, game.MonthOctober, 15)
+	setGameTime(m, 1042, calendar.MonthOctober, 15)
 
 	out := m.viewPlaying()
 
@@ -681,7 +683,7 @@ func TestCalendarDateHUD_NoCalendar_Empty(t *testing.T) {
 	m := playingModel(120, 40)
 	// Explicit zero — belt-and-braces against future default changes.
 	m.calendarCfg = calendarConfig{}
-	m.gameTime = game.GameTime{}
+	m.gameTime = calendar.GameTime{}
 
 	out := m.viewPlaying()
 
@@ -702,7 +704,7 @@ func TestCalendarDateHUD_RussianLocale(t *testing.T) {
 	t.Parallel()
 	m := playingModel(120, 40)
 	m.lang = "ru"
-	setGameTime(m, 1042, game.MonthOctober, 15)
+	setGameTime(m, 1042, calendar.MonthOctober, 15)
 
 	out := m.viewPlaying()
 
@@ -712,16 +714,16 @@ func TestCalendarDateHUD_RussianLocale(t *testing.T) {
 	}
 }
 
-// TestSeasonStyles_CoversEverySeason asserts that every game.Season
+// TestSeasonStyles_CoversEverySeason asserts that every calendar.Season
 // variant has an entry in seasonStyles so the top-bar renderer never
 // falls through to the unstyled default on a production-path season.
 func TestSeasonStyles_CoversEverySeason(t *testing.T) {
 	t.Parallel()
-	seasons := []game.Season{
-		game.SeasonWinter,
-		game.SeasonSpring,
-		game.SeasonSummer,
-		game.SeasonAutumn,
+	seasons := []calendar.Season{
+		calendar.SeasonWinter,
+		calendar.SeasonSpring,
+		calendar.SeasonSummer,
+		calendar.SeasonAutumn,
 	}
 	for _, s := range seasons {
 		if _, ok := seasonStyles[s]; !ok {

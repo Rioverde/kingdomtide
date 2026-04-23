@@ -3,7 +3,9 @@ package worldgen
 import (
 	"math/rand/v2"
 
-	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/geom"
+	"github.com/Rioverde/gongeons/internal/game/world"
+	"github.com/Rioverde/gongeons/internal/game/worldgen/biome"
 )
 
 // Sub-cell layout: each 64-tile super-chunk splits into four 32-tile
@@ -72,7 +74,7 @@ var seedSaltLandmark = regionToInt64(seedSaltLandmarkRaw)
 // when sc.X and subID coincide.
 const landmarkSubCellPrime uint64 = 0xd1b54a32d192ed03
 
-// NoiseLandmarkSource is the procedural game.LandmarkSource. It splits
+// NoiseLandmarkSource is the procedural world.LandmarkSource. It splits
 // each 64x64 super-chunk into four 32x32 sub-cells and emits exactly
 // one Landmark per sub-cell, guaranteeing that any 41x21 viewport sees
 // at least one landmark.
@@ -84,7 +86,7 @@ const landmarkSubCellPrime uint64 = 0xd1b54a32d192ed03
 type NoiseLandmarkSource struct {
 	seed     int64
 	worldgen *WorldGenerator
-	regions  game.RegionSource
+	regions  world.RegionSource
 }
 
 // NewNoiseLandmarkSource wires a landmark source to a shared
@@ -94,7 +96,7 @@ type NoiseLandmarkSource struct {
 // from region, anchor, and river generation.
 func NewNoiseLandmarkSource(
 	seed int64,
-	regions game.RegionSource,
+	regions world.RegionSource,
 	wg *WorldGenerator,
 ) *NoiseLandmarkSource {
 	return &NoiseLandmarkSource{
@@ -111,14 +113,14 @@ func NewNoiseLandmarkSource(
 // output slice is shorter than four. Deterministic: same (seed, sc)
 // always yields the same slice. Landmark names ship as structured,
 // language-agnostic Parts records.
-func (s *NoiseLandmarkSource) LandmarksIn(sc game.SuperChunkCoord) []game.Landmark {
-	out := make([]game.Landmark, 0, landmarkSubCellsPerSC)
+func (s *NoiseLandmarkSource) LandmarksIn(sc geom.SuperChunkCoord) []world.Landmark {
+	out := make([]world.Landmark, 0, landmarkSubCellsPerSC)
 
 	// Only Character is consumed below; the returned Region.Name is
 	// discarded.
 	region := s.regions.RegionAt(sc)
-	minX := sc.X * game.SuperChunkSize
-	minY := sc.Y * game.SuperChunkSize
+	minX := sc.X * geom.SuperChunkSize
+	minY := sc.Y * geom.SuperChunkSize
 
 	for subID := range landmarkSubCellsPerSC {
 		lm, ok := s.landmarkForSubCell(sc, subID, minX, minY, region.Character)
@@ -138,10 +140,10 @@ func (s *NoiseLandmarkSource) LandmarksIn(sc game.SuperChunkCoord) []game.Landma
 // ok == false when every candidate is water, signalling the caller to
 // omit this sub-cell.
 func (s *NoiseLandmarkSource) landmarkForSubCell(
-	sc game.SuperChunkCoord,
+	sc geom.SuperChunkCoord,
 	subID, scMinX, scMinY int,
-	character game.RegionCharacter,
-) (game.Landmark, bool) {
+	character world.RegionCharacter,
+) (world.Landmark, bool) {
 	offX, offY := subCellOrigin(subID)
 	subMinX := scMinX + offX
 	subMinY := scMinY + offY
@@ -149,7 +151,7 @@ func (s *NoiseLandmarkSource) landmarkForSubCell(
 	rng := newSubCellRNG(s.seed, sc, subID)
 	candidates := scatterCandidates(rng, subMinX, subMinY)
 
-	var firstDry game.Position
+	var firstDry geom.Position
 	firstDryFound := false
 	for _, cand := range candidates {
 		tile := s.worldgen.TileAt(cand.X, cand.Y)
@@ -167,28 +169,28 @@ func (s *NoiseLandmarkSource) landmarkForSubCell(
 			continue
 		}
 		name := LandmarkName(kind, character, s.seed, cand)
-		return game.Landmark{Coord: cand, Kind: kind, Name: name}, true
+		return world.Landmark{Coord: cand, Kind: kind, Name: name}, true
 	}
 
 	if !firstDryFound {
-		return game.Landmark{}, false
+		return world.Landmark{}, false
 	}
 	// Shrine fallback on the first non-water candidate — keeps landmark
 	// density high in mixed land/water sub-cells while still honouring
 	// the no-water-spawn invariant.
-	name := LandmarkName(game.LandmarkShrine, character, s.seed, firstDry)
-	return game.Landmark{Coord: firstDry, Kind: game.LandmarkShrine, Name: name}, true
+	name := LandmarkName(world.LandmarkShrine, character, s.seed, firstDry)
+	return world.Landmark{Coord: firstDry, Kind: world.LandmarkShrine, Name: name}, true
 }
 
 // isWaterTile reports whether a tile's terrain or overlay puts it
 // underwater. Landmarks must not spawn on these — a Tower or Shrine in
 // the middle of the ocean would read as a bug, not a landmark.
-func isWaterTile(t game.Tile) bool {
+func isWaterTile(t world.Tile) bool {
 	switch t.Terrain {
-	case game.TerrainOcean, game.TerrainDeepOcean:
+	case world.TerrainOcean, world.TerrainDeepOcean:
 		return true
 	}
-	return t.Overlays&game.OverlayLake != 0
+	return t.Overlays&world.OverlayLake != 0
 }
 
 // pickKind filters kinds by terrain affinity, weights the survivors by
@@ -197,27 +199,27 @@ func isWaterTile(t game.Tile) bool {
 // signals the caller to try the next candidate or fall back to Shrine.
 func (s *NoiseLandmarkSource) pickKind(
 	rng *rand.Rand,
-	cand game.Position,
-	tile game.Tile,
+	cand geom.Position,
+	tile world.Tile,
 	elevation float64,
-	character game.RegionCharacter,
-) (game.LandmarkKind, bool) {
+	character world.RegionCharacter,
+) (world.LandmarkKind, bool) {
 	gradient := s.elevationGradient(cand, elevation)
 
 	// Accumulator-style weighted pick to avoid an intermediate slice
 	// allocation. Every kind is checked in a fixed order so the picked
 	// kind is deterministic for the same (rng state, inputs).
 	type candidateKind struct {
-		kind   game.LandmarkKind
+		kind   world.LandmarkKind
 		weight float32
 	}
 	kinds := [...]candidateKind{
-		{game.LandmarkTower, landmarkWeightTower},
-		{game.LandmarkGiantTree, landmarkWeightGiantTree},
-		{game.LandmarkStandingStones, landmarkWeightStandingStones},
-		{game.LandmarkObelisk, landmarkWeightObelisk},
-		{game.LandmarkChasm, landmarkWeightChasm},
-		{game.LandmarkShrine, landmarkWeightShrine},
+		{world.LandmarkTower, landmarkWeightTower},
+		{world.LandmarkGiantTree, landmarkWeightGiantTree},
+		{world.LandmarkStandingStones, landmarkWeightStandingStones},
+		{world.LandmarkObelisk, landmarkWeightObelisk},
+		{world.LandmarkChasm, landmarkWeightChasm},
+		{world.LandmarkShrine, landmarkWeightShrine},
 	}
 
 	var total float32
@@ -228,7 +230,7 @@ func (s *NoiseLandmarkSource) pickKind(
 		total += c.weight * regionBias(c.kind, character)
 	}
 	if total <= 0 {
-		return game.LandmarkNone, false
+		return world.LandmarkNone, false
 	}
 
 	roll := rng.Float32() * total
@@ -250,13 +252,13 @@ func (s *NoiseLandmarkSource) pickKind(
 			return kinds[i].kind, true
 		}
 	}
-	return game.LandmarkNone, false
+	return world.LandmarkNone, false
 }
 
 // elevationGradient returns the maximum absolute elevation difference
 // between the candidate and any of its four orthogonal neighbours. A
 // large gradient indicates a sharp slope and gates Chasm placement.
-func (s *NoiseLandmarkSource) elevationGradient(cand game.Position, here float64) float64 {
+func (s *NoiseLandmarkSource) elevationGradient(cand geom.Position, here float64) float64 {
 	var best float64
 	offsets := [...][2]int{{-1, 0}, {1, 0}, {0, -1}, {0, 1}}
 	for _, off := range offsets {
@@ -295,7 +297,7 @@ func subCellOrigin(subID int) (int, int) {
 // seedSaltLandmark and a sub-cell-specific hash. Two calls with the
 // same (seed, sc, subID) return RNGs that produce identical streams,
 // while any change in the triple produces a decorrelated stream.
-func newSubCellRNG(seed int64, sc game.SuperChunkCoord, subID int) *rand.Rand {
+func newSubCellRNG(seed int64, sc geom.SuperChunkCoord, subID int) *rand.Rand {
 	lo := uint64(seed ^ seedSaltLandmark)
 	hi := hashSubCell(sc, subID)
 	return rand.New(rand.NewPCG(lo, hi))
@@ -305,7 +307,7 @@ func newSubCellRNG(seed int64, sc game.SuperChunkCoord, subID int) *rand.Rand {
 // hashCoord's two-prime shape from region_names.go and multiplies the
 // sub-cell id by a third distinct prime so adjacent sub-cells inside
 // the same super-chunk do not share a stream.
-func hashSubCell(sc game.SuperChunkCoord, subID int) uint64 {
+func hashSubCell(sc geom.SuperChunkCoord, subID int) uint64 {
 	h := hashCoord(sc)
 	h ^= uint64(subID+1) * landmarkSubCellPrime
 	return h
@@ -322,11 +324,11 @@ func hashSubCell(sc game.SuperChunkCoord, subID int) uint64 {
 // property: a landmark hugging the far edge of a sub-cell is the one
 // most likely to fall outside a 21-tall viewport overlapping that
 // sub-cell.
-func scatterCandidates(rng *rand.Rand, subMinX, subMinY int) []game.Position {
+func scatterCandidates(rng *rand.Rand, subMinX, subMinY int) []geom.Position {
 	const core = landmarkSubCellSize - 2*landmarkSubCellInset
-	out := make([]game.Position, landmarkCandidatesPerSubCell)
+	out := make([]geom.Position, landmarkCandidatesPerSubCell)
 	for i := range out {
-		out[i] = game.Position{
+		out[i] = geom.Position{
 			X: subMinX + landmarkSubCellInset + rng.IntN(core),
 			Y: subMinY + landmarkSubCellInset + rng.IntN(core),
 		}
@@ -338,36 +340,36 @@ func scatterCandidates(rng *rand.Rand, subMinX, subMinY int) []game.Position {
 // candidate tile. Shrine accepts any terrain and thereby guarantees
 // that the Shrine fallback in landmarkForSubCell is always valid.
 func fitsTerrain(
-	kind game.LandmarkKind,
-	tile game.Tile,
+	kind world.LandmarkKind,
+	tile world.Tile,
 	elevation, gradient float64,
 ) bool {
-	family := FamilyOf(tile.Terrain)
+	family := biome.FamilyOf(tile.Terrain)
 	switch kind {
-	case game.LandmarkTower:
+	case world.LandmarkTower:
 		if elevation < landmarkTowerElevationMin {
 			return false
 		}
-		return family == FamilyMountain
-	case game.LandmarkGiantTree:
-		return family == FamilyForest
-	case game.LandmarkStandingStones:
+		return family == biome.FamilyMountain
+	case world.LandmarkGiantTree:
+		return family == biome.FamilyForest
+	case world.LandmarkStandingStones:
 		switch tile.Terrain {
-		case game.TerrainPlains, game.TerrainGrassland, game.TerrainMeadow:
+		case world.TerrainPlains, world.TerrainGrassland, world.TerrainMeadow:
 			return true
 		}
 		return false
-	case game.LandmarkObelisk:
-		return family == FamilyPlain ||
-			family == FamilyDesert ||
-			family == FamilyMountain ||
-			family == FamilyTundra
-	case game.LandmarkChasm:
-		if family != FamilyMountain {
+	case world.LandmarkObelisk:
+		return family == biome.FamilyPlain ||
+			family == biome.FamilyDesert ||
+			family == biome.FamilyMountain ||
+			family == biome.FamilyTundra
+	case world.LandmarkChasm:
+		if family != biome.FamilyMountain {
 			return false
 		}
 		return gradient >= landmarkChasmGradientMin
-	case game.LandmarkShrine:
+	case world.LandmarkShrine:
 		// Shrine is terrain-agnostic on purpose — it is the fallback
 		// kind whose eligibility guarantees every sub-cell resolves.
 		return true
@@ -412,78 +414,78 @@ const (
 // TestLandmarksInRegionBias sees a ~2x count ratio — the plan's
 // original 1.5 multiplier was too weak to clear the tight bound on a
 // single-category survey.
-func regionBias(kind game.LandmarkKind, character game.RegionCharacter) float32 {
+func regionBias(kind world.LandmarkKind, character world.RegionCharacter) float32 {
 	switch character {
-	case game.RegionAncient:
+	case world.RegionAncient:
 		return regionBiasAncient(kind)
-	case game.RegionHoly:
+	case world.RegionHoly:
 		return regionBiasHoly(kind)
-	case game.RegionFey:
+	case world.RegionFey:
 		return regionBiasFey(kind)
-	case game.RegionBlighted:
+	case world.RegionBlighted:
 		return regionBiasBlighted(kind)
-	case game.RegionSavage:
+	case world.RegionSavage:
 		return regionBiasSavage(kind)
 	}
 	return 1.0
 }
 
 // regionBiasAncient returns Ancient-character bias for kind.
-func regionBiasAncient(kind game.LandmarkKind) float32 {
+func regionBiasAncient(kind world.LandmarkKind) float32 {
 	switch kind {
-	case game.LandmarkTower:
+	case world.LandmarkTower:
 		return biasAncientTower
-	case game.LandmarkStandingStones:
+	case world.LandmarkStandingStones:
 		return biasAncientStandingStones
-	case game.LandmarkObelisk:
+	case world.LandmarkObelisk:
 		return biasAncientObelisk
-	case game.LandmarkGiantTree:
+	case world.LandmarkGiantTree:
 		return biasAncientGiantTree
-	case game.LandmarkShrine:
+	case world.LandmarkShrine:
 		return biasAncientShrine
-	case game.LandmarkChasm:
+	case world.LandmarkChasm:
 		return biasAncientChasm
 	}
 	return 1.0
 }
 
 // regionBiasHoly returns Holy-character bias for kind.
-func regionBiasHoly(kind game.LandmarkKind) float32 {
+func regionBiasHoly(kind world.LandmarkKind) float32 {
 	switch kind {
-	case game.LandmarkTower:
+	case world.LandmarkTower:
 		return biasHolyTower
-	case game.LandmarkObelisk:
+	case world.LandmarkObelisk:
 		return biasHolyObelisk
-	case game.LandmarkShrine:
+	case world.LandmarkShrine:
 		return biasHolyShrine
 	}
 	return 1.0
 }
 
 // regionBiasFey returns Fey-character bias for kind.
-func regionBiasFey(kind game.LandmarkKind) float32 {
-	if kind == game.LandmarkGiantTree {
+func regionBiasFey(kind world.LandmarkKind) float32 {
+	if kind == world.LandmarkGiantTree {
 		return biasFeyGiantTree
 	}
 	return 1.0
 }
 
 // regionBiasBlighted returns Blighted-character bias for kind.
-func regionBiasBlighted(kind game.LandmarkKind) float32 {
+func regionBiasBlighted(kind world.LandmarkKind) float32 {
 	switch kind {
-	case game.LandmarkGiantTree:
+	case world.LandmarkGiantTree:
 		return biasBlightedGiantTree
-	case game.LandmarkChasm:
+	case world.LandmarkChasm:
 		return biasBlightedChasm
-	case game.LandmarkShrine:
+	case world.LandmarkShrine:
 		return biasBlightedShrine
 	}
 	return 1.0
 }
 
 // regionBiasSavage returns Savage-character bias for kind.
-func regionBiasSavage(kind game.LandmarkKind) float32 {
-	if kind == game.LandmarkChasm {
+func regionBiasSavage(kind world.LandmarkKind) float32 {
+	if kind == world.LandmarkChasm {
 		return biasSavageChasm
 	}
 	return 1.0
@@ -491,4 +493,4 @@ func regionBiasSavage(kind game.LandmarkKind) float32 {
 
 // Compile-time assertion that NoiseLandmarkSource implements the
 // consumer-side interface. Mirrors the pattern in region_source.go.
-var _ game.LandmarkSource = (*NoiseLandmarkSource)(nil)
+var _ world.LandmarkSource = (*NoiseLandmarkSource)(nil)

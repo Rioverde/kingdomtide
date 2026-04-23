@@ -12,7 +12,8 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/world"
+	"github.com/Rioverde/gongeons/internal/game/geom"
 	"github.com/Rioverde/gongeons/internal/game/worldgen"
 )
 
@@ -30,8 +31,8 @@ func main() {
 	volSrc := worldgen.NewNoiseVolcanoSource(*seed, wg.Generator(), lmSrc)
 	depSrc := worldgen.NewNoiseDepositSource(*seed, wg.Generator(), lmSrc, volSrc)
 
-	centre := game.Position{X: *cx, Y: *cy}
-	rect := game.Rect{
+	centre := geom.Position{X: *cx, Y: *cy}
+	rect := geom.Rect{
 		MinX: centre.X - *radius,
 		MinY: centre.Y - *radius,
 		MaxX: centre.X + *radius + 1,
@@ -39,7 +40,7 @@ func main() {
 	}
 	deposits := depSrc.DepositsIn(rect)
 
-	counts := map[game.DepositKind]int{}
+	counts := map[world.DepositKind]int{}
 	for _, d := range deposits {
 		counts[d.Kind]++
 	}
@@ -48,7 +49,7 @@ func main() {
 		*seed, centre.X, centre.Y, *radius, 2*(*radius)+1, 2*(*radius)+1)
 	fmt.Printf("total deposits = %d\n\n", len(deposits))
 
-	kinds := make([]game.DepositKind, 0, len(counts))
+	kinds := make([]world.DepositKind, 0, len(counts))
 	for k := range counts {
 		kinds = append(kinds, k)
 	}
@@ -83,7 +84,7 @@ func main() {
 	}
 }
 
-func chebyshev(a, b game.Position) int {
+func chebyshev(a, b geom.Position) int {
 	dx := a.X - b.X
 	if dx < 0 {
 		dx = -dx

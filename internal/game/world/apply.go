@@ -8,9 +8,16 @@
 // a domain value before handing it off to EnqueueIntent; it does not
 // flow through ApplyCommand.
 
-package game
+package world
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/Rioverde/gongeons/internal/game/entity"
+	"github.com/Rioverde/gongeons/internal/game/event"
+	"github.com/Rioverde/gongeons/internal/game/geom"
+	"github.com/Rioverde/gongeons/internal/game/stats"
+)
 
 // spawnSearchRadius caps how far from the origin the spawn scanner looks
 // before giving up. An infinite world cannot be exhaustively searched, so a
@@ -27,7 +34,7 @@ const spawnSearchRadius = 32
 // future intents) flow through EnqueueIntent + Tick so refund
 // semantics and turn ordering stay in a single path. Passing a
 // MoveCmd to ApplyCommand returns ErrUnknownCommand.
-func (w *World) ApplyCommand(cmd Command) ([]Event, error) {
+func (w *World) ApplyCommand(cmd Command) ([]event.Event, error) {
 	switch c := cmd.(type) {
 	case JoinCmd:
 		return w.applyJoin(c)
@@ -38,7 +45,7 @@ func (w *World) ApplyCommand(cmd Command) ([]Event, error) {
 	}
 }
 
-func (w *World) applyJoin(c JoinCmd) ([]Event, error) {
+func (w *World) applyJoin(c JoinCmd) ([]event.Event, error) {
 	if c.PlayerID == "" || c.Name == "" {
 		return nil, fmt.Errorf("join: %w", ErrInvalidPlayer)
 	}
@@ -55,12 +62,12 @@ func (w *World) applyJoin(c JoinCmd) ([]Event, error) {
 	// value — applyJoin is called both from the server (validated stats)
 	// and from domain tests that predate the stats payload and still
 	// issue bare JoinCmd{PlayerID, Name} literals.
-	stats := c.Stats
-	if stats == (CoreStats{}) {
-		stats = DefaultCoreStats()
+	cs := c.Stats
+	if cs == (stats.CoreStats{}) {
+		cs = stats.DefaultCoreStats()
 	}
 
-	player, err := NewPlayer(c.PlayerID, c.Name, stats, spawn)
+	player, err := entity.NewPlayer(c.PlayerID, c.Name, cs, spawn)
 	if err != nil {
 		return nil, fmt.Errorf("join: %w", err)
 	}
@@ -69,8 +76,8 @@ func (w *World) applyJoin(c JoinCmd) ([]Event, error) {
 	w.positions[c.PlayerID] = spawn
 	w.occupants[spawn] = player
 
-	events := make([]Event, 0, 1)
-	events = append(events, PlayerJoinedEvent{
+	events := make([]event.Event, 0, 1)
+	events = append(events, event.PlayerJoinedEvent{
 		PlayerID: c.PlayerID,
 		Name:     c.Name,
 		Position: spawn,
@@ -80,45 +87,45 @@ func (w *World) applyJoin(c JoinCmd) ([]Event, error) {
 
 // applyMoveIntent resolves a MoveIntent for the given player, returning the
 // events produced and a success flag. On success the returned slice holds
-// an EntityMovedEvent and ok is true; the world has been mutated. On
-// failure the slice holds a single IntentFailedEvent carrying a locale
+// an event.EntityMovedEvent and ok is true; the world has been mutated. On
+// failure the slice holds a single event.IntentFailedEvent carrying a locale
 // catalog key in Reason and ok is false; the world is left unchanged so
 // the caller (Tick) can refund Energy. applyMoveIntent never panics on
-// bad input — an invalid step produces an IntentFailedEvent, not an
+// bad input — an invalid step produces an event.IntentFailedEvent, not an
 // error, so Tick treats every failure mode uniformly.
-func (w *World) applyMoveIntent(p *Player, i MoveIntent) ([]Event, bool) {
+func (w *World) applyMoveIntent(p *entity.Player, i MoveIntent) ([]event.Event, bool) {
 	if !validStep(i.DX, i.DY) {
-		return []Event{IntentFailedEvent{
+		return []event.Event{event.IntentFailedEvent{
 			EntityID: p.ID,
-			Reason:   ReasonIntentMoveInvalid,
+			Reason:   event.ReasonIntentMoveInvalid,
 		}}, false
 	}
 	from, ok := w.positions[p.ID]
 	if !ok {
-		return []Event{IntentFailedEvent{
+		return []event.Event{event.IntentFailedEvent{
 			EntityID: p.ID,
-			Reason:   ReasonIntentMoveBlocked,
+			Reason:   event.ReasonIntentMoveBlocked,
 		}}, false
 	}
 	to := from.Add(i.DX, i.DY)
 
 	target, _ := w.TileAt(to)
 	if !target.Terrain.Passable() {
-		return []Event{IntentFailedEvent{
+		return []event.Event{event.IntentFailedEvent{
 			EntityID: p.ID,
-			Reason:   ReasonIntentMoveBlocked,
+			Reason:   event.ReasonIntentMoveBlocked,
 		}}, false
 	}
 	if _, occupied := w.occupants[to]; occupied {
-		return []Event{IntentFailedEvent{
+		return []event.Event{event.IntentFailedEvent{
 			EntityID: p.ID,
-			Reason:   ReasonIntentMoveBlocked,
+			Reason:   event.ReasonIntentMoveBlocked,
 		}}, false
 	}
 	if _, occupied := w.monsterOccupants[to]; occupied {
-		return []Event{IntentFailedEvent{
+		return []event.Event{event.IntentFailedEvent{
 			EntityID: p.ID,
-			Reason:   ReasonIntentMoveBlocked,
+			Reason:   event.ReasonIntentMoveBlocked,
 		}}, false
 	}
 
@@ -126,8 +133,8 @@ func (w *World) applyMoveIntent(p *Player, i MoveIntent) ([]Event, bool) {
 	w.occupants[to] = p
 	w.positions[p.ID] = to
 
-	events := make([]Event, 0, 1)
-	events = append(events, EntityMovedEvent{
+	events := make([]event.Event, 0, 1)
+	events = append(events, event.EntityMovedEvent{
 		EntityID: p.ID,
 		From:     from,
 		To:       to,
@@ -139,46 +146,46 @@ func (w *World) applyMoveIntent(p *Player, i MoveIntent) ([]Event, bool) {
 // the same four-step collision check: step shape, world bounds,
 // destination terrain, destination occupancy. On success the monster's
 // Position field and the monsterOccupants map update atomically and an
-// EntityMovedEvent is emitted; on failure an IntentFailedEvent carries
+// event.EntityMovedEvent is emitted; on failure an event.IntentFailedEvent carries
 // the locale key back to Tick, which refunds Energy.
 //
 // Occupancy is checked against both monsters (monsterOccupants) and
 // players (occupants) so a monster cannot step onto a player's tile
 // and vice versa; players check the symmetric condition inside
 // applyMoveIntent.
-func (w *World) applyMonsterMoveIntent(m *Monster, i MoveIntent) ([]Event, bool) {
+func (w *World) applyMonsterMoveIntent(m *entity.Monster, i MoveIntent) ([]event.Event, bool) {
 	if !validStep(i.DX, i.DY) {
-		return []Event{IntentFailedEvent{
+		return []event.Event{event.IntentFailedEvent{
 			EntityID: m.ID,
-			Reason:   ReasonIntentMoveInvalid,
+			Reason:   event.ReasonIntentMoveInvalid,
 		}}, false
 	}
 	from := m.Position
 	to := from.Add(i.DX, i.DY)
 	if !w.InBounds(to) {
-		return []Event{IntentFailedEvent{
+		return []event.Event{event.IntentFailedEvent{
 			EntityID: m.ID,
-			Reason:   ReasonIntentMoveBlocked,
+			Reason:   event.ReasonIntentMoveBlocked,
 		}}, false
 	}
 
 	target, _ := w.TileAt(to)
 	if !target.Terrain.Passable() {
-		return []Event{IntentFailedEvent{
+		return []event.Event{event.IntentFailedEvent{
 			EntityID: m.ID,
-			Reason:   ReasonIntentMoveBlocked,
+			Reason:   event.ReasonIntentMoveBlocked,
 		}}, false
 	}
 	if _, occupied := w.occupants[to]; occupied {
-		return []Event{IntentFailedEvent{
+		return []event.Event{event.IntentFailedEvent{
 			EntityID: m.ID,
-			Reason:   ReasonIntentMoveBlocked,
+			Reason:   event.ReasonIntentMoveBlocked,
 		}}, false
 	}
 	if other, occupied := w.monsterOccupants[to]; occupied && other != m {
-		return []Event{IntentFailedEvent{
+		return []event.Event{event.IntentFailedEvent{
 			EntityID: m.ID,
-			Reason:   ReasonIntentMoveBlocked,
+			Reason:   event.ReasonIntentMoveBlocked,
 		}}, false
 	}
 
@@ -186,8 +193,8 @@ func (w *World) applyMonsterMoveIntent(m *Monster, i MoveIntent) ([]Event, bool)
 	w.monsterOccupants[to] = m
 	m.Position = to
 
-	events := make([]Event, 0, 1)
-	events = append(events, EntityMovedEvent{
+	events := make([]event.Event, 0, 1)
+	events = append(events, event.EntityMovedEvent{
 		EntityID: m.ID,
 		From:     from,
 		To:       to,
@@ -195,7 +202,7 @@ func (w *World) applyMonsterMoveIntent(m *Monster, i MoveIntent) ([]Event, bool)
 	return events, true
 }
 
-func (w *World) applyLeave(c LeaveCmd) ([]Event, error) {
+func (w *World) applyLeave(c LeaveCmd) ([]event.Event, error) {
 	if _, ok := w.players[c.PlayerID]; !ok {
 		return nil, fmt.Errorf("leave: %w", ErrPlayerNotFound)
 	}
@@ -205,8 +212,8 @@ func (w *World) applyLeave(c LeaveCmd) ([]Event, error) {
 	delete(w.players, c.PlayerID)
 	delete(w.positions, c.PlayerID)
 
-	events := make([]Event, 0, 1)
-	events = append(events, PlayerLeftEvent(c))
+	events := make([]event.Event, 0, 1)
+	events = append(events, event.PlayerLeftEvent(c))
 	return events, nil
 }
 
@@ -214,7 +221,7 @@ func (w *World) applyLeave(c LeaveCmd) ([]Event, error) {
 // returns the first passable, unoccupied tile. The radius is bounded by
 // spawnSearchRadius so the scan terminates even on a pathological seed
 // (e.g. origin in the middle of an ocean).
-func (w *World) findSpawn() (Position, bool) {
+func (w *World) findSpawn() (geom.Position, bool) {
 	if p, ok := w.spawnCandidate(0, 0); ok {
 		return p, true
 	}
@@ -238,18 +245,18 @@ func (w *World) findSpawn() (Position, bool) {
 			}
 		}
 	}
-	return Position{}, false
+	return geom.Position{}, false
 }
 
 // spawnCandidate tests a single tile for spawn eligibility.
-func (w *World) spawnCandidate(x, y int) (Position, bool) {
-	p := Position{X: x, Y: y}
+func (w *World) spawnCandidate(x, y int) (geom.Position, bool) {
+	p := geom.Position{X: x, Y: y}
 	if _, busy := w.occupants[p]; busy {
-		return Position{}, false
+		return geom.Position{}, false
 	}
 	t := w.source.TileAt(x, y)
 	if !t.Terrain.Passable() {
-		return Position{}, false
+		return geom.Position{}, false
 	}
 	return p, true
 }

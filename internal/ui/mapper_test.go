@@ -4,7 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/calendar"
+	"github.com/Rioverde/gongeons/internal/game/geom"
 	"github.com/Rioverde/gongeons/internal/game/naming"
 	pb "github.com/Rioverde/gongeons/internal/proto"
 )
@@ -14,11 +15,11 @@ func TestPositionFromPB(t *testing.T) {
 	cases := []struct {
 		name string
 		in   *pb.Position
-		want game.Position
+		want geom.Position
 	}{
-		{"nil returns origin", nil, game.Position{}},
-		{"positive", &pb.Position{X: 3, Y: 5}, game.Position{X: 3, Y: 5}},
-		{"negative", &pb.Position{X: -1, Y: -2}, game.Position{X: -1, Y: -2}},
+		{"nil returns origin", nil, geom.Position{}},
+		{"positive", &pb.Position{X: 3, Y: 5}, geom.Position{X: 3, Y: 5}},
+		{"negative", &pb.Position{X: -1, Y: -2}, geom.Position{X: -1, Y: -2}},
 	}
 	for _, tc := range cases {
 		tc := tc
@@ -40,7 +41,7 @@ func newTestModel() *Model {
 		players: make(map[string]playerInfo),
 		width:   3,
 		height:  2,
-		origin:  game.Position{X: 10, Y: 10},
+		origin:  geom.Position{X: 10, Y: 10},
 	}
 	tiles := make([]*pb.Tile, 6)
 	for i := range tiles {
@@ -75,7 +76,7 @@ func TestApplySnapshotResetsState(t *testing.T) {
 	if m.width != 2 || m.height != 2 {
 		t.Fatalf("dims = %dx%d, want 2x2", m.width, m.height)
 	}
-	if m.origin != (game.Position{X: 5, Y: 5}) {
+	if m.origin != (geom.Position{X: 5, Y: 5}) {
 		t.Fatalf("origin = %+v, want (5,5)", m.origin)
 	}
 	if len(m.tiles) != 4 {
@@ -88,7 +89,7 @@ func TestApplySnapshotResetsState(t *testing.T) {
 	if !ok {
 		t.Fatalf("entity a missing from players map")
 	}
-	if got.Name != "alice" || got.Pos != (game.Position{X: 5, Y: 6}) {
+	if got.Name != "alice" || got.Pos != (geom.Position{X: 5, Y: 6}) {
 		t.Fatalf("entity a = %+v", got)
 	}
 }
@@ -126,7 +127,7 @@ func TestApplyEventEntityMovedTracksMyPosition(t *testing.T) {
 	t.Parallel()
 	m := newTestModel()
 	m.myID = "me"
-	m.players["me"] = playerInfo{ID: "me", Name: "me", Pos: game.Position{X: 10, Y: 10}}
+	m.players["me"] = playerInfo{ID: "me", Name: "me", Pos: geom.Position{X: 10, Y: 10}}
 	m.tiles[0].Occupant = pb.OccupantKind_OCCUPANT_PLAYER
 	m.tiles[0].EntityId = "me"
 
@@ -141,7 +142,7 @@ func TestApplyEventEntityMovedTracksMyPosition(t *testing.T) {
 	}
 	applyEvent(m, ev)
 
-	if pos := m.players["me"].Pos; pos != (game.Position{X: 11, Y: 10}) {
+	if pos := m.players["me"].Pos; pos != (geom.Position{X: 11, Y: 10}) {
 		t.Fatalf("my position = %v, want (11,10)", pos)
 	}
 	if m.tiles[0].GetEntityId() != "" {
@@ -155,7 +156,7 @@ func TestApplyEventEntityMovedTracksMyPosition(t *testing.T) {
 func TestApplyEventPlayerLeft(t *testing.T) {
 	t.Parallel()
 	m := newTestModel()
-	m.players["a"] = playerInfo{ID: "a", Name: "alice", Pos: game.Position{X: 12, Y: 11}}
+	m.players["a"] = playerInfo{ID: "a", Name: "alice", Pos: geom.Position{X: 12, Y: 11}}
 	idx := 1*m.width + 2 // local (2,1)
 	m.tiles[idx].Occupant = pb.OccupantKind_OCCUPANT_PLAYER
 	m.tiles[idx].EntityId = "a"
@@ -337,7 +338,7 @@ func TestRegionCoordDerivesFromProto(t *testing.T) {
 	t.Parallel()
 	r := regionFixture(-3, 7, pb.RegionCharacter_REGION_CHARACTER_NORMAL, 0)
 	got := regionCoord(r)
-	want := game.SuperChunkCoord{X: -3, Y: 7}
+	want := geom.SuperChunkCoord{X: -3, Y: 7}
 	if got != want {
 		t.Fatalf("regionCoord = %+v, want %+v", got, want)
 	}
@@ -423,7 +424,7 @@ func TestTerrainRunesVolcanicGlyphsDistinct(t *testing.T) {
 // playerWorld and a landmark of the given kind at landmarkWorld. Both coords
 // must fit inside a viewport large enough to hold them; the helper creates a
 // viewport that spans both points with a small margin.
-func landmarkSnapshot(playerWorld, landmarkWorld game.Position, kind pb.LandmarkKind) *pb.Snapshot {
+func landmarkSnapshot(playerWorld, landmarkWorld geom.Position, kind pb.LandmarkKind) *pb.Snapshot {
 	// Viewport origin is the top-left of the bounding box minus 1 tile of margin.
 	minX := playerWorld.X
 	if landmarkWorld.X < minX {
@@ -433,7 +434,7 @@ func landmarkSnapshot(playerWorld, landmarkWorld game.Position, kind pb.Landmark
 	if landmarkWorld.Y < minY {
 		minY = landmarkWorld.Y
 	}
-	origin := game.Position{X: minX - 1, Y: minY - 1}
+	origin := geom.Position{X: minX - 1, Y: minY - 1}
 
 	maxX := playerWorld.X
 	if landmarkWorld.X > maxX {
@@ -493,8 +494,8 @@ func newLandmarkModel(lang string) *Model {
 func TestDetectLandmarkApproachFires(t *testing.T) {
 	t.Parallel()
 	m := newLandmarkModel("en")
-	player := game.Position{X: 10, Y: 10}
-	lmPos := game.Position{X: 12, Y: 10} // Chebyshev distance 2
+	player := geom.Position{X: 10, Y: 10}
+	lmPos := geom.Position{X: 12, Y: 10} // Chebyshev distance 2
 
 	snap := landmarkSnapshot(player, lmPos, pb.LandmarkKind_LANDMARK_KIND_TOWER)
 	applySnapshot(m, snap)
@@ -513,8 +514,8 @@ func TestDetectLandmarkApproachFires(t *testing.T) {
 func TestDetectLandmarkApproachDebounced(t *testing.T) {
 	t.Parallel()
 	m := newLandmarkModel("en")
-	player := game.Position{X: 10, Y: 10}
-	lmPos := game.Position{X: 12, Y: 10} // Chebyshev distance 2
+	player := geom.Position{X: 10, Y: 10}
+	lmPos := geom.Position{X: 12, Y: 10} // Chebyshev distance 2
 
 	snap := landmarkSnapshot(player, lmPos, pb.LandmarkKind_LANDMARK_KIND_TOWER)
 	applySnapshot(m, snap)
@@ -530,17 +531,17 @@ func TestDetectLandmarkApproachDebounced(t *testing.T) {
 func TestDetectLandmarkApproachRearm(t *testing.T) {
 	t.Parallel()
 	m := newLandmarkModel("en")
-	lmPos := game.Position{X: 20, Y: 20}
+	lmPos := geom.Position{X: 20, Y: 20}
 
 	// First snapshot: player 2 tiles away → fires.
-	near := game.Position{X: 18, Y: 20}
+	near := geom.Position{X: 18, Y: 20}
 	applySnapshot(m, landmarkSnapshot(near, lmPos, pb.LandmarkKind_LANDMARK_KIND_SHRINE))
 	if len(m.logLines) != 1 {
 		t.Fatalf("first approach: expected 1 log line, got %d", len(m.logLines))
 	}
 
 	// Second snapshot: player 6 tiles away (outside exit ring) → no new log.
-	far := game.Position{X: 14, Y: 20} // Chebyshev 6
+	far := geom.Position{X: 14, Y: 20} // Chebyshev 6
 	applySnapshot(m, landmarkSnapshot(far, lmPos, pb.LandmarkKind_LANDMARK_KIND_SHRINE))
 	if len(m.logLines) != 1 {
 		t.Fatalf("after leaving: expected still 1 log line, got %d", len(m.logLines))
@@ -558,8 +559,8 @@ func TestDetectLandmarkApproachRearm(t *testing.T) {
 func TestDetectLandmarkApproachSkipsNoneKind(t *testing.T) {
 	t.Parallel()
 	m := newLandmarkModel("en")
-	player := game.Position{X: 10, Y: 10}
-	lmPos := game.Position{X: 11, Y: 10} // only 1 tile away — very close
+	player := geom.Position{X: 10, Y: 10}
+	lmPos := geom.Position{X: 11, Y: 10} // only 1 tile away — very close
 
 	snap := landmarkSnapshot(player, lmPos, pb.LandmarkKind_LANDMARK_KIND_NONE)
 	applySnapshot(m, snap)
@@ -574,8 +575,8 @@ func TestDetectLandmarkApproachSkipsNoneKind(t *testing.T) {
 func TestDetectLandmarkApproachLocalizedEn(t *testing.T) {
 	t.Parallel()
 	m := newLandmarkModel("en")
-	player := game.Position{X: 10, Y: 10}
-	lmPos := game.Position{X: 12, Y: 10}
+	player := geom.Position{X: 10, Y: 10}
+	lmPos := geom.Position{X: 12, Y: 10}
 
 	applySnapshot(m, landmarkSnapshot(player, lmPos, pb.LandmarkKind_LANDMARK_KIND_TOWER))
 
@@ -592,8 +593,8 @@ func TestDetectLandmarkApproachLocalizedEn(t *testing.T) {
 func TestDetectLandmarkApproachLocalizedRu(t *testing.T) {
 	t.Parallel()
 	m := newLandmarkModel("ru")
-	player := game.Position{X: 10, Y: 10}
-	lmPos := game.Position{X: 12, Y: 10}
+	player := geom.Position{X: 10, Y: 10}
+	lmPos := geom.Position{X: 12, Y: 10}
 
 	applySnapshot(m, landmarkSnapshot(player, lmPos, pb.LandmarkKind_LANDMARK_KIND_TOWER))
 
@@ -626,11 +627,11 @@ func TestApplySnapshot_AdoptsGameTime(t *testing.T) {
 	}
 	applySnapshot(m, snap)
 
-	want := game.GameTime{
+	want := calendar.GameTime{
 		Year:       1042,
-		Month:      game.MonthOctober,
+		Month:      calendar.MonthOctober,
 		DayOfMonth: 15,
-		Season:     game.SeasonAutumn,
+		Season:     calendar.SeasonAutumn,
 	}
 	if m.gameTime != want {
 		t.Errorf("gameTime after snapshot: got %+v, want %+v", m.gameTime, want)
@@ -644,11 +645,11 @@ func TestApplySnapshot_AdoptsGameTime(t *testing.T) {
 func TestApplySnapshot_PreservesGameTimeWhenUnset(t *testing.T) {
 	t.Parallel()
 	m := newTestModel()
-	m.gameTime = game.GameTime{
+	m.gameTime = calendar.GameTime{
 		Year:       42,
-		Month:      game.MonthJune,
+		Month:      calendar.MonthJune,
 		DayOfMonth: 3,
-		Season:     game.SeasonSummer,
+		Season:     calendar.SeasonSummer,
 	}
 
 	snap := &pb.Snapshot{
@@ -660,7 +661,7 @@ func TestApplySnapshot_PreservesGameTimeWhenUnset(t *testing.T) {
 	}
 	applySnapshot(m, snap)
 
-	if m.gameTime.Month != game.MonthJune || m.gameTime.Year != 42 {
+	if m.gameTime.Month != calendar.MonthJune || m.gameTime.Year != 42 {
 		t.Errorf("gameTime after calendar-less snapshot: got %+v, want June Year 42 preserved", m.gameTime)
 	}
 }
@@ -683,11 +684,11 @@ func TestTimeTickEvent_UpdatesGameTime(t *testing.T) {
 	}}}
 	applyEvent(m, ev)
 
-	want := game.GameTime{
+	want := calendar.GameTime{
 		Year:       7,
-		Month:      game.MonthMarch,
+		Month:      calendar.MonthMarch,
 		DayOfMonth: 2,
-		Season:     game.SeasonSpring,
+		Season:     calendar.SeasonSpring,
 	}
 	if m.gameTime != want {
 		t.Errorf("gameTime after TimeTickEvent: got %+v, want %+v", m.gameTime, want)
@@ -701,11 +702,11 @@ func TestTimeTickEvent_UpdatesGameTime(t *testing.T) {
 func TestTimeTickEvent_PreservesGameTimeWhenUnset(t *testing.T) {
 	t.Parallel()
 	m := newTestModel()
-	m.gameTime = game.GameTime{
+	m.gameTime = calendar.GameTime{
 		Year:       42,
-		Month:      game.MonthJune,
+		Month:      calendar.MonthJune,
 		DayOfMonth: 3,
-		Season:     game.SeasonSummer,
+		Season:     calendar.SeasonSummer,
 	}
 
 	ev := &pb.Event{Payload: &pb.Event_TimeTick{TimeTick: &pb.TimeTick{
@@ -714,14 +715,14 @@ func TestTimeTickEvent_PreservesGameTimeWhenUnset(t *testing.T) {
 	}}}
 	applyEvent(m, ev)
 
-	if m.gameTime.Month != game.MonthJune || m.gameTime.Year != 42 {
+	if m.gameTime.Month != calendar.MonthJune || m.gameTime.Year != 42 {
 		t.Errorf("gameTime after calendar-less TimeTick: got %+v, want June Year 42 preserved", m.gameTime)
 	}
 }
 
 // TestCalendarConfigFromPB_IncludesEpochOffset verifies the wire
 // CalendarConfig's epoch offset reaches the client-side cache intact —
-// the field is what lets applyJoinAccepted build a game.Calendar
+// the field is what lets applyJoinAccepted build a calendar.Calendar
 // mirror aligned with the server's epoch jitter.
 func TestCalendarConfigFromPB_IncludesEpochOffset(t *testing.T) {
 	t.Parallel()
@@ -788,7 +789,7 @@ func TestApplyJoinAccepted_ZeroCalendar_NoSideEffect(t *testing.T) {
 	if m.calendarCfg != (calendarConfig{}) {
 		t.Errorf("zero calendar cfg: got %+v, want zero", m.calendarCfg)
 	}
-	if m.gameTime.Month != game.MonthZero {
+	if m.gameTime.Month != calendar.MonthZero {
 		t.Errorf("zero calendar must not seed gameTime: got %+v, want zero-value", m.gameTime)
 	}
 }

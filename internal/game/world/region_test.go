@@ -1,9 +1,9 @@
-package game
+package world
 
 import (
 	"testing"
 
-	"github.com/Rioverde/gongeons/internal/game/naming/parts"
+	"github.com/Rioverde/gongeons/internal/game/geom"
 )
 
 func TestRegionCharacterString(t *testing.T) {
@@ -161,19 +161,19 @@ func TestRegionInfluenceMax(t *testing.T) {
 func TestWorldToSuperChunkNegative(t *testing.T) {
 	cases := []struct {
 		x, y int
-		want SuperChunkCoord
+		want geom.SuperChunkCoord
 	}{
-		{0, 0, SuperChunkCoord{0, 0}},
-		{63, 63, SuperChunkCoord{0, 0}},
-		{64, 0, SuperChunkCoord{1, 0}},
-		{0, 64, SuperChunkCoord{0, 1}},
-		{-1, -1, SuperChunkCoord{-1, -1}},
-		{-64, -64, SuperChunkCoord{-1, -1}},
-		{-65, -65, SuperChunkCoord{-2, -2}},
-		{-63, 63, SuperChunkCoord{-1, 0}},
+		{0, 0, geom.SuperChunkCoord{X: 0, Y: 0}},
+		{63, 63, geom.SuperChunkCoord{X: 0, Y: 0}},
+		{64, 0, geom.SuperChunkCoord{X: 1, Y: 0}},
+		{0, 64, geom.SuperChunkCoord{X: 0, Y: 1}},
+		{-1, -1, geom.SuperChunkCoord{X: -1, Y: -1}},
+		{-64, -64, geom.SuperChunkCoord{X: -1, Y: -1}},
+		{-65, -65, geom.SuperChunkCoord{X: -2, Y: -2}},
+		{-63, 63, geom.SuperChunkCoord{X: -1, Y: 0}},
 	}
 	for _, tc := range cases {
-		got := WorldToSuperChunk(tc.x, tc.y)
+		got := geom.WorldToSuperChunk(tc.x, tc.y)
 		if got != tc.want {
 			t.Fatalf("WorldToSuperChunk(%d, %d) = %+v, want %+v", tc.x, tc.y, got, tc.want)
 		}
@@ -182,12 +182,12 @@ func TestWorldToSuperChunkNegative(t *testing.T) {
 
 func TestAnchorOfDeterminism(t *testing.T) {
 	const seed int64 = 42
-	coords := []SuperChunkCoord{
-		{0, 0}, {1, 2}, {-3, 4}, {100, -100}, {-5000, 5000},
+	coords := []geom.SuperChunkCoord{
+		{X: 0, Y: 0}, {X: 1, Y: 2}, {X: -3, Y: 4}, {X: 100, Y: -100}, {X: -5000, Y: 5000},
 	}
 	for _, sc := range coords {
-		a1 := AnchorOf(seed, sc)
-		a2 := AnchorOf(seed, sc)
+		a1 := geom.AnchorOf(seed, sc)
+		a2 := geom.AnchorOf(seed, sc)
 		if a1 != a2 {
 			t.Fatalf("AnchorOf not deterministic for %+v: %+v vs %+v", sc, a1, a2)
 		}
@@ -197,18 +197,18 @@ func TestAnchorOfDeterminism(t *testing.T) {
 func TestAnchorOfJitterBounds(t *testing.T) {
 	const seed int64 = 1337
 	// Sweep a 100×100 super-chunk grid (10 000 anchors) centred near the
-	// origin. Every anchor's local offset must stay in [anchorJitterMin,
-	// anchorJitterMax] on both axes.
+	// origin. Every anchor's local offset must stay in [geom.AnchorJitterMin,
+	// geom.AnchorJitterMax] on both axes.
 	for y := -50; y < 50; y++ {
 		for x := -50; x < 50; x++ {
-			sc := SuperChunkCoord{X: x, Y: y}
-			a := AnchorOf(seed, sc)
-			localX := a.X - sc.X*SuperChunkSize
-			localY := a.Y - sc.Y*SuperChunkSize
-			if localX < anchorJitterMin || localX > anchorJitterMax {
+			sc := geom.SuperChunkCoord{X: x, Y: y}
+			a := geom.AnchorOf(seed, sc)
+			localX := a.X - sc.X*geom.SuperChunkSize
+			localY := a.Y - sc.Y*geom.SuperChunkSize
+			if localX < geom.AnchorJitterMin || localX > geom.AnchorJitterMax {
 				t.Fatalf("anchor X out of bounds at %+v: local=%d", sc, localX)
 			}
-			if localY < anchorJitterMin || localY > anchorJitterMax {
+			if localY < geom.AnchorJitterMin || localY > geom.AnchorJitterMax {
 				t.Fatalf("anchor Y out of bounds at %+v: local=%d", sc, localY)
 			}
 		}
@@ -228,8 +228,8 @@ func TestAnchorOfDifferentSeeds(t *testing.T) {
 	)
 	collisions := 0
 	for i := range size {
-		sc := SuperChunkCoord{X: i, Y: -i}
-		if AnchorOf(seedA, sc) == AnchorOf(seedB, sc) {
+		sc := geom.SuperChunkCoord{X: i, Y: -i}
+		if geom.AnchorOf(seedA, sc) == geom.AnchorOf(seedB, sc) {
 			collisions++
 		}
 	}
@@ -252,34 +252,34 @@ func TestAnchorAtCorrectness(t *testing.T) {
 	}
 	queries := []query{
 		{"near origin", 32, 32},
-		{"near (1,0) centre", SuperChunkSize + 32, 32},
+		{"near (1,0) centre", geom.SuperChunkSize + 32, 32},
 		{"near (-1,-1)", -32, -32},
-		{"near (3,3)", 3*SuperChunkSize + 10, 3*SuperChunkSize + 50},
+		{"near (3,3)", 3*geom.SuperChunkSize + 10, 3*geom.SuperChunkSize + 50},
 	}
 
 	for _, q := range queries {
 		t.Run(q.name, func(t *testing.T) {
-			gotAnchor, gotSC := AnchorAt(seed, q.x, q.y)
+			gotAnchor, gotSC := geom.AnchorAt(seed, q.x, q.y)
 
 			// Brute-force the 9 candidates and compute the expected winner
 			// with the same tie-break rule.
-			home := WorldToSuperChunk(q.x, q.y)
+			home := geom.WorldToSuperChunk(q.x, q.y)
 			type cand struct {
-				sc SuperChunkCoord
-				a  Position
+				sc geom.SuperChunkCoord
+				a  geom.Position
 				d  int
 			}
 			cands := make([]cand, 0, 9)
 			for dy := -1; dy <= 1; dy++ {
 				for dx := -1; dx <= 1; dx++ {
-					sc := SuperChunkCoord{X: home.X + dx, Y: home.Y + dy}
-					a := AnchorOf(seed, sc)
-					cands = append(cands, cand{sc, a, sqDist(a.X, a.Y, q.x, q.y)})
+					sc := geom.SuperChunkCoord{X: home.X + dx, Y: home.Y + dy}
+					a := geom.AnchorOf(seed, sc)
+					cands = append(cands, cand{sc, a, geom.SqDist(a.X, a.Y, q.x, q.y)})
 				}
 			}
 			best := cands[0]
 			for _, c := range cands[1:] {
-				if c.d < best.d || (c.d == best.d && lessSC(c.sc, best.sc)) {
+				if c.d < best.d || (c.d == best.d && geom.LessSC(c.sc, best.sc)) {
 					best = c
 				}
 			}
@@ -301,19 +301,19 @@ func TestAnchorAtVoronoiProperty(t *testing.T) {
 	const seed int64 = 42
 	const n = 500
 
-	prev := SuperChunkCoord{X: -1 << 31} // sentinel that cannot match
+	prev := geom.SuperChunkCoord{X: -1 << 31} // sentinel that cannot match
 	nonGridBoundary := false
 	for x := range n {
-		_, sc := AnchorAt(seed, x, 0)
+		_, sc := geom.AnchorAt(seed, x, 0)
 		if x > 0 && sc != prev {
-			if x%SuperChunkSize != 0 {
+			if x%geom.SuperChunkSize != 0 {
 				nonGridBoundary = true
 			}
 		}
 		prev = sc
 	}
 	if !nonGridBoundary {
-		t.Fatalf("Voronoi boundaries all landed on multiples of %d — geometry is rectangular, not Voronoi", SuperChunkSize)
+		t.Fatalf("Voronoi boundaries all landed on multiples of %d — geometry is rectangular, not Voronoi", geom.SuperChunkSize)
 	}
 }
 
@@ -327,17 +327,17 @@ func TestNormalizeAtIsDeterministicAndTotal(t *testing.T) {
 	const seed int64 = 99
 	for y := -50; y < 50; y++ {
 		for x := -50; x < 50; x++ {
-			a := NormalizeAt(seed, x, y)
-			b := NormalizeAt(seed, x, y)
+			a := geom.NormalizeAt(seed, x, y)
+			b := geom.NormalizeAt(seed, x, y)
 			if a != b {
 				t.Fatalf("NormalizeAt not deterministic at (%d, %d): %+v vs %+v", x, y, a, b)
 			}
 
-			home := WorldToSuperChunk(x, y)
+			home := geom.WorldToSuperChunk(x, y)
 			found := false
 			for dy := -1; dy <= 1 && !found; dy++ {
 				for dx := -1; dx <= 1 && !found; dx++ {
-					if a == (SuperChunkCoord{home.X + dx, home.Y + dy}) {
+					if a == (geom.SuperChunkCoord{X: home.X + dx, Y: home.Y + dy}) {
 						found = true
 					}
 				}
@@ -353,20 +353,20 @@ func TestIsInRegionConsistentWithAnchorAt(t *testing.T) {
 	const seed int64 = 314159
 	for y := -20; y < 20; y++ {
 		for x := -20; x < 20; x++ {
-			_, sc := AnchorAt(seed, x, y)
-			if !IsInRegion(seed, sc, x, y) {
+			_, sc := geom.AnchorAt(seed, x, y)
+			if !geom.IsInRegion(seed, sc, x, y) {
 				t.Fatalf("IsInRegion disagrees with AnchorAt at (%d, %d)", x, y)
 			}
 			// Any other SuperChunkCoord in the neighbourhood that differs
 			// from sc must report false for this tile.
-			home := WorldToSuperChunk(x, y)
+			home := geom.WorldToSuperChunk(x, y)
 			for dy := -1; dy <= 1; dy++ {
 				for dx := -1; dx <= 1; dx++ {
-					other := SuperChunkCoord{home.X + dx, home.Y + dy}
+					other := geom.SuperChunkCoord{X: home.X + dx, Y: home.Y + dy}
 					if other == sc {
 						continue
 					}
-					if IsInRegion(seed, other, x, y) {
+					if geom.IsInRegion(seed, other, x, y) {
 						t.Fatalf("IsInRegion(%+v) = true for tile (%d, %d) whose region is %+v",
 							other, x, y, sc)
 					}
@@ -378,10 +378,10 @@ func TestIsInRegionConsistentWithAnchorAt(t *testing.T) {
 
 func TestRegionTilesNearDeterministic(t *testing.T) {
 	const seed int64 = 2024
-	sc := SuperChunkCoord{X: 3, Y: -2}
+	sc := geom.SuperChunkCoord{X: 3, Y: -2}
 
-	a := RegionTilesNear(seed, sc, 10, 16)
-	b := RegionTilesNear(seed, sc, 10, 16)
+	a := geom.RegionTilesNear(seed, sc, 10, 16)
+	b := geom.RegionTilesNear(seed, sc, 10, 16)
 	if len(a) != len(b) {
 		t.Fatalf("length mismatch across two calls: %d vs %d", len(a), len(b))
 	}
@@ -392,7 +392,7 @@ func TestRegionTilesNearDeterministic(t *testing.T) {
 	}
 
 	for _, p := range a {
-		if !IsInRegion(seed, sc, p.X, p.Y) {
+		if !geom.IsInRegion(seed, sc, p.X, p.Y) {
 			t.Fatalf("RegionTilesNear returned (%d, %d) which is not in region %+v", p.X, p.Y, sc)
 		}
 	}
@@ -402,57 +402,9 @@ func TestRegionTilesNearDeterministic(t *testing.T) {
 }
 
 func TestRegionTilesNearZero(t *testing.T) {
-	got := RegionTilesNear(1, SuperChunkCoord{}, 0, 10)
+	got := geom.RegionTilesNear(1, geom.SuperChunkCoord{}, 0, 10)
 	if got != nil {
 		t.Fatalf("RegionTilesNear(..., n=0) = %v, want nil", got)
 	}
 }
 
-func TestWorldRegionAtPlaceholder(t *testing.T) {
-	// Without a RegionSource, World.RegionAt must still return a sane
-	// Region: character Normal, and the anchor/coord that AnchorAt would
-	// return for the queried position.
-	w := newTestWorld(testTiles{})
-	p := Position{X: 10, Y: 20}
-	r := w.RegionAt(p)
-	if r.Character != RegionNormal {
-		t.Fatalf("placeholder RegionAt character = %s, want normal", r.Character)
-	}
-	wantAnchor, wantSC := AnchorAt(w.Seed(), p.X, p.Y)
-	if r.Coord != wantSC || r.Anchor != wantAnchor {
-		t.Fatalf("placeholder RegionAt coord/anchor mismatch: got (%+v, %+v), want (%+v, %+v)",
-			r.Anchor, r.Coord, wantAnchor, wantSC)
-	}
-}
-
-// stubRegionSource satisfies RegionSource with a trivial per-coord tag
-// so tests can verify that World.RegionAt delegates to the configured
-// source. The stubBodySeed sentinel proves the tag travels through.
-type stubRegionSource struct {
-	seen map[SuperChunkCoord]int
-}
-
-const stubBodySeed int64 = 0x5ca1ab1e
-
-func (s *stubRegionSource) RegionAt(sc SuperChunkCoord) Region {
-	if s.seen != nil {
-		s.seen[sc]++
-	}
-	return Region{Coord: sc, Name: parts.Parts{BodySeed: stubBodySeed}, Character: RegionWild}
-}
-
-func TestWorldRegionAtDelegates(t *testing.T) {
-	src := &stubRegionSource{seen: make(map[SuperChunkCoord]int)}
-	w := NewWorldFromSource(testTiles{}, WithSeed(17), WithRegionSource(src))
-	if w.Seed() != 17 {
-		t.Fatalf("Seed() = %d, want 17", w.Seed())
-	}
-	r := w.RegionAt(Position{X: 1, Y: 2})
-	if r.Character != RegionWild || r.Name.BodySeed != stubBodySeed {
-		t.Fatalf("RegionAt did not delegate to stub source: %+v", r)
-	}
-	_, sc := AnchorAt(17, 1, 2)
-	if src.seen[sc] != 1 {
-		t.Fatalf("expected one RegionAt call for %+v, got %d", sc, src.seen[sc])
-	}
-}

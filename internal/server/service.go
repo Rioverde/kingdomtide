@@ -13,7 +13,10 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/world"
+	"github.com/Rioverde/gongeons/internal/game/event"
+	"github.com/Rioverde/gongeons/internal/game/geom"
+	"github.com/Rioverde/gongeons/internal/game/stats"
 	pb "github.com/Rioverde/gongeons/internal/proto"
 	"github.com/Rioverde/gongeons/internal/ui/locale"
 )
@@ -60,7 +63,7 @@ type Service struct {
 	pb.UnimplementedGameServiceServer
 
 	mu        sync.Mutex
-	world     *game.World
+	world     *world.World
 	hub       *Hub
 	sessions  *sessionHub
 	log       *slog.Logger
@@ -72,13 +75,13 @@ type Service struct {
 
 // NewService constructs a Service around the given world. If log is nil,
 // slog.Default is used. If the world exposes a non-nil RegionSource
-// (configured via game.WithRegionSource), the service wires an LRU-backed
+// (configured via world.WithRegionSource), the service wires an LRU-backed
 // region cache around it so repeated snapshots on the same super-chunk do
 // not re-sample six noise fields per call. Similarly, if the world exposes
-// a non-nil LandmarkSource (configured via game.WithLandmarkSource), the
+// a non-nil LandmarkSource (configured via world.WithLandmarkSource), the
 // service wires an LRU-backed landmark cache so the placement algorithm
 // runs at most once per super-chunk per session.
-func NewService(w *game.World, log *slog.Logger) *Service {
+func NewService(w *world.World, log *slog.Logger) *Service {
 	if log == nil {
 		log = slog.Default()
 	}
@@ -106,13 +109,13 @@ func NewService(w *game.World, log *slog.Logger) *Service {
 func (s *Service) Play(stream pb.GameService_PlayServer) error {
 	ctx := stream.Context()
 
-	name, dims, stats, err := readJoinFrame(stream)
+	name, dims, cs, err := readJoinFrame(stream)
 	if err != nil {
 		return err
 	}
 
 	playerID := uuid.NewString()
-	spawn, snap, joinEvents, err := s.bootJoin(playerID, name, dims, stats)
+	spawn, snap, joinEvents, err := s.bootJoin(playerID, name, dims, cs)
 	if err != nil {
 		return err
 	}
@@ -149,33 +152,33 @@ func (s *Service) Play(stream pb.GameService_PlayServer) error {
 // assumption is that conformant clients (CS4) validate Point Buy in
 // their UI before sending, so a bad value on the wire signals either a
 // stale client or an attempt to tamper — fail closed.
-func readJoinFrame(stream pb.GameService_PlayServer) (string, viewportDims, game.CoreStats, error) {
+func readJoinFrame(stream pb.GameService_PlayServer) (string, viewportDims, stats.CoreStats, error) {
 	first, err := stream.Recv()
 	if err != nil {
 		if errors.Is(err, io.EOF) {
-			return "", viewportDims{}, game.CoreStats{}, nil
+			return "", viewportDims{}, stats.CoreStats{}, nil
 		}
-		return "", viewportDims{}, game.CoreStats{}, err
+		return "", viewportDims{}, stats.CoreStats{}, err
 	}
 	join := first.GetJoin()
 	if join == nil {
-		return "", viewportDims{}, game.CoreStats{},
+		return "", viewportDims{}, stats.CoreStats{},
 			status.Error(codes.InvalidArgument, "first message must be Join")
 	}
 	name := join.GetName()
 	if name == "" {
-		return "", viewportDims{}, game.CoreStats{},
+		return "", viewportDims{}, stats.CoreStats{},
 			status.Error(codes.InvalidArgument, "name required")
 	}
 
-	stats, err := validateJoinStats(join.GetStats())
+	cs, err := validateJoinStats(join.GetStats())
 	if err != nil {
-		return "", viewportDims{}, game.CoreStats{}, err
+		return "", viewportDims{}, stats.CoreStats{}, err
 	}
 	return name, viewportDims{
 		width:  int(join.GetViewportWidth()),
 		height: int(join.GetViewportHeight()),
-	}, stats, nil
+	}, cs, nil
 }
 
 // validateJoinStats turns the wire CoreStats into the domain type. The
@@ -192,9 +195,9 @@ func readJoinFrame(stream pb.GameService_PlayServer) (string, viewportDims, game
 //     return a LocalizedMessage-enriched gRPC status keyed on
 //     KeyErrorInvalidStats so the client can render the rejection in
 //     its own language.
-func validateJoinStats(pbStats *pb.CoreStats) (game.CoreStats, error) {
+func validateJoinStats(pbStats *pb.CoreStats) (stats.CoreStats, error) {
 	if pbStats == nil {
-		return game.DefaultCoreStats(), nil
+		return stats.DefaultCoreStats(), nil
 	}
 	return validateDomainJoinStats(coreStatsFromPB(pbStats))
 }
@@ -207,26 +210,26 @@ func validateJoinStats(pbStats *pb.CoreStats) (game.CoreStats, error) {
 // (pb vs. direct domain value) never drifts the error shape. A localized
 // rejection always carries the KeyErrorInvalidStats message_id so the
 // client's catalog lookup resolves identically across transports.
-func validateDomainJoinStats(stats game.CoreStats) (game.CoreStats, error) {
-	if stats == (game.CoreStats{}) {
-		return game.DefaultCoreStats(), nil
+func validateDomainJoinStats(cs stats.CoreStats) (stats.CoreStats, error) {
+	if cs == (stats.CoreStats{}) {
+		return stats.DefaultCoreStats(), nil
 	}
-	if _, err := game.NewStatsPointBuy(
-		stats.Strength,
-		stats.Dexterity,
-		stats.Constitution,
-		stats.Intelligence,
-		stats.Wisdom,
-		stats.Charisma,
+	if _, err := stats.NewStatsPointBuy(
+		cs.Strength,
+		cs.Dexterity,
+		cs.Constitution,
+		cs.Intelligence,
+		cs.Wisdom,
+		cs.Charisma,
 	); err != nil {
-		return game.CoreStats{}, localizedStatus(
+		return stats.CoreStats{}, localizedStatus(
 			codes.InvalidArgument,
 			fmt.Sprintf("invalid stats: %v", err),
 			locale.KeyErrorInvalidStats,
 			nil,
 		)
 	}
-	return stats, nil
+	return cs, nil
 }
 
 // bootJoin applies the Join command under the world mutex, records the
@@ -239,18 +242,18 @@ func validateDomainJoinStats(stats game.CoreStats) (game.CoreStats, error) {
 func (s *Service) bootJoin(
 	playerID, name string,
 	dims viewportDims,
-	stats game.CoreStats,
-) (game.Position, *pb.Snapshot, []game.Event, error) {
+	cs stats.CoreStats,
+) (geom.Position, *pb.Snapshot, []event.Event, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	events, err := s.world.ApplyCommand(game.JoinCmd{
+	events, err := s.world.ApplyCommand(world.JoinCmd{
 		PlayerID: playerID,
 		Name:     name,
-		Stats:    stats,
+		Stats:    cs,
 	})
 	if err != nil {
 		s.log.Warn("join failed", "err", err, "name", name)
-		return game.Position{}, nil, nil, status.Errorf(codes.ResourceExhausted, "join failed: %v", err)
+		return geom.Position{}, nil, nil, status.Errorf(codes.ResourceExhausted, "join failed: %v", err)
 	}
 	s.viewports[playerID] = dims
 	spawn := spawnFromEvents(events)
@@ -263,24 +266,24 @@ func (s *Service) bootJoin(
 // that skip region wiring). Callers must hold s.mu — regionAt reads
 // the world's seed but does not take the mutex itself. Names are
 // language-agnostic Parts so no lang argument is needed.
-func (s *Service) regionAt(p game.Position) *pb.Region {
+func (s *Service) regionAt(p geom.Position) *pb.Region {
 	if s.regions == nil {
 		return nil
 	}
-	_, sc := game.AnchorAt(s.world.Seed(), p.X, p.Y)
+	_, sc := geom.AnchorAt(s.world.Seed(), p.X, p.Y)
 	return regionPB(s.regions.At(sc))
 }
 
 // spawnFromEvents pulls the PlayerJoined position out of the event slice.
 // Falls back to origin if the event is absent, which should never happen
 // in the current domain rules.
-func spawnFromEvents(events []game.Event) game.Position {
+func spawnFromEvents(events []event.Event) geom.Position {
 	for _, ev := range events {
-		if pj, ok := ev.(game.PlayerJoinedEvent); ok {
+		if pj, ok := ev.(event.PlayerJoinedEvent); ok {
 			return pj.Position
 		}
 	}
-	return game.Position{}
+	return geom.Position{}
 }
 
 // readLoop drains ClientMessages until the peer disconnects.
@@ -314,11 +317,11 @@ func (s *Service) dispatch(msg *pb.ClientMessage, playerID string) {
 		s.sendError(playerID, "bad command: "+cerr.Error(), pb.ErrCodeInvalidArgument)
 		return
 	}
-	if _, isJoin := cmd.(game.JoinCmd); isJoin {
+	if _, isJoin := cmd.(world.JoinCmd); isJoin {
 		s.sendError(playerID, "already joined", pb.ErrCodeInvalidProtocol)
 		return
 	}
-	if move, ok := cmd.(game.MoveCmd); ok {
+	if move, ok := cmd.(world.MoveCmd); ok {
 		s.enqueueMoveIntent(playerID, move)
 		return
 	}
@@ -340,15 +343,15 @@ func (s *Service) dispatch(msg *pb.ClientMessage, playerID string) {
 // A missing player surfaces as an invalid-protocol error (the stream has
 // not joined); any other enqueue error reads as a rule violation so the
 // code shape matches the rest of dispatch.
-func (s *Service) enqueueMoveIntent(playerID string, c game.MoveCmd) {
+func (s *Service) enqueueMoveIntent(playerID string, c world.MoveCmd) {
 	s.mu.Lock()
-	err := s.world.EnqueueIntent(playerID, game.MoveIntent{DX: c.DX, DY: c.DY})
+	err := s.world.EnqueueIntent(playerID, world.MoveIntent{DX: c.DX, DY: c.DY})
 	s.mu.Unlock()
 	if err == nil {
 		return
 	}
 	code := pb.ErrCodeRuleViolation
-	if errors.Is(err, game.ErrPlayerNotFound) {
+	if errors.Is(err, world.ErrPlayerNotFound) {
 		code = pb.ErrCodeInvalidProtocol
 	}
 	s.sendError(playerID, err.Error(), code)
@@ -366,7 +369,7 @@ func (s *Service) sendError(id, msg, code string) {
 // mutex itself, so callers can compose it into a larger critical
 // section. Names travel the wire as structured Parts records; the
 // client composes localized display text using its own Model.lang.
-func (s *Service) snapshotFor(id string, pos game.Position) *pb.Snapshot {
+func (s *Service) snapshotFor(id string, pos geom.Position) *pb.Snapshot {
 	dims := s.viewports[id]
 	return snapshotOf(s.world, pos, dims.width, dims.height, s.regionAt(pos), s.landmarks, s.volcanoes)
 }
@@ -374,7 +377,7 @@ func (s *Service) snapshotFor(id string, pos game.Position) *pb.Snapshot {
 // applyCmd is a convenience wrapper used by cleanup: take the mutex,
 // apply the command, release. Returning outside the lock lets the caller
 // broadcast events without re-entering it.
-func (s *Service) applyCmd(cmd game.Command) ([]game.Event, error) {
+func (s *Service) applyCmd(cmd world.Command) ([]event.Event, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.world.ApplyCommand(cmd)
@@ -419,7 +422,7 @@ func (s *Service) DoTick() {
 	// waiting on a Snapshot. Prepend so consumers see calendar state
 	// BEFORE any movement events that might piggyback on the same tick.
 	if s.world.CurrentTick()%timeTickEveryNTicks == 0 {
-		events = append([]game.Event{game.TimeTickEvent{
+		events = append([]event.Event{event.TimeTickEvent{
 			CurrentTick: s.world.CurrentTick(),
 			GameTime:    s.world.GameTime(),
 			AtTick:      s.world.CurrentTick(),
@@ -450,7 +453,7 @@ const timeTickEveryNTicks = 10
 // outside the mutex. Caller MUST hold s.mu. Sizing the map to the number
 // of EntityMovedEvents avoids an initial grow for typical ticks where
 // most events do not move players.
-func (s *Service) followSnapshotsLocked(events []game.Event) map[string]*pb.Snapshot {
+func (s *Service) followSnapshotsLocked(events []event.Event) map[string]*pb.Snapshot {
 	moved := movedPlayers(events)
 	if len(moved) == 0 {
 		return nil
@@ -470,10 +473,10 @@ func (s *Service) followSnapshotsLocked(events []game.Event) map[string]*pb.Snap
 // of an EntityMovedEvent in events. The set form collapses duplicate
 // moves in a single tick (the current M2 cap is one action per entity
 // per tick, but future intents — knockback, teleport — may emit two).
-func movedPlayers(events []game.Event) map[string]struct{} {
+func movedPlayers(events []event.Event) map[string]struct{} {
 	out := make(map[string]struct{})
 	for _, ev := range events {
-		if em, ok := ev.(game.EntityMovedEvent); ok {
+		if em, ok := ev.(event.EntityMovedEvent); ok {
 			out[em.EntityID] = struct{}{}
 		}
 	}
@@ -485,7 +488,7 @@ func movedPlayers(events []game.Event) map[string]struct{} {
 // to in-process session subscribers (SSH Bubble Tea sessions). Both
 // paths share the same event stream so a gRPC and an SSH client
 // connected to the same Service see identical gameplay transitions.
-func (s *Service) broadcastEvents(events []game.Event) {
+func (s *Service) broadcastEvents(events []event.Event) {
 	for _, ev := range events {
 		if msg := eventToServerMessage(ev); msg != nil {
 			s.hub.Broadcast(msg)
@@ -502,7 +505,7 @@ func (s *Service) cleanup(
 	wg *sync.WaitGroup,
 	unsub func(),
 ) {
-	leaveEvents, _ := s.applyCmd(game.LeaveCmd{PlayerID: playerID})
+	leaveEvents, _ := s.applyCmd(world.LeaveCmd{PlayerID: playerID})
 	s.mu.Lock()
 	delete(s.viewports, playerID)
 	s.mu.Unlock()

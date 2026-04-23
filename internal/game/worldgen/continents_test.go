@@ -4,6 +4,8 @@ import (
 	"math"
 	"sort"
 	"testing"
+
+	"github.com/Rioverde/gongeons/internal/game/worldgen/chunk"
 )
 
 // TestContinentNoiseDeterministic pins the core contract: the same (seed, x, y)
@@ -169,9 +171,9 @@ func TestRiverDensityUnderContinents(t *testing.T) {
 
 	riverTiles := 0
 	const half = 32
-	for cx := -half / ChunkSize; cx < half/ChunkSize; cx++ {
-		for cy := -half / ChunkSize; cy < half/ChunkSize; cy++ {
-			tiles := g.RiverTilesInChunk(ChunkCoord{X: cx, Y: cy})
+	for cx := -half / chunk.ChunkSize; cx < half/chunk.ChunkSize; cx++ {
+		for cy := -half / chunk.ChunkSize; cy < half/chunk.ChunkSize; cy++ {
+			tiles := g.RiverTilesInChunk(chunk.ChunkCoord{X: cx, Y: cy})
 			riverTiles += len(tiles)
 		}
 	}

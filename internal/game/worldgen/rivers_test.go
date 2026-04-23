@@ -6,7 +6,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/world"
+	"github.com/Rioverde/gongeons/internal/game/worldgen/chunk"
 )
 
 // TestPriorityQueueOrdering verifies container/heap pops cellPri in ascending
@@ -98,9 +99,9 @@ func TestLocalFloodFillFindsSpill(t *testing.T) {
 			elev[tileCoord{dx, dy}] = 0.5 // basin
 		}
 	}
-	elev[tileCoord{0, 0}] = 0.48    // local min
-	elev[tileCoord{4, 0}] = 0.45    // spill: lower than rim, OUTSIDE basin
-	elev[tileCoord{3, 0}] = 0.65    // lower than rim (0.7) — reached via priority-flood from rim
+	elev[tileCoord{0, 0}] = 0.48 // local min
+	elev[tileCoord{4, 0}] = 0.45 // spill: lower than rim, OUTSIDE basin
+	elev[tileCoord{3, 0}] = 0.65 // lower than rim (0.7) — reached via priority-flood from rim
 
 	elevOf := func(x, y int) float64 {
 		if v, ok := elev[tileCoord{x, y}]; ok {
@@ -153,7 +154,7 @@ func TestLocalFloodFillEndorheic(t *testing.T) {
 // is the property that makes adjacent chunks agree on overlays.
 func TestRiverTilesInChunkDeterministic(t *testing.T) {
 	g := NewWorldGenerator(7)
-	cc := ChunkCoord{X: 3, Y: -2}
+	cc := chunk.ChunkCoord{X: 3, Y: -2}
 
 	s1 := g.RiverTilesInChunk(cc)
 	s2 := g.RiverTilesInChunk(cc)
@@ -180,24 +181,24 @@ func TestRiversSeamlessAcrossChunkBoundary(t *testing.T) {
 		t.Skip("no river-containing chunk found in search budget")
 	}
 
-	east := ChunkCoord{X: cc.X + 1, Y: cc.Y}
-	south := ChunkCoord{X: cc.X, Y: cc.Y + 1}
+	east := chunk.ChunkCoord{X: cc.X + 1, Y: cc.Y}
+	south := chunk.ChunkCoord{X: cc.X, Y: cc.Y + 1}
 	checkBoundarySeamless(t, g, cc, east)
 	checkBoundarySeamless(t, g, cc, south)
 }
 
 // findChunkWithRivers scans chunks near the origin for one containing at
 // least one river tile, returning that chunk's coord.
-func findChunkWithRivers(g *WorldGenerator, radius int) (ChunkCoord, bool) {
+func findChunkWithRivers(g *WorldGenerator, radius int) (chunk.ChunkCoord, bool) {
 	for cx := -radius; cx <= radius; cx++ {
 		for cy := -radius; cy <= radius; cy++ {
-			cc := ChunkCoord{X: cx, Y: cy}
+			cc := chunk.ChunkCoord{X: cx, Y: cy}
 			if len(g.RiverTilesInChunk(cc)) > 0 {
 				return cc, true
 			}
 		}
 	}
-	return ChunkCoord{}, false
+	return chunk.ChunkCoord{}, false
 }
 
 // checkBoundarySeamless asserts that for every pair of adjacent tiles where
@@ -205,7 +206,7 @@ func findChunkWithRivers(g *WorldGenerator, radius int) (ChunkCoord, bool) {
 // river tile in one chunk has a consistent classification when queried from
 // the other chunk's cache. Both caches are computed from the same
 // deterministic trace logic, so membership must agree.
-func checkBoundarySeamless(t *testing.T, g *WorldGenerator, ccA, ccB ChunkCoord) {
+func checkBoundarySeamless(t *testing.T, g *WorldGenerator, ccA, ccB chunk.ChunkCoord) {
 	t.Helper()
 	aRivers := g.RiverTilesInChunk(ccA)
 	bRivers := g.RiverTilesInChunk(ccB)
@@ -243,10 +244,10 @@ func TestChunkHasRivers(t *testing.T) {
 		g := NewWorldGenerator(s)
 		for cx := -10; cx <= 10; cx++ {
 			for cy := -10; cy <= 10; cy++ {
-				c := g.Chunk(ChunkCoord{X: cx, Y: cy})
-				for dy := range ChunkSize {
-					for dx := range ChunkSize {
-						if c.Tiles[dy][dx].Overlays.Has(game.OverlayRiver) {
+				c := g.Chunk(chunk.ChunkCoord{X: cx, Y: cy})
+				for dy := range chunk.ChunkSize {
+					for dx := range chunk.ChunkSize {
+						if c.Tiles[dy][dx].Overlays.Has(world.OverlayRiver) {
 							return
 						}
 					}
@@ -350,7 +351,7 @@ func TestRiverLakeNotOverpainted(t *testing.T) {
 	g := NewWorldGenerator(42)
 	for cx := -4; cx <= 4; cx++ {
 		for cy := -4; cy <= 4; cy++ {
-			cc := ChunkCoord{X: cx, Y: cy}
+			cc := chunk.ChunkCoord{X: cx, Y: cy}
 			data := g.riversFor(cc)
 			for t2 := range data.lakes {
 				if _, both := data.rivers[t2]; both {
@@ -365,7 +366,7 @@ func TestRiverLakeNotOverpainted(t *testing.T) {
 // coord share a cached result instead of retracing.
 func TestRiverCacheHits(t *testing.T) {
 	g := NewWorldGenerator(42)
-	cc := ChunkCoord{X: 3, Y: -1}
+	cc := chunk.ChunkCoord{X: 3, Y: -1}
 
 	if got := g.rivers.Len(); got != 0 {
 		t.Fatalf("fresh river cache Len() = %d, want 0", got)
@@ -394,13 +395,13 @@ func TestRiverDensityRealistic(t *testing.T) {
 		g := NewWorldGenerator(s)
 		for cx := -8; cx < 8; cx++ {
 			for cy := -8; cy < 8; cy++ {
-				c := g.Chunk(ChunkCoord{X: cx, Y: cy})
-				for dy := range ChunkSize {
-					for dx := range ChunkSize {
+				c := g.Chunk(chunk.ChunkCoord{X: cx, Y: cy})
+				for dy := range chunk.ChunkSize {
+					for dx := range chunk.ChunkSize {
 						tile := c.Tiles[dy][dx]
 						if isLandTerrain(tile.Terrain) {
 							totalLand++
-							if tile.Overlays.Has(game.OverlayRiver) {
+							if tile.Overlays.Has(world.OverlayRiver) {
 								totalRiver++
 							}
 						}
@@ -425,6 +426,6 @@ func TestRiverDensityRealistic(t *testing.T) {
 }
 
 // isLandTerrain reports whether a terrain is land (not ocean).
-func isLandTerrain(t game.Terrain) bool {
-	return t != game.TerrainDeepOcean && t != game.TerrainOcean
+func isLandTerrain(t world.Terrain) bool {
+	return t != world.TerrainDeepOcean && t != world.TerrainOcean
 }

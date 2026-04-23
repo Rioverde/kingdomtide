@@ -9,7 +9,7 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/stats"
 	"github.com/Rioverde/gongeons/internal/game/worldgen"
 	"github.com/Rioverde/gongeons/internal/ui/locale"
 )
@@ -176,7 +176,7 @@ func (m *Model) handleKeyEnterName(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // handleKeyCharacterCreation drives the Point Buy distributor. Up/Down
 // move the row cursor with wrap; Left/Right decrement / increment the
 // currently selected stat subject to range and budget guards; Enter
-// validates the full distribution through game.NewStatsPointBuy and
+// validates the full distribution through stats.NewStatsPointBuy and
 // advances to phaseConnecting; Esc returns to phaseEnterName and resets
 // the distribution so the player always re-enters a clean baseline.
 func (m *Model) handleKeyCharacterCreation(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -212,12 +212,12 @@ func (m *Model) handleKeyCharacterCreation(msg tea.KeyMsg) (tea.Model, tea.Cmd) 
 // zero we refuse the change instead of going into debt.
 func (m *Model) tryIncreaseStat() {
 	cur := m.stats[m.selectedStat]
-	if cur >= game.PointBuyMax {
+	if cur >= stats.PointBuyMax {
 		m.statsError = ""
 		return
 	}
 	next := cur + 1
-	delta := game.PointBuyCost(next) - game.PointBuyCost(cur)
+	delta := stats.PointBuyCost(next) - stats.PointBuyCost(cur)
 	if m.pointBuyRemaining()-delta < 0 {
 		m.statsError = ""
 		return
@@ -232,7 +232,7 @@ func (m *Model) tryIncreaseStat() {
 // pointBuyRemaining recomputes from scratch each call.
 func (m *Model) tryDecreaseStat() {
 	cur := m.stats[m.selectedStat]
-	if cur <= game.PointBuyMin {
+	if cur <= stats.PointBuyMin {
 		m.statsError = ""
 		return
 	}
@@ -241,13 +241,13 @@ func (m *Model) tryDecreaseStat() {
 }
 
 // confirmCharacterCreation is the Enter handler for phaseCharacterCreation.
-// It validates the distribution via game.NewStatsPointBuy (the same
+// It validates the distribution via stats.NewStatsPointBuy (the same
 // constructor the server will re-run on join), and — on success —
 // transitions to phaseConnecting, fires the dial Cmd, and arms the
 // spinner. On failure it populates statsError with a localized message
 // so the player can see why the distribution was rejected.
 func (m *Model) confirmCharacterCreation() (tea.Model, tea.Cmd) {
-	_, err := game.NewStatsPointBuy(
+	_, err := stats.NewStatsPointBuy(
 		m.stats[statIdxStrength],
 		m.stats[statIdxDexterity],
 		m.stats[statIdxConstitution],
@@ -257,9 +257,9 @@ func (m *Model) confirmCharacterCreation() (tea.Model, tea.Cmd) {
 	)
 	if err != nil {
 		switch {
-		case errors.Is(err, game.ErrPointBuyRange):
+		case errors.Is(err, stats.ErrPointBuyRange):
 			m.statsError = locale.Tr(m.lang, locale.KeyCreationErrorRange)
-		case errors.Is(err, game.ErrPointBuyBudget):
+		case errors.Is(err, stats.ErrPointBuyBudget):
 			m.statsError = locale.Tr(m.lang, locale.KeyCreationErrorBudget)
 		default:
 			m.statsError = locale.Tr(m.lang, locale.KeyCreationErrorBudget)
@@ -267,7 +267,7 @@ func (m *Model) confirmCharacterCreation() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	m.statsError = ""
-	cs := game.CoreStats{
+	cs := stats.CoreStats{
 		Strength:     m.stats[statIdxStrength],
 		Dexterity:    m.stats[statIdxDexterity],
 		Constitution: m.stats[statIdxConstitution],

@@ -10,8 +10,8 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-
-	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/geom"
+	"github.com/Rioverde/gongeons/internal/game/world"
 	"github.com/Rioverde/gongeons/internal/game/worldgen"
 	pb "github.com/Rioverde/gongeons/internal/proto"
 )
@@ -27,11 +27,11 @@ const testRegionSeed int64 = 0x2f6f7a3d
 // in cmd/server/main.go. Kept local to this file because the existing
 // integration harness (integration_test.go testWorld) deliberately avoids
 // region wiring to keep its assertions terse.
-func testRegionWorld() *game.World {
-	return game.NewWorld(
+func testRegionWorld() *world.World {
+	return world.NewWorld(
 		worldgen.NewChunkedSource(testRegionSeed),
-		game.WithSeed(testRegionSeed),
-		game.WithRegionSource(worldgen.NewNoiseRegionSource(testRegionSeed)),
+		world.WithSeed(testRegionSeed),
+		world.WithRegionSource(worldgen.NewNoiseRegionSource(testRegionSeed)),
 	)
 }
 
@@ -150,11 +150,11 @@ func TestJoinAcceptedCarriesWorldSeed(t *testing.T) {
 // It is intentionally NOT safe for mutation after construction — tests
 // exercise read-only behaviour only.
 type countingRegionSource struct {
-	inner game.RegionSource
+	inner world.RegionSource
 	calls atomic.Int64
 }
 
-func (c *countingRegionSource) RegionAt(sc game.SuperChunkCoord) game.Region {
+func (c *countingRegionSource) RegionAt(sc geom.SuperChunkCoord) world.Region {
 	c.calls.Add(1)
 	return c.inner.RegionAt(sc)
 }
@@ -165,7 +165,7 @@ func TestRegionCacheHitRate(t *testing.T) {
 	}
 	cache := newRegionCache(counter, DefaultRegionCacheCapacity)
 
-	sc := game.SuperChunkCoord{X: 3, Y: -4}
+	sc := geom.SuperChunkCoord{X: 3, Y: -4}
 	const repeats = 10
 	for range repeats {
 		_ = cache.At(sc)
@@ -186,7 +186,7 @@ func TestRegionCacheDistinctCoords(t *testing.T) {
 	}
 	cache := newRegionCache(counter, DefaultRegionCacheCapacity)
 
-	coords := []game.SuperChunkCoord{
+	coords := []geom.SuperChunkCoord{
 		{X: 0, Y: 0},
 		{X: 1, Y: 0},
 		{X: 0, Y: 1},
@@ -216,7 +216,7 @@ func TestRegionCacheRace(t *testing.T) {
 
 	const readers = 8
 	const iter = 200
-	coords := []game.SuperChunkCoord{
+	coords := []geom.SuperChunkCoord{
 		{X: 0, Y: 0}, {X: 1, Y: 0}, {X: 0, Y: 1}, {X: 1, Y: 1},
 	}
 

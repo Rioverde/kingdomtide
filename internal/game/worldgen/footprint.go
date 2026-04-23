@@ -4,7 +4,8 @@ import (
 	"math/rand/v2"
 	"sort"
 
-	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/geom"
+	"github.com/Rioverde/gongeons/internal/game/world"
 )
 
 // zoneSizes holds the inclusive min / max tile counts for each zone of a
@@ -23,16 +24,16 @@ type zoneSizes struct {
 //	Active:  core 2-4,  slope 5-8,  ashland 8-14  (total 15-26)
 //	Dormant: core 1-2,  slope 5-8,  ashland 5-10  (total 11-20)
 //	Extinct: core 1-2,  slope 4-7,  ashland 0     (total 5-9)
-var tierSizes = map[game.VolcanoState]zoneSizes{
-	game.VolcanoActive:  {core: [2]int{2, 4}, slope: [2]int{5, 8}, ashland: [2]int{8, 14}},
-	game.VolcanoDormant: {core: [2]int{1, 2}, slope: [2]int{5, 8}, ashland: [2]int{5, 10}},
-	game.VolcanoExtinct: {core: [2]int{1, 2}, slope: [2]int{4, 7}, ashland: [2]int{0, 0}},
+var tierSizes = map[world.VolcanoState]zoneSizes{
+	world.VolcanoActive:  {core: [2]int{2, 4}, slope: [2]int{5, 8}, ashland: [2]int{8, 14}},
+	world.VolcanoDormant: {core: [2]int{1, 2}, slope: [2]int{5, 8}, ashland: [2]int{5, 10}},
+	world.VolcanoExtinct: {core: [2]int{1, 2}, slope: [2]int{4, 7}, ashland: [2]int{0, 0}},
 }
 
 // hashPos mixes a tile coord into a 64-bit value. Shape mirrors hashCoord
 // (two large primes XOR-mixed) but uses distinct primes so position
 // streams stay decorrelated from super-chunk and super-region streams.
-func hashPos(p game.Position) uint64 {
+func hashPos(p geom.Position) uint64 {
 	return uint64(int64(p.X))*hashCoordPrimeX ^
 		uint64(int64(p.Y))*hashCoordPrimeY
 }
@@ -40,7 +41,7 @@ func hashPos(p game.Position) uint64 {
 // newFootprintRNG builds a PCG seeded from (seed, anchor) for the
 // per-volcano footprint growth stream. The XOR salt keeps the stream
 // decorrelated from anchor-selection and state-assignment streams.
-func newFootprintRNG(seed int64, anchor game.Position) *rand.Rand {
+func newFootprintRNG(seed int64, anchor geom.Position) *rand.Rand {
 	lo := uint64(seed ^ seedSaltVolcanoFootprint)
 	hi := hashPos(anchor)
 	return rand.New(rand.NewPCG(lo, hi))
@@ -78,12 +79,12 @@ var footprintNeighbourOffsets = [4][2]int{
 // even when empty so the downstream sync.Once-backed consumer does not
 // need a nil-guard on every iteration.
 func growFootprint(
-	anchor game.Position,
-	state game.VolcanoState,
+	anchor geom.Position,
+	state world.VolcanoState,
 	seed int64,
 	wg *WorldGenerator,
-	landmarks []game.Landmark,
-) (core, slope, ashland []game.Position) {
+	landmarks []world.Landmark,
+) (core, slope, ashland []geom.Position) {
 	rng := newFootprintRNG(seed, anchor)
 	sizes, ok := tierSizes[state]
 	if !ok {
@@ -94,17 +95,17 @@ func growFootprint(
 	slopeCount := randIntInclusive(rng, sizes.slope[0], sizes.slope[1])
 	ashlandCount := randIntInclusive(rng, sizes.ashland[0], sizes.ashland[1])
 
-	landmarkSet := make(map[game.Position]struct{}, len(landmarks))
+	landmarkSet := make(map[geom.Position]struct{}, len(landmarks))
 	for _, l := range landmarks {
 		landmarkSet[l.Coord] = struct{}{}
 	}
 
-	claimed := make(map[game.Position]struct{})
+	claimed := make(map[geom.Position]struct{})
 	// Core grows from the anchor and always contains it. Landmark tiles
 	// are rejected but their neighbours may still propagate the walk so
 	// the blob can route around a single landmark in the 1-tile
 	// neighbourhood.
-	core = walkZone(anchor, nil, coreCount, rng, claimed, func(t game.Position) bool {
+	core = walkZone(anchor, nil, coreCount, rng, claimed, func(t geom.Position) bool {
 		_, blocked := landmarkSet[t]
 		return !blocked
 	})
@@ -114,7 +115,7 @@ func growFootprint(
 	// slope radiate concentrically around the core rather than extending
 	// as a lobe from one side. anchor is passed for signature symmetry
 	// but ignored when prevZone is non-empty.
-	slope = walkZone(anchor, core, slopeCount, rng, claimed, func(t game.Position) bool {
+	slope = walkZone(anchor, core, slopeCount, rng, claimed, func(t geom.Position) bool {
 		_, blocked := landmarkSet[t]
 		return !blocked
 	})
@@ -122,7 +123,7 @@ func growFootprint(
 	if ashlandCount > 0 {
 		// Ashland radiates outward from every slope tile, same pattern:
 		// concentric ring rather than single-lobe walk.
-		ashland = walkZone(anchor, slope, ashlandCount, rng, claimed, func(t game.Position) bool {
+		ashland = walkZone(anchor, slope, ashlandCount, rng, claimed, func(t geom.Position) bool {
 			if _, blocked := landmarkSet[t]; blocked {
 				return false
 			}
@@ -174,19 +175,19 @@ func growFootprint(
 // cannot happen — slope and ashland walks see the core's tiles already
 // marked.
 func walkZone(
-	seedTile game.Position,
-	prevZone []game.Position,
+	seedTile geom.Position,
+	prevZone []geom.Position,
 	count int,
 	rng *rand.Rand,
-	claimed map[game.Position]struct{},
-	accept func(game.Position) bool,
-) []game.Position {
+	claimed map[geom.Position]struct{},
+	accept func(geom.Position) bool,
+) []geom.Position {
 	if count <= 0 {
 		return nil
 	}
-	out := make([]game.Position, 0, count)
+	out := make([]geom.Position, 0, count)
 
-	tryAdd := func(p game.Position) bool {
+	tryAdd := func(p geom.Position) bool {
 		if _, already := claimed[p]; already {
 			return false
 		}
@@ -204,17 +205,17 @@ func walkZone(
 		prevZone = nil
 	}
 
-	var frontier []game.Position
+	var frontier []geom.Position
 	if prevZone == nil {
 		if _, already := claimed[seedTile]; !already {
 			if !tryAdd(seedTile) {
 				return out
 			}
 		}
-		frontier = []game.Position{seedTile}
+		frontier = []geom.Position{seedTile}
 	} else {
 		// Ring mode: copy the prevZone so frontier mutations stay local.
-		frontier = append(make([]game.Position, 0, len(prevZone)), prevZone...)
+		frontier = append(make([]geom.Position, 0, len(prevZone)), prevZone...)
 	}
 
 	for len(out) < count && len(frontier) > 0 {
@@ -232,7 +233,7 @@ func walkZone(
 		added := false
 		exhausted := true
 		for _, off := range shuffled {
-			cand := game.Position{X: cur.X + off[0], Y: cur.Y + off[1]}
+			cand := geom.Position{X: cur.X + off[0], Y: cur.Y + off[1]}
 			if _, already := claimed[cand]; already {
 				continue
 			}
@@ -253,7 +254,7 @@ func walkZone(
 
 // sortPositions sorts ps in (X, Y) lex order in-place. Used to make zone
 // slices iteration-stable across map-based intermediate data.
-func sortPositions(ps []game.Position) {
+func sortPositions(ps []geom.Position) {
 	sort.Slice(ps, func(i, j int) bool {
 		if ps[i].X != ps[j].X {
 			return ps[i].X < ps[j].X
@@ -273,23 +274,23 @@ func sortPositions(ps []game.Position) {
 //	Ashland, Active or Dormant -> TerrainAshland
 //	Ashland, Extinct -> unreachable (Extinct volcanoes have no ashland)
 //	None            -> "" (empty, caller treats as miss)
-func terrainForZone(zone game.VolcanoZone, state game.VolcanoState) game.Terrain {
+func terrainForZone(zone world.VolcanoZone, state world.VolcanoState) world.Terrain {
 	switch zone {
-	case game.VolcanoZoneCore:
+	case world.VolcanoZoneCore:
 		switch state {
-		case game.VolcanoActive:
-			return game.TerrainVolcanoCore
-		case game.VolcanoDormant:
-			return game.TerrainVolcanoCoreDormant
-		case game.VolcanoExtinct:
-			return game.TerrainCraterLake
+		case world.VolcanoActive:
+			return world.TerrainVolcanoCore
+		case world.VolcanoDormant:
+			return world.TerrainVolcanoCoreDormant
+		case world.VolcanoExtinct:
+			return world.TerrainCraterLake
 		}
-	case game.VolcanoZoneSlope:
-		return game.TerrainVolcanoSlope
-	case game.VolcanoZoneAshland:
+	case world.VolcanoZoneSlope:
+		return world.TerrainVolcanoSlope
+	case world.VolcanoZoneAshland:
 		// Active and Dormant both paint ashland; Extinct has no ashland
 		// tiles so this branch is never reached for Extinct volcanoes.
-		return game.TerrainAshland
+		return world.TerrainAshland
 	}
 	return ""
 }

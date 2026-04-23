@@ -21,7 +21,8 @@ import (
 	wishlog "github.com/charmbracelet/wish/logging"
 	"google.golang.org/grpc"
 
-	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/world"
+	"github.com/Rioverde/gongeons/internal/game/calendar"
 	"github.com/Rioverde/gongeons/internal/game/worldgen"
 	pb "github.com/Rioverde/gongeons/internal/proto"
 	"github.com/Rioverde/gongeons/internal/server"
@@ -147,26 +148,26 @@ func run() error {
 // the deposit source depends on both volcano (for obsidian / sulfur
 // structural placement) and landmark (for point-like collision
 // rejection), so deposits are constructed last.
-func buildWorld(seed int64) *game.World {
+func buildWorld(seed int64) *world.World {
 	wg := worldgen.NewChunkedSource(seed)
 	regionSrc := worldgen.NewNoiseRegionSource(seed)
 	landmarkSrc := worldgen.NewNoiseLandmarkSource(seed, regionSrc, wg.Generator())
 	volcanoSrc := worldgen.NewNoiseVolcanoSource(seed, wg.Generator(), landmarkSrc)
 	depositSrc := worldgen.NewNoiseDepositSource(seed, wg.Generator(), landmarkSrc, volcanoSrc)
-	cal := game.NewCalendar(
-		game.DefaultCalendarConfig.TicksPerDay,
-		game.DefaultCalendarConfig.DaysPerMonth,
-		game.DefaultCalendarConfig.MonthsPerYear,
-		game.DefaultEpochOffset(seed),
+	cal := calendar.NewCalendar(
+		calendar.DefaultCalendarConfig.TicksPerDay,
+		calendar.DefaultCalendarConfig.DaysPerMonth,
+		calendar.DefaultCalendarConfig.MonthsPerYear,
+		calendar.DefaultEpochOffset(seed),
 	)
-	return game.NewWorld(
+	return world.NewWorld(
 		wg,
-		game.WithSeed(seed),
-		game.WithRegionSource(regionSrc),
-		game.WithLandmarkSource(landmarkSrc),
-		game.WithVolcanoSource(volcanoSrc),
-		game.WithDepositSource(depositSrc),
-		game.WithCalendar(cal),
+		world.WithSeed(seed),
+		world.WithRegionSource(regionSrc),
+		world.WithLandmarkSource(landmarkSrc),
+		world.WithVolcanoSource(volcanoSrc),
+		world.WithDepositSource(depositSrc),
+		world.WithCalendar(cal),
 	)
 }
 

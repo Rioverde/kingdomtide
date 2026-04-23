@@ -1,8 +1,12 @@
-package game
+package world
 
 import (
 	"reflect"
 	"testing"
+
+	"github.com/Rioverde/gongeons/internal/game/calendar"
+	"github.com/Rioverde/gongeons/internal/game/event"
+	"github.com/Rioverde/gongeons/internal/game/geom"
 )
 
 // stubLandmarkSource is a minimal LandmarkSource used to verify the
@@ -10,12 +14,12 @@ import (
 // the queried coord so the test can assert the World forwarded the
 // argument unchanged.
 type stubLandmarkSource struct {
-	got  SuperChunkCoord
+	got  geom.SuperChunkCoord
 	out  []Landmark
 	hits int
 }
 
-func (s *stubLandmarkSource) LandmarksIn(sc SuperChunkCoord) []Landmark {
+func (s *stubLandmarkSource) LandmarksIn(sc geom.SuperChunkCoord) []Landmark {
 	s.got = sc
 	s.hits++
 	return s.out
@@ -23,7 +27,7 @@ func (s *stubLandmarkSource) LandmarksIn(sc SuperChunkCoord) []Landmark {
 
 func TestWorldLandmarksInNilSource(t *testing.T) {
 	w := newTestWorld(testTiles{})
-	got := w.LandmarksIn(SuperChunkCoord{X: 3, Y: -2})
+	got := w.LandmarksIn(geom.SuperChunkCoord{X: 3, Y: -2})
 	if got != nil {
 		t.Fatalf("LandmarksIn with nil source = %v, want nil", got)
 	}
@@ -31,13 +35,13 @@ func TestWorldLandmarksInNilSource(t *testing.T) {
 
 func TestWorldLandmarksInDelegation(t *testing.T) {
 	want := []Landmark{
-		{Coord: Position{X: 10, Y: 20}, Kind: LandmarkTower},
-		{Coord: Position{X: 30, Y: 40}, Kind: LandmarkShrine},
+		{Coord: geom.Position{X: 10, Y: 20}, Kind: LandmarkTower},
+		{Coord: geom.Position{X: 30, Y: 40}, Kind: LandmarkShrine},
 	}
 	stub := &stubLandmarkSource{out: want}
 	w := NewWorldFromSource(testTiles{}, WithLandmarkSource(stub))
 
-	sc := SuperChunkCoord{X: 7, Y: 11}
+	sc := geom.SuperChunkCoord{X: 7, Y: 11}
 	got := w.LandmarksIn(sc)
 
 	if stub.hits != 1 {
@@ -53,14 +57,14 @@ func TestWorldLandmarksInDelegation(t *testing.T) {
 
 func TestWorld_VolcanoAt_NilSource(t *testing.T) {
 	w := newTestWorld(testTiles{})
-	if got := w.VolcanoAt(SuperChunkCoord{X: 3, Y: -2}); got != nil {
+	if got := w.VolcanoAt(geom.SuperChunkCoord{X: 3, Y: -2}); got != nil {
 		t.Fatalf("VolcanoAt with nil source = %v, want nil", got)
 	}
 }
 
 func TestWorld_VolcanoTerrainOverride_NilSource(t *testing.T) {
 	w := newTestWorld(testTiles{})
-	terr, ok := w.VolcanoTerrainOverride(Position{X: 1, Y: 2})
+	terr, ok := w.VolcanoTerrainOverride(geom.Position{X: 1, Y: 2})
 	if ok {
 		t.Fatalf("VolcanoTerrainOverride with nil source ok = true, want false")
 	}
@@ -71,7 +75,7 @@ func TestWorld_VolcanoTerrainOverride_NilSource(t *testing.T) {
 
 func TestNewWorldInBoundsAlwaysTrue(t *testing.T) {
 	w := newTestWorld(testTiles{})
-	if !w.InBounds(Position{X: -1e6, Y: 1e6}) {
+	if !w.InBounds(geom.Position{X: -1e6, Y: 1e6}) {
 		t.Fatalf("expected infinite world to report InBounds for any coord")
 	}
 }
@@ -102,18 +106,18 @@ func TestPlayersDefensiveCopyAndSort(t *testing.T) {
 
 func TestTerrainPassable(t *testing.T) {
 	passable := map[Terrain]bool{
-		TerrainPlains:    true,
-		TerrainGrassland: true,
-		TerrainMeadow:    true,
-		TerrainBeach:     true,
-		TerrainSavanna:   true,
-		TerrainDesert:    true,
-		TerrainSnow:      true,
-		TerrainTundra:    true,
-		TerrainTaiga:     true,
-		TerrainForest:    true,
-		TerrainJungle:    true,
-		TerrainHills:     true,
+		TerrainPlains:             true,
+		TerrainGrassland:          true,
+		TerrainMeadow:             true,
+		TerrainBeach:              true,
+		TerrainSavanna:            true,
+		TerrainDesert:             true,
+		TerrainSnow:               true,
+		TerrainTundra:             true,
+		TerrainTaiga:              true,
+		TerrainForest:             true,
+		TerrainJungle:             true,
+		TerrainHills:              true,
 		TerrainDeepOcean:          false,
 		TerrainOcean:              false,
 		TerrainMountain:           false,
@@ -143,7 +147,7 @@ func TestTerrainPassable(t *testing.T) {
 
 func TestWorldDepositAtNilSource(t *testing.T) {
 	w := newTestWorld(testTiles{})
-	got, ok := w.DepositAt(Position{X: 3, Y: 4})
+	got, ok := w.DepositAt(geom.Position{X: 3, Y: 4})
 	if ok {
 		t.Fatalf("DepositAt with nil source = ok=true, want false")
 	}
@@ -154,7 +158,7 @@ func TestWorldDepositAtNilSource(t *testing.T) {
 
 func TestWorldDepositsInNilSource(t *testing.T) {
 	w := newTestWorld(testTiles{})
-	got := w.DepositsIn(Rect{MinX: 0, MinY: 0, MaxX: 10, MaxY: 10})
+	got := w.DepositsIn(geom.Rect{MinX: 0, MinY: 0, MaxX: 10, MaxY: 10})
 	if got != nil {
 		t.Fatalf("DepositsIn with nil source = %v, want nil", got)
 	}
@@ -162,7 +166,7 @@ func TestWorldDepositsInNilSource(t *testing.T) {
 
 func TestWorldDepositsNearNilSource(t *testing.T) {
 	w := newTestWorld(testTiles{})
-	got := w.DepositsNear(Position{X: 0, Y: 0}, 5)
+	got := w.DepositsNear(geom.Position{X: 0, Y: 0}, 5)
 	if got != nil {
 		t.Fatalf("DepositsNear with nil source = %v, want nil", got)
 	}
@@ -171,8 +175,8 @@ func TestWorldDepositsNearNilSource(t *testing.T) {
 // stubDepositSource captures calls into DepositSource so tests can
 // verify the World forwards queries unchanged to its configured backend.
 type stubDepositSource struct {
-	gotPos    Position
-	gotRect   Rect
+	gotPos    geom.Position
+	gotRect   geom.Rect
 	gotRadius int
 	outAt     Deposit
 	outAtOK   bool
@@ -180,15 +184,15 @@ type stubDepositSource struct {
 	outNear   []Deposit
 }
 
-func (s *stubDepositSource) DepositAt(p Position) (Deposit, bool) {
+func (s *stubDepositSource) DepositAt(p geom.Position) (Deposit, bool) {
 	s.gotPos = p
 	return s.outAt, s.outAtOK
 }
-func (s *stubDepositSource) DepositsIn(r Rect) []Deposit {
+func (s *stubDepositSource) DepositsIn(r geom.Rect) []Deposit {
 	s.gotRect = r
 	return s.outRect
 }
-func (s *stubDepositSource) DepositsNear(p Position, radius int) []Deposit {
+func (s *stubDepositSource) DepositsNear(p geom.Position, radius int) []Deposit {
 	s.gotPos = p
 	s.gotRadius = radius
 	return s.outNear
@@ -196,7 +200,7 @@ func (s *stubDepositSource) DepositsNear(p Position, radius int) []Deposit {
 
 func TestWorldDepositAccessorsDelegate(t *testing.T) {
 	stub := &stubDepositSource{
-		outAt:   Deposit{Position: Position{X: 1, Y: 2}, Kind: DepositIron, MaxAmount: 10, CurrentAmount: 10},
+		outAt:   Deposit{Position: geom.Position{X: 1, Y: 2}, Kind: DepositIron, MaxAmount: 10, CurrentAmount: 10},
 		outAtOK: true,
 		outRect: []Deposit{{Kind: DepositStone}},
 		outNear: []Deposit{{Kind: DepositFish}},
@@ -204,14 +208,14 @@ func TestWorldDepositAccessorsDelegate(t *testing.T) {
 	w := NewWorld(tileSourceFn(func(x, y int) Tile { return Tile{Terrain: TerrainPlains} }),
 		WithDepositSource(stub))
 
-	if d, ok := w.DepositAt(Position{X: 7, Y: 8}); !ok || d.Kind != DepositIron {
+	if d, ok := w.DepositAt(geom.Position{X: 7, Y: 8}); !ok || d.Kind != DepositIron {
 		t.Fatalf("DepositAt did not forward: got %+v ok=%v", d, ok)
 	}
-	if stub.gotPos != (Position{X: 7, Y: 8}) {
+	if stub.gotPos != (geom.Position{X: 7, Y: 8}) {
 		t.Fatalf("DepositAt: stub got %+v, want (7,8)", stub.gotPos)
 	}
 
-	rect := Rect{MinX: -5, MinY: -5, MaxX: 5, MaxY: 5}
+	rect := geom.Rect{MinX: -5, MinY: -5, MaxX: 5, MaxY: 5}
 	if got := w.DepositsIn(rect); len(got) != 1 || got[0].Kind != DepositStone {
 		t.Fatalf("DepositsIn did not forward: got %+v", got)
 	}
@@ -219,7 +223,7 @@ func TestWorldDepositAccessorsDelegate(t *testing.T) {
 		t.Fatalf("DepositsIn: stub got %+v, want %+v", stub.gotRect, rect)
 	}
 
-	if got := w.DepositsNear(Position{X: 0, Y: 0}, 3); len(got) != 1 || got[0].Kind != DepositFish {
+	if got := w.DepositsNear(geom.Position{X: 0, Y: 0}, 3); len(got) != 1 || got[0].Kind != DepositFish {
 		t.Fatalf("DepositsNear did not forward: got %+v", got)
 	}
 	if stub.gotRadius != 3 {
@@ -257,7 +261,7 @@ func TestWorldTick_NoCalendarEmitsNoBoundary(t *testing.T) {
 		events := w.Tick()
 		for _, e := range events {
 			switch e.(type) {
-			case MonthChangedEvent, SeasonChangedEvent, YearStartedEvent:
+			case event.MonthChangedEvent, event.SeasonChangedEvent, event.YearStartedEvent:
 				t.Fatalf("calendar boundary event emitted without a wired Calendar: %T", e)
 			}
 		}
@@ -266,7 +270,7 @@ func TestWorldTick_NoCalendarEmitsNoBoundary(t *testing.T) {
 
 func TestWorldTick_CalendarBoundaryEvents(t *testing.T) {
 	// Short cadence: 2 ticksPerDay, 3 daysPerMonth, 4 monthsPerYear = 24 ticks/year
-	cal := NewCalendar(2, 3, 4, 0)
+	cal := calendar.NewCalendar(2, 3, 4, 0)
 	w := NewWorld(
 		tileSourceFn(func(x, y int) Tile { return Tile{Terrain: TerrainPlains} }),
 		WithCalendar(cal),
@@ -282,14 +286,14 @@ func TestWorldTick_CalendarBoundaryEvents(t *testing.T) {
 		c := counts{}
 		for _, e := range events {
 			switch ev := e.(type) {
-			case MonthChangedEvent:
+			case event.MonthChangedEvent:
 				c.month++
 				if ev.AtTick != int64(i) {
 					t.Errorf("tick %d: MonthChanged AtTick=%d", i, ev.AtTick)
 				}
-			case SeasonChangedEvent:
+			case event.SeasonChangedEvent:
 				c.season++
-			case YearStartedEvent:
+			case event.YearStartedEvent:
 				c.year++
 			}
 		}
@@ -298,7 +302,7 @@ func TestWorldTick_CalendarBoundaryEvents(t *testing.T) {
 
 	// Month boundaries: every 6 ticks (3 days × 2 t/day) for 48 ticks = 8 rollovers.
 	// Season boundaries: every 3 months (once per 18 ticks) = 2 per year × 2 years = 4... wait,
-	// seasons derive from month via SeasonOf. With 4 months/year (Jan..Apr), season map:
+	// seasons derive from month via calendar.SeasonOf. With 4 months/year (Jan..Apr), season map:
 	//   Jan=Winter, Feb=Winter, Mar=Spring, Apr=Spring
 	// So per year we get 1 season change: Feb→Mar (at tick 12, start of month 3).
 	// Over 2 years: 4 season changes (one at each Mar start and one at each Jan wrap back to Winter).
@@ -311,13 +315,13 @@ func TestWorldTick_CalendarBoundaryEvents(t *testing.T) {
 		totalYear += c.year
 	}
 	if totalMonth != 8 {
-		t.Errorf("MonthChangedEvent total over 2 years = %d, want 8", totalMonth)
+		t.Errorf("event.MonthChangedEvent total over 2 years = %d, want 8", totalMonth)
 	}
 	if totalYear != 2 {
-		t.Errorf("YearStartedEvent total over 2 years = %d, want 2", totalYear)
+		t.Errorf("event.YearStartedEvent total over 2 years = %d, want 2", totalYear)
 	}
 	if totalSeason != 4 {
-		t.Errorf("SeasonChangedEvent total over 2 years = %d, want 4", totalSeason)
+		t.Errorf("event.SeasonChangedEvent total over 2 years = %d, want 4", totalSeason)
 	}
 
 	// Spot-check: year boundary tick = 24 has all three events.
@@ -330,19 +334,19 @@ func TestWorldTick_CalendarBoundaryEvents(t *testing.T) {
 func TestWorldGameTime_NoCalendar(t *testing.T) {
 	w := newTestWorld(testTiles{})
 	gt := w.GameTime()
-	if gt != (GameTime{}) {
+	if gt != (calendar.GameTime{}) {
 		t.Errorf("GameTime() without calendar = %+v, want zero value", gt)
 	}
 }
 
 func TestWorldGameTime_WithCalendar(t *testing.T) {
-	cal := NewCalendar(10, 5, 4, 0)
+	cal := calendar.NewCalendar(10, 5, 4, 0)
 	w := NewWorld(
 		tileSourceFn(func(x, y int) Tile { return Tile{Terrain: TerrainPlains} }),
 		WithCalendar(cal),
 	)
 	gt0 := w.GameTime()
-	if gt0.Year != 0 || gt0.Month != MonthJanuary || gt0.DayOfMonth != 1 {
+	if gt0.Year != 0 || gt0.Month != calendar.MonthJanuary || gt0.DayOfMonth != 1 {
 		t.Errorf("initial GameTime = %+v, want Year 0 January day 1", gt0)
 	}
 	for range 50 {
@@ -351,7 +355,7 @@ func TestWorldGameTime_WithCalendar(t *testing.T) {
 	// Tick 50 = day 5, month 1 = (5 days × 10 ticks/day = 50 ticks in month 1, day 5+1=6... wait)
 	// actually 50 ticks / 10 = 5 whole days, so dayIdx = 0, totalMonths = 1 → Month = February day 1.
 	gt := w.GameTime()
-	if gt.Month != MonthFebruary || gt.DayOfMonth != 1 {
+	if gt.Month != calendar.MonthFebruary || gt.DayOfMonth != 1 {
 		t.Errorf("GameTime after 50 ticks = %+v, want February day 1", gt)
 	}
 }

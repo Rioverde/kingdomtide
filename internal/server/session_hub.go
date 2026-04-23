@@ -4,7 +4,8 @@ import (
 	"log/slog"
 	"sync"
 
-	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/event"
+	"github.com/Rioverde/gongeons/internal/game/geom"
 	pb "github.com/Rioverde/gongeons/internal/proto"
 )
 
@@ -17,7 +18,7 @@ import (
 const sessionChanCap = 16
 
 // SessionEvent is what an in-process session subscriber (SSH Bubble Tea
-// session) receives. It wraps a domain game.Event plus a snapshot marker:
+// session) receives. It wraps a domain event.Event plus a snapshot marker:
 // when IsSnapshot is true the session should replace its local viewport
 // with Snapshot; otherwise Event is an incremental domain event. Keeps the
 // wire format (protobuf) decoupled from the session channel so SSH
@@ -25,7 +26,7 @@ const sessionChanCap = 16
 type SessionEvent struct {
 	// Event is the domain event emitted by the World (PlayerJoined,
 	// EntityMoved, etc.). Zero when IsSnapshot is true.
-	Event game.Event
+	Event event.Event
 
 	// IsSnapshot signals that Snapshot carries a fresh viewport for the
 	// subscriber. Used for the initial post-join snapshot and for
@@ -52,7 +53,7 @@ type SessionEvent struct {
 // subscription, immediately after a successful Join.
 type SessionAccepted struct {
 	PlayerID  string
-	Spawn     game.Position
+	Spawn     geom.Position
 	WorldSeed int64
 }
 

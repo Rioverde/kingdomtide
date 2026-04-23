@@ -1,27 +1,30 @@
 package worldgen
 
-import "github.com/Rioverde/gongeons/internal/game"
+import (
+	"github.com/Rioverde/gongeons/internal/game/world"
+	"github.com/Rioverde/gongeons/internal/game/worldgen/chunk"
+)
 
-// ChunkedSource is the procedural, infinite game.TileSource: a
+// ChunkedSource is the procedural, infinite world.TileSource: a
 // WorldGenerator plus an LRU chunk cache in front of it. Determined
 // fully by seed.
 type ChunkedSource struct {
 	gen   *WorldGenerator
-	cache *ChunkCache
+	cache *chunk.ChunkCache
 }
 
 // NewChunkedSource wires a fresh generator and cache around the given seed.
 func NewChunkedSource(seed int64) *ChunkedSource {
 	return &ChunkedSource{
 		gen:   NewWorldGenerator(seed),
-		cache: NewChunkCache(DefaultChunkCacheCapacity),
+		cache: chunk.NewChunkCache(chunk.DefaultChunkCacheCapacity),
 	}
 }
 
 // TileAt returns the procedurally-generated tile at (x, y), memoised at
 // the chunk level so repeated reads inside the same chunk are cheap.
-func (s *ChunkedSource) TileAt(x, y int) game.Tile {
-	cc := WorldToChunk(x, y)
+func (s *ChunkedSource) TileAt(x, y int) world.Tile {
+	cc := chunk.WorldToChunk(x, y)
 	if cached, ok := s.cache.Get(cc); ok {
 		return cached.At(x, y)
 	}
@@ -36,6 +39,6 @@ func (s *ChunkedSource) TileAt(x, y int) game.Tile {
 // seed, which would double noise-layer allocations at startup.
 func (s *ChunkedSource) Generator() *WorldGenerator { return s.gen }
 
-// Compile-time assertion that ChunkedSource satisfies game.TileSource —
+// Compile-time assertion that ChunkedSource satisfies world.TileSource —
 // any drift in the interface surfaces here at build time.
-var _ game.TileSource = (*ChunkedSource)(nil)
+var _ world.TileSource = (*ChunkedSource)(nil)

@@ -3,10 +3,11 @@ package worldgen
 import (
 	"sync"
 
-	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/geom"
+	"github.com/Rioverde/gongeons/internal/game/world"
 )
 
-// NoiseVolcanoSource implements game.VolcanoSource on top of a
+// NoiseVolcanoSource implements world.VolcanoSource on top of a
 // WorldGenerator and a LandmarkSource. Placement is per super-region
 // (8x8 super-chunks) and cached once generated — a 3x3 neighbourhood of
 // super-regions is hit on every TerrainOverrideAt call to catch
@@ -20,7 +21,7 @@ import (
 type NoiseVolcanoSource struct {
 	seed      int64
 	worldgen  *WorldGenerator
-	landmarks game.LandmarkSource
+	landmarks world.LandmarkSource
 
 	// cache keys superRegion to *superRegionData. Lazy-filled via
 	// sync.Once per entry so concurrent readers collapse to one
@@ -39,8 +40,8 @@ type NoiseVolcanoSource struct {
 // ocean-heavy or landmark-dense.
 type superRegionData struct {
 	once            sync.Once
-	volcanoes       []game.Volcano
-	tileIndex       map[game.Position]game.Terrain
+	volcanoes       []world.Volcano
+	tileIndex       map[geom.Position]world.Terrain
 	hasAnyFootprint bool
 }
 
@@ -51,7 +52,7 @@ type superRegionData struct {
 func NewNoiseVolcanoSource(
 	seed int64,
 	wg *WorldGenerator,
-	lm game.LandmarkSource,
+	lm world.LandmarkSource,
 ) *NoiseVolcanoSource {
 	return &NoiseVolcanoSource{
 		seed:      seed,
@@ -68,16 +69,16 @@ func NewNoiseVolcanoSource(
 // Deterministic: same (seed, sc) yields the same slice (including order
 // of volcanoes and order of each volcano's zone tiles) on every call.
 // Safe for concurrent read.
-func (s *NoiseVolcanoSource) VolcanoAt(sc game.SuperChunkCoord) []game.Volcano {
+func (s *NoiseVolcanoSource) VolcanoAt(sc geom.SuperChunkCoord) []world.Volcano {
 	sr := superRegionOf(sc)
 	data := s.ensureSuperRegion(sr)
 
 	// Filter to volcanoes whose anchor sits in sc. The super-region is
 	// 8x8 super-chunks so this is at most ~3-6 anchor checks per call.
-	var out []game.Volcano
+	var out []world.Volcano
 	for i := range data.volcanoes {
 		v := &data.volcanoes[i]
-		if game.WorldToSuperChunk(v.Anchor.X, v.Anchor.Y) == sc {
+		if geom.WorldToSuperChunk(v.Anchor.X, v.Anchor.Y) == sc {
 			out = append(out, *v)
 		}
 	}
@@ -92,8 +93,8 @@ func (s *NoiseVolcanoSource) VolcanoAt(sc game.SuperChunkCoord) []game.Volcano {
 // Fast path: 9 map lookups worst case. First hit returns immediately;
 // the allocation-free case (tile not inside any footprint) touches only
 // the cached per-super-region tileIndex maps.
-func (s *NoiseVolcanoSource) TerrainOverrideAt(t game.Position) (game.Terrain, bool) {
-	home := superRegionOf(game.WorldToSuperChunk(t.X, t.Y))
+func (s *NoiseVolcanoSource) TerrainOverrideAt(t geom.Position) (world.Terrain, bool) {
+	home := superRegionOf(geom.WorldToSuperChunk(t.X, t.Y))
 	for dy := -1; dy <= 1; dy++ {
 		for dx := -1; dx <= 1; dx++ {
 			sr := superRegion{X: home.X + dx, Y: home.Y + dy}
@@ -133,12 +134,12 @@ func (s *NoiseVolcanoSource) ensureSuperRegion(sr superRegion) *superRegionData 
 func (d *superRegionData) generate(s *NoiseVolcanoSource, sr superRegion) {
 	anchors := pickVolcanoAnchors(s.seed, sr, s.landmarks, s.worldgen)
 	if len(anchors) == 0 {
-		d.tileIndex = map[game.Position]game.Terrain{}
+		d.tileIndex = map[geom.Position]world.Terrain{}
 		return
 	}
 
-	d.volcanoes = make([]game.Volcano, 0, len(anchors))
-	d.tileIndex = make(map[game.Position]game.Terrain)
+	d.volcanoes = make([]world.Volcano, 0, len(anchors))
+	d.tileIndex = make(map[geom.Position]world.Terrain)
 
 	for _, anchor := range anchors {
 		state := volcanoState(s.seed, anchor)
@@ -150,7 +151,7 @@ func (d *superRegionData) generate(s *NoiseVolcanoSource, sr superRegion) {
 			// case.
 			continue
 		}
-		v := game.Volcano{
+		v := world.Volcano{
 			Anchor:       anchor,
 			State:        state,
 			CoreTiles:    core,
@@ -159,13 +160,13 @@ func (d *superRegionData) generate(s *NoiseVolcanoSource, sr superRegion) {
 		}
 		d.volcanoes = append(d.volcanoes, v)
 		for _, p := range core {
-			d.tileIndex[p] = terrainForZone(game.VolcanoZoneCore, state)
+			d.tileIndex[p] = terrainForZone(world.VolcanoZoneCore, state)
 		}
 		for _, p := range slope {
-			d.tileIndex[p] = terrainForZone(game.VolcanoZoneSlope, state)
+			d.tileIndex[p] = terrainForZone(world.VolcanoZoneSlope, state)
 		}
 		for _, p := range ashland {
-			d.tileIndex[p] = terrainForZone(game.VolcanoZoneAshland, state)
+			d.tileIndex[p] = terrainForZone(world.VolcanoZoneAshland, state)
 		}
 	}
 	d.hasAnyFootprint = len(d.tileIndex) > 0
@@ -177,7 +178,7 @@ func (d *superRegionData) generate(s *NoiseVolcanoSource, sr superRegion) {
 // bands: Active 20%, Dormant 30%, Extinct 50%. The state is a pure
 // function of (seed, anchor) — independent of biome, neighbours, or
 // other volcanoes.
-func volcanoState(seed int64, p game.Position) game.VolcanoState {
+func volcanoState(seed int64, p geom.Position) world.VolcanoState {
 	// Reuse splitMix64 — it already lives in the worldgen package and
 	// gives well-diffused 64-bit output from three inputs.
 	h := splitMix64(uint64(seed^seedSaltVolcanoState), uint64(int64(p.X)), uint64(int64(p.Y)))
@@ -185,11 +186,11 @@ func volcanoState(seed int64, p game.Position) game.VolcanoState {
 	u := float64(h>>40) / float64(1<<24)
 	switch {
 	case u < 0.20:
-		return game.VolcanoActive
+		return world.VolcanoActive
 	case u < 0.50:
-		return game.VolcanoDormant
+		return world.VolcanoDormant
 	default:
-		return game.VolcanoExtinct
+		return world.VolcanoExtinct
 	}
 }
 
@@ -197,15 +198,15 @@ func volcanoState(seed int64, p game.Position) game.VolcanoState {
 // neighbourhood around p. Volcanoes footprint up to ~14 tiles from the
 // anchor, so a 1-super-chunk (64-tile) radius covers every collision
 // possibility. Returns nil when lm is nil.
-func landmarksNear(p game.Position, lm game.LandmarkSource) []game.Landmark {
+func landmarksNear(p geom.Position, lm world.LandmarkSource) []world.Landmark {
 	if lm == nil {
 		return nil
 	}
-	home := game.WorldToSuperChunk(p.X, p.Y)
-	var out []game.Landmark
+	home := geom.WorldToSuperChunk(p.X, p.Y)
+	var out []world.Landmark
 	for dy := -1; dy <= 1; dy++ {
 		for dx := -1; dx <= 1; dx++ {
-			sc := game.SuperChunkCoord{X: home.X + dx, Y: home.Y + dy}
+			sc := geom.SuperChunkCoord{X: home.X + dx, Y: home.Y + dy}
 			out = append(out, lm.LandmarksIn(sc)...)
 		}
 	}
@@ -215,4 +216,4 @@ func landmarksNear(p game.Position, lm game.LandmarkSource) []game.Landmark {
 // Compile-time assertion that NoiseVolcanoSource satisfies the
 // consumer-side interface. Mirrors the pattern in region_source.go and
 // landmarks.go.
-var _ game.VolcanoSource = (*NoiseVolcanoSource)(nil)
+var _ world.VolcanoSource = (*NoiseVolcanoSource)(nil)

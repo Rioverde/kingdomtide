@@ -1,6 +1,9 @@
 package worldgen
 
-import "github.com/Rioverde/gongeons/internal/game"
+import (
+	"github.com/Rioverde/gongeons/internal/game/geom"
+	"github.com/Rioverde/gongeons/internal/game/world"
+)
 
 // densityRoll derives a deterministic [0, 1) value from a 64-bit hash.
 // Uses the top 24 bits of h rather than the low 24 because hashPos is
@@ -94,21 +97,21 @@ var sulfurSubSalt = regionToInt64(0x5d9b6c4a2e1f3d5b)
 //
 // Selection is deterministic from (seed, tile) via hashPos XOR'd with
 // the fish salts — same seed and tile always produce the same result.
-func fishDepositAt(seed int64, t game.Position, wg *WorldGenerator) (game.Deposit, bool) {
+func fishDepositAt(seed int64, t geom.Position, wg *WorldGenerator) (world.Deposit, bool) {
 	tile := wg.TileAt(t.X, t.Y)
-	if tile.Terrain != game.TerrainBeach {
-		return game.Deposit{}, false
+	if tile.Terrain != world.TerrainBeach {
+		return world.Deposit{}, false
 	}
 	if !beachFacesOpenOcean(t, wg) {
-		return game.Deposit{}, false
+		return world.Deposit{}, false
 	}
 	h := hashPos(t) ^ uint64(seed^seedSaltDepositFish^fishSubSalt)
 	if densityRoll(h) > fishDensityFraction {
-		return game.Deposit{}, false
+		return world.Deposit{}, false
 	}
-	return game.Deposit{
+	return world.Deposit{
 		Position:      t,
-		Kind:          game.DepositFish,
+		Kind:          world.DepositFish,
 		MaxAmount:     fishMaxAmount,
 		CurrentAmount: fishMaxAmount,
 	}, true
@@ -119,14 +122,14 @@ func fishDepositAt(seed int64, t game.Position, wg *WorldGenerator) (game.Deposi
 // deposits are marine, not freshwater. Lake-side beaches and
 // river-mouth beaches thus stay fish-free, which matches the plan's
 // "open sea" rule.
-func beachFacesOpenOcean(t game.Position, wg *WorldGenerator) bool {
+func beachFacesOpenOcean(t geom.Position, wg *WorldGenerator) bool {
 	for dy := -1; dy <= 1; dy++ {
 		for dx := -1; dx <= 1; dx++ {
 			if dx == 0 && dy == 0 {
 				continue
 			}
 			n := wg.TileAt(t.X+dx, t.Y+dy)
-			if n.Terrain == game.TerrainOcean || n.Terrain == game.TerrainDeepOcean {
+			if n.Terrain == world.TerrainOcean || n.Terrain == world.TerrainDeepOcean {
 				return true
 			}
 		}
@@ -150,32 +153,32 @@ func beachFacesOpenOcean(t game.Position, wg *WorldGenerator) bool {
 // the volcanic salts — same seed and tile always produce the same
 // result. The top 24 bits of the hash feed a uniform [0, 1) density
 // gate against obsidianDensityFraction.
-func obsidianDepositAt(seed int64, t game.Position, vs game.VolcanoSource) (game.Deposit, bool) {
+func obsidianDepositAt(seed int64, t geom.Position, vs world.VolcanoSource) (world.Deposit, bool) {
 	if vs == nil {
-		return game.Deposit{}, false
+		return world.Deposit{}, false
 	}
-	home := game.WorldToSuperChunk(t.X, t.Y)
+	home := geom.WorldToSuperChunk(t.X, t.Y)
 	for dy := -1; dy <= 1; dy++ {
 		for dx := -1; dx <= 1; dx++ {
-			sc := game.SuperChunkCoord{X: home.X + dx, Y: home.Y + dy}
+			sc := geom.SuperChunkCoord{X: home.X + dx, Y: home.Y + dy}
 			for _, v := range vs.VolcanoAt(sc) {
-				if v.ZoneAt(t) != game.VolcanoZoneSlope {
+				if v.ZoneAt(t) != world.VolcanoZoneSlope {
 					continue
 				}
 				h := hashPos(t) ^ uint64(seed^seedSaltDepositVolcanic^obsidianSubSalt)
 				if densityRoll(h) > obsidianDensityFraction {
-					return game.Deposit{}, false
+					return world.Deposit{}, false
 				}
-				return game.Deposit{
+				return world.Deposit{
 					Position:      t,
-					Kind:          game.DepositObsidian,
+					Kind:          world.DepositObsidian,
 					MaxAmount:     obsidianMaxAmount,
 					CurrentAmount: obsidianMaxAmount,
 				}, true
 			}
 		}
 	}
-	return game.Deposit{}, false
+	return world.Deposit{}, false
 }
 
 // sulfurDepositAt returns a Sulfur deposit when t sits on a slope tile
@@ -194,47 +197,47 @@ func obsidianDepositAt(seed int64, t game.Position, vs game.VolcanoSource) (game
 // Selection is deterministic from (seed, tile) — the density hash uses
 // the sulfurSubSalt, disjoint from obsidianSubSalt, so a tile eligible
 // for both kinds rolls independent densities.
-func sulfurDepositAt(seed int64, t game.Position, vs game.VolcanoSource) (game.Deposit, bool) {
+func sulfurDepositAt(seed int64, t geom.Position, vs world.VolcanoSource) (world.Deposit, bool) {
 	if vs == nil {
-		return game.Deposit{}, false
+		return world.Deposit{}, false
 	}
-	home := game.WorldToSuperChunk(t.X, t.Y)
+	home := geom.WorldToSuperChunk(t.X, t.Y)
 	for dy := -1; dy <= 1; dy++ {
 		for dx := -1; dx <= 1; dx++ {
-			sc := game.SuperChunkCoord{X: home.X + dx, Y: home.Y + dy}
+			sc := geom.SuperChunkCoord{X: home.X + dx, Y: home.Y + dy}
 			for _, v := range vs.VolcanoAt(sc) {
-				if v.ZoneAt(t) != game.VolcanoZoneSlope {
+				if v.ZoneAt(t) != world.VolcanoZoneSlope {
 					continue
 				}
 				if !slopeAdjacentToCore(t, v) {
 					continue
 				}
 				switch v.State {
-				case game.VolcanoExtinct:
-					return game.Deposit{}, false
-				case game.VolcanoDormant:
+				case world.VolcanoExtinct:
+					return world.Deposit{}, false
+				case world.VolcanoDormant:
 					h := hashPos(t) ^ uint64(seed^seedSaltDepositVolcanic^sulfurSubSalt)
 					if densityRoll(h) > sulfurDormantFraction {
-						return game.Deposit{}, false
+						return world.Deposit{}, false
 					}
-				case game.VolcanoActive:
+				case world.VolcanoActive:
 					// unconditional — every core-adjacent slope tile
 					// around an active volcano carries sulfur.
 				default:
 					// Unknown / zero state: reject rather than emit a
 					// deposit attached to a malformed volcano record.
-					return game.Deposit{}, false
+					return world.Deposit{}, false
 				}
-				return game.Deposit{
+				return world.Deposit{
 					Position:      t,
-					Kind:          game.DepositSulfur,
+					Kind:          world.DepositSulfur,
 					MaxAmount:     sulfurMaxAmount,
 					CurrentAmount: sulfurMaxAmount,
 				}, true
 			}
 		}
 	}
-	return game.Deposit{}, false
+	return world.Deposit{}, false
 }
 
 // slopeAdjacentToCore reports whether t has at least one 4-neighbour
@@ -244,16 +247,16 @@ func sulfurDepositAt(seed int64, t game.Position, vs game.VolcanoSource) (game.D
 // tiles) so the map build stays cheap. Reuses the package-level
 // footprintNeighbourOffsets — the same 4-neighbour offset list the
 // volcano footprint walker consumes.
-func slopeAdjacentToCore(t game.Position, v game.Volcano) bool {
+func slopeAdjacentToCore(t geom.Position, v world.Volcano) bool {
 	if len(v.CoreTiles) == 0 {
 		return false
 	}
-	coreSet := make(map[game.Position]struct{}, len(v.CoreTiles))
+	coreSet := make(map[geom.Position]struct{}, len(v.CoreTiles))
 	for _, c := range v.CoreTiles {
 		coreSet[c] = struct{}{}
 	}
 	for _, off := range footprintNeighbourOffsets {
-		n := game.Position{X: t.X + off[0], Y: t.Y + off[1]}
+		n := geom.Position{X: t.X + off[0], Y: t.Y + off[1]}
 		if _, ok := coreSet[n]; ok {
 			return true
 		}

@@ -1,51 +1,51 @@
-package worldgen
+package biome
 
 import (
 	"testing"
 
-	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/world"
 )
 
 // TestFamilyOfAllTerrains iterates every Terrain value exposed by the domain
 // package and asserts the family mapping is total (no panic, no unknown).
-// Keeping it table-driven over game.AllTerrains guarantees that a new Terrain
+// Keeping it table-driven over world.AllTerrains guarantees that a new Terrain
 // added to the domain shows up here and fails loudly until FamilyOf learns
 // about it — the whole point of the catch-all bucket is to flag that gap.
 func TestFamilyOfAllTerrains(t *testing.T) {
 	cases := []struct {
-		terrain game.Terrain
+		terrain world.Terrain
 		want    BiomeFamily
 	}{
-		{game.TerrainDeepOcean, FamilyWater},
-		{game.TerrainOcean, FamilyWater},
-		{game.TerrainBeach, FamilyWater},
-		{game.TerrainDesert, FamilyDesert},
-		{game.TerrainSavanna, FamilyPlain},
-		{game.TerrainPlains, FamilyPlain},
-		{game.TerrainGrassland, FamilyPlain},
-		{game.TerrainMeadow, FamilyPlain},
-		{game.TerrainForest, FamilyForest},
-		{game.TerrainJungle, FamilyForest},
-		{game.TerrainTaiga, FamilyForest},
-		{game.TerrainTundra, FamilyTundra},
-		{game.TerrainSnow, FamilyTundra},
-		{game.TerrainHills, FamilyMountain},
-		{game.TerrainMountain, FamilyMountain},
-		{game.TerrainSnowyPeak, FamilyMountain},
-		{game.TerrainVolcanoCore, FamilyMountain},
-		{game.TerrainVolcanoCoreDormant, FamilyMountain},
-		{game.TerrainCraterLake, FamilyMountain},
-		{game.TerrainVolcanoSlope, FamilyMountain},
-		{game.TerrainAshland, FamilyMountain},
+		{world.TerrainDeepOcean, FamilyWater},
+		{world.TerrainOcean, FamilyWater},
+		{world.TerrainBeach, FamilyWater},
+		{world.TerrainDesert, FamilyDesert},
+		{world.TerrainSavanna, FamilyPlain},
+		{world.TerrainPlains, FamilyPlain},
+		{world.TerrainGrassland, FamilyPlain},
+		{world.TerrainMeadow, FamilyPlain},
+		{world.TerrainForest, FamilyForest},
+		{world.TerrainJungle, FamilyForest},
+		{world.TerrainTaiga, FamilyForest},
+		{world.TerrainTundra, FamilyTundra},
+		{world.TerrainSnow, FamilyTundra},
+		{world.TerrainHills, FamilyMountain},
+		{world.TerrainMountain, FamilyMountain},
+		{world.TerrainSnowyPeak, FamilyMountain},
+		{world.TerrainVolcanoCore, FamilyMountain},
+		{world.TerrainVolcanoCoreDormant, FamilyMountain},
+		{world.TerrainCraterLake, FamilyMountain},
+		{world.TerrainVolcanoSlope, FamilyMountain},
+		{world.TerrainAshland, FamilyMountain},
 	}
 
 	// Sanity: AllTerrains must be fully covered by the cases above. If the
 	// domain package grows a new Terrain, the length check below fails and
 	// the developer is forced to extend both this table and FamilyOf.
-	if len(cases) != len(game.AllTerrains()) {
-		t.Fatalf("case table length %d does not match game.AllTerrains length %d — "+
+	if len(cases) != len(world.AllTerrains()) {
+		t.Fatalf("case table length %d does not match world.AllTerrains length %d — "+
 			"new Terrain value probably added without updating FamilyOf",
-			len(cases), len(game.AllTerrains()))
+			len(cases), len(world.AllTerrains()))
 	}
 
 	for _, tc := range cases {

@@ -1,6 +1,11 @@
 package worldgen
 
-import "github.com/Rioverde/gongeons/internal/game"
+import (
+	"github.com/Rioverde/gongeons/internal/game/geom"
+	"github.com/Rioverde/gongeons/internal/game/world"
+	"github.com/Rioverde/gongeons/internal/game/worldgen/biome"
+	"github.com/Rioverde/gongeons/internal/game/worldgen/noise"
+)
 
 // Six low-frequency fBm fields drive the per-character region influence.
 // Scale values sit in the 320-512 tile band so influence gradients span
@@ -8,12 +13,12 @@ import "github.com/Rioverde/gongeons/internal/game"
 // than salt-and-pepper noise. Blight and Savage get a third octave for a
 // slightly rougher feel; the calmer characters stay at two octaves.
 var (
-	regionBlightOpts  = OctaveOpts{Octaves: 3, Persistence: 0.5, Lacunarity: 2.0, Scale: 512}
-	regionFaeOpts     = OctaveOpts{Octaves: 2, Persistence: 0.5, Lacunarity: 2.0, Scale: 384}
-	regionAncientOpts = OctaveOpts{Octaves: 2, Persistence: 0.5, Lacunarity: 2.0, Scale: 512}
-	regionSavageOpts  = OctaveOpts{Octaves: 3, Persistence: 0.5, Lacunarity: 2.0, Scale: 448}
-	regionHolyOpts    = OctaveOpts{Octaves: 2, Persistence: 0.5, Lacunarity: 2.0, Scale: 512}
-	regionWildOpts    = OctaveOpts{Octaves: 3, Persistence: 0.5, Lacunarity: 2.0, Scale: 320}
+	regionBlightOpts  = noise.OctaveOpts{Octaves: 3, Persistence: 0.5, Lacunarity: 2.0, Scale: 512}
+	regionFaeOpts     = noise.OctaveOpts{Octaves: 2, Persistence: 0.5, Lacunarity: 2.0, Scale: 384}
+	regionAncientOpts = noise.OctaveOpts{Octaves: 2, Persistence: 0.5, Lacunarity: 2.0, Scale: 512}
+	regionSavageOpts  = noise.OctaveOpts{Octaves: 3, Persistence: 0.5, Lacunarity: 2.0, Scale: 448}
+	regionHolyOpts    = noise.OctaveOpts{Octaves: 2, Persistence: 0.5, Lacunarity: 2.0, Scale: 512}
+	regionWildOpts    = noise.OctaveOpts{Octaves: 3, Persistence: 0.5, Lacunarity: 2.0, Scale: 320}
 )
 
 // Per-character seed salts. The top bit is set in most of these values, so
@@ -48,7 +53,7 @@ const regionInfluenceFloor float32 = 0.35
 // the full NoiseRegionSource (which carries an LRU WorldGenerator for server-
 // side terrain sampling that the client never uses).
 type InfluenceSampler interface {
-	InfluenceAt(worldX, worldY int) game.RegionInfluence
+	InfluenceAt(worldX, worldY int) world.RegionInfluence
 }
 
 // influenceSampler is the lightweight client-side implementation of
@@ -56,12 +61,12 @@ type InfluenceSampler interface {
 // sampling and skips the WorldGenerator that NoiseRegionSource carries for
 // server-side terrain lookup.
 type influenceSampler struct {
-	blight  OctaveNoise
-	fae     OctaveNoise
-	ancient OctaveNoise
-	savage  OctaveNoise
-	holy    OctaveNoise
-	wild    OctaveNoise
+	blight  noise.OctaveNoise
+	fae     noise.OctaveNoise
+	ancient noise.OctaveNoise
+	savage  noise.OctaveNoise
+	holy    noise.OctaveNoise
+	wild    noise.OctaveNoise
 }
 
 // NewInfluenceSampler returns an InfluenceSampler seeded from seed. The
@@ -71,19 +76,19 @@ type influenceSampler struct {
 // cache that NoiseRegionSource builds for the server-side terrain pipeline.
 func NewInfluenceSampler(seed int64) InfluenceSampler {
 	return &influenceSampler{
-		blight:  NewOctaveNoise(seed^seedSaltRegionBlight, regionBlightOpts),
-		fae:     NewOctaveNoise(seed^seedSaltRegionFae, regionFaeOpts),
-		ancient: NewOctaveNoise(seed^seedSaltRegionAncient, regionAncientOpts),
-		savage:  NewOctaveNoise(seed^seedSaltRegionSavage, regionSavageOpts),
-		holy:    NewOctaveNoise(seed^seedSaltRegionHoly, regionHolyOpts),
-		wild:    NewOctaveNoise(seed^seedSaltRegionWild, regionWildOpts),
+		blight:  noise.NewOctaveNoise(seed^seedSaltRegionBlight, regionBlightOpts),
+		fae:     noise.NewOctaveNoise(seed^seedSaltRegionFae, regionFaeOpts),
+		ancient: noise.NewOctaveNoise(seed^seedSaltRegionAncient, regionAncientOpts),
+		savage:  noise.NewOctaveNoise(seed^seedSaltRegionSavage, regionSavageOpts),
+		holy:    noise.NewOctaveNoise(seed^seedSaltRegionHoly, regionHolyOpts),
+		wild:    noise.NewOctaveNoise(seed^seedSaltRegionWild, regionWildOpts),
 	}
 }
 
 // InfluenceAt implements InfluenceSampler for the lightweight client sampler.
-func (s *influenceSampler) InfluenceAt(worldX, worldY int) game.RegionInfluence {
+func (s *influenceSampler) InfluenceAt(worldX, worldY int) world.RegionInfluence {
 	fx, fy := float64(worldX), float64(worldY)
-	return game.RegionInfluence{
+	return world.RegionInfluence{
 		Blight:  rescaleInfluence(s.blight.Eval2Normalized(fx, fy)),
 		Fae:     rescaleInfluence(s.fae.Eval2Normalized(fx, fy)),
 		Ancient: rescaleInfluence(s.ancient.Eval2Normalized(fx, fy)),
@@ -96,7 +101,7 @@ func (s *influenceSampler) InfluenceAt(worldX, worldY int) game.RegionInfluence 
 // Compile-time assertion: influenceSampler satisfies InfluenceSampler.
 var _ InfluenceSampler = (*influenceSampler)(nil)
 
-// NoiseRegionSource implements game.RegionSource on top of six independent
+// NoiseRegionSource implements world.RegionSource on top of six independent
 // fBm noise fields. Determined entirely by seed.
 //
 // The struct also owns a WorldGenerator so that RegionAt can consult the
@@ -105,12 +110,12 @@ var _ InfluenceSampler = (*influenceSampler)(nil)
 type NoiseRegionSource struct {
 	seed int64
 
-	blight  OctaveNoise
-	fae     OctaveNoise
-	ancient OctaveNoise
-	savage  OctaveNoise
-	holy    OctaveNoise
-	wild    OctaveNoise
+	blight  noise.OctaveNoise
+	fae     noise.OctaveNoise
+	ancient noise.OctaveNoise
+	savage  noise.OctaveNoise
+	holy    noise.OctaveNoise
+	wild    noise.OctaveNoise
 
 	// worldgen is used for dominantBiomeNear sampling. Held as a pointer
 	// because WorldGenerator carries an LRU river cache internally; we want
@@ -125,12 +130,12 @@ type NoiseRegionSource struct {
 func NewNoiseRegionSource(seed int64) *NoiseRegionSource {
 	return &NoiseRegionSource{
 		seed:     seed,
-		blight:   NewOctaveNoise(seed^seedSaltRegionBlight, regionBlightOpts),
-		fae:      NewOctaveNoise(seed^seedSaltRegionFae, regionFaeOpts),
-		ancient:  NewOctaveNoise(seed^seedSaltRegionAncient, regionAncientOpts),
-		savage:   NewOctaveNoise(seed^seedSaltRegionSavage, regionSavageOpts),
-		holy:     NewOctaveNoise(seed^seedSaltRegionHoly, regionHolyOpts),
-		wild:     NewOctaveNoise(seed^seedSaltRegionWild, regionWildOpts),
+		blight:   noise.NewOctaveNoise(seed^seedSaltRegionBlight, regionBlightOpts),
+		fae:      noise.NewOctaveNoise(seed^seedSaltRegionFae, regionFaeOpts),
+		ancient:  noise.NewOctaveNoise(seed^seedSaltRegionAncient, regionAncientOpts),
+		savage:   noise.NewOctaveNoise(seed^seedSaltRegionSavage, regionSavageOpts),
+		holy:     noise.NewOctaveNoise(seed^seedSaltRegionHoly, regionHolyOpts),
+		wild:     noise.NewOctaveNoise(seed^seedSaltRegionWild, regionWildOpts),
 		worldgen: NewWorldGenerator(seed),
 	}
 }
@@ -141,18 +146,18 @@ func NewNoiseRegionSource(seed int64) *NoiseRegionSource {
 // inside the region sees the same Region record. The returned
 // Region.Name is a language-agnostic Parts record; the client composes
 // the display string locally.
-func (s *NoiseRegionSource) RegionAt(sc game.SuperChunkCoord) game.Region {
-	anchor := game.AnchorOf(s.seed, sc)
+func (s *NoiseRegionSource) RegionAt(sc geom.SuperChunkCoord) world.Region {
+	anchor := geom.AnchorOf(s.seed, sc)
 	influence := s.InfluenceAt(anchor.X, anchor.Y)
 	character := influence.Dominant()
-	biome := s.dominantBiomeNear(anchor)
+	family := s.dominantBiomeNear(anchor)
 
-	return game.Region{
+	return world.Region{
 		Coord:     sc,
 		Anchor:    anchor,
 		Influence: influence,
 		Character: character,
-		Name:      RegionName(character, biome, s.seed, sc),
+		Name:      RegionName(character, family, s.seed, sc),
 	}
 }
 
@@ -165,10 +170,10 @@ func (s *NoiseRegionSource) RegionAt(sc game.SuperChunkCoord) game.Region {
 //
 // Avoids heap allocations: all arithmetic happens on stack-resident floats,
 // and the returned value is a plain struct (not a pointer).
-func (s *NoiseRegionSource) InfluenceAt(worldX, worldY int) game.RegionInfluence {
+func (s *NoiseRegionSource) InfluenceAt(worldX, worldY int) world.RegionInfluence {
 	fx, fy := float64(worldX), float64(worldY)
 
-	return game.RegionInfluence{
+	return world.RegionInfluence{
 		Blight:  rescaleInfluence(s.blight.Eval2Normalized(fx, fy)),
 		Fae:     rescaleInfluence(s.fae.Eval2Normalized(fx, fy)),
 		Ancient: rescaleInfluence(s.ancient.Eval2Normalized(fx, fy)),
@@ -197,12 +202,12 @@ func rescaleInfluence(raw float64) float32 {
 // anchor sits well inside the cell, so the anchor tile is representative
 // enough for name-picking. Broader sampling can come later once the
 // naming pass starts looking lopsided in specific terrains.
-func (s *NoiseRegionSource) dominantBiomeNear(anchor game.Position) BiomeFamily {
+func (s *NoiseRegionSource) dominantBiomeNear(anchor geom.Position) biome.BiomeFamily {
 	t := s.worldgen.TileAt(anchor.X, anchor.Y)
-	return FamilyOf(t.Terrain)
+	return biome.FamilyOf(t.Terrain)
 }
 
 // Compile-time assertion that NoiseRegionSource implements the consumer-side
 // interface. Mirrors the pattern in source.go for ChunkedSource /
 // game.TileSource.
-var _ game.RegionSource = (*NoiseRegionSource)(nil)
+var _ world.RegionSource = (*NoiseRegionSource)(nil)

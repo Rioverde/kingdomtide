@@ -1,6 +1,6 @@
-package worldgen
+package chunk
 
-import "github.com/Rioverde/gongeons/internal/game"
+import "github.com/Rioverde/gongeons/internal/game/world"
 
 // ChunkSize is the edge length of a chunk in tiles (grid units).
 // Picked to mirror Minecraft's 16 — small enough to generate in a couple of
@@ -47,18 +47,18 @@ func floorDiv(a, b int) int {
 // with no hashing). dy is the outer index to match row-major iteration order when rendering.
 type Chunk struct {
 	Coord ChunkCoord
-	Tiles [ChunkSize][ChunkSize]game.Tile
+	Tiles [ChunkSize][ChunkSize]world.Tile
 }
 
 // At returns the tile at global grid coord (x, y). It panics if the coord does not belong
 // to this chunk — callers should check with WorldToChunk first.
-func (c *Chunk) At(x, y int) game.Tile {
+func (c *Chunk) At(x, y int) world.Tile {
 	dx, dy := c.localOffset(x, y)
 	return c.Tiles[dy][dx]
 }
 
 // Set writes a tile at global grid coord (x, y). Same panic rule as At.
-func (c *Chunk) Set(x, y int, t game.Tile) {
+func (c *Chunk) Set(x, y int, t world.Tile) {
 	dx, dy := c.localOffset(x, y)
 	c.Tiles[dy][dx] = t
 }
@@ -66,10 +66,10 @@ func (c *Chunk) Set(x, y int, t game.Tile) {
 // AtSafe returns the tile at global grid coord (x, y) and true if the coord belongs to
 // this chunk. Unlike At, it returns ok=false instead of panicking, so HTTP handlers can
 // accept user-supplied coords without crashing the server's recoverer middleware.
-func (c *Chunk) AtSafe(x, y int) (game.Tile, bool) {
+func (c *Chunk) AtSafe(x, y int) (world.Tile, bool) {
 	minX, maxX, minY, maxY := c.Bounds()
 	if x < minX || x >= maxX || y < minY || y >= maxY {
-		return game.Tile{}, false
+		return world.Tile{}, false
 	}
 	return c.Tiles[y-minY][x-minX], true
 }

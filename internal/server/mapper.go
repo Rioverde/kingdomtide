@@ -4,8 +4,13 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/calendar"
+	"github.com/Rioverde/gongeons/internal/game/entity"
+	"github.com/Rioverde/gongeons/internal/game/event"
+	"github.com/Rioverde/gongeons/internal/game/geom"
 	"github.com/Rioverde/gongeons/internal/game/naming/parts"
+	"github.com/Rioverde/gongeons/internal/game/stats"
+	"github.com/Rioverde/gongeons/internal/game/world"
 	pb "github.com/Rioverde/gongeons/internal/proto"
 )
 
@@ -29,26 +34,26 @@ const (
 // clientMessageToCommand converts a wire message from the given player into a
 // domain command. The playerID argument is the server-assigned identity for
 // this stream — clients never send their own id.
-func clientMessageToCommand(m *pb.ClientMessage, playerID string) (game.Command, error) {
+func clientMessageToCommand(m *pb.ClientMessage, playerID string) (world.Command, error) {
 	if m == nil {
 		return nil, errEmptyPayload
 	}
 	switch v := m.GetPayload().(type) {
 	case *pb.ClientMessage_Join:
 		name := ""
-		var stats game.CoreStats
+		var cs stats.CoreStats
 		if v.Join != nil {
 			name = v.Join.GetName()
-			stats = coreStatsFromPB(v.Join.GetStats())
+			cs = coreStatsFromPB(v.Join.GetStats())
 		} else {
-			stats = game.DefaultCoreStats()
+			cs = stats.DefaultCoreStats()
 		}
-		return game.JoinCmd{PlayerID: playerID, Name: name, Stats: stats}, nil
+		return world.JoinCmd{PlayerID: playerID, Name: name, Stats: cs}, nil
 	case *pb.ClientMessage_Move:
 		if v.Move == nil {
 			return nil, fmt.Errorf("move: %w", errEmptyPayload)
 		}
-		return game.MoveCmd{
+		return world.MoveCmd{
 			PlayerID: playerID,
 			DX:       int(v.Move.GetDx()),
 			DY:       int(v.Move.GetDy()),
@@ -62,11 +67,11 @@ func clientMessageToCommand(m *pb.ClientMessage, playerID string) (game.Command,
 // input is treated as "client omitted the field" and yields the neutral
 // baseline, so callers that want to reject missing stats must check for
 // nil themselves before calling.
-func coreStatsFromPB(s *pb.CoreStats) game.CoreStats {
+func coreStatsFromPB(s *pb.CoreStats) stats.CoreStats {
 	if s == nil {
-		return game.DefaultCoreStats()
+		return stats.DefaultCoreStats()
 	}
-	return game.CoreStats{
+	return stats.CoreStats{
 		Strength:     int(s.GetStrength()),
 		Dexterity:    int(s.GetDexterity()),
 		Constitution: int(s.GetConstitution()),
@@ -78,7 +83,7 @@ func coreStatsFromPB(s *pb.CoreStats) game.CoreStats {
 
 // coreStatsToPB converts a domain CoreStats into its wire form. Returns a
 // non-nil pointer for every input so the caller never has to check.
-func coreStatsToPB(s game.CoreStats) *pb.CoreStats {
+func coreStatsToPB(s stats.CoreStats) *pb.CoreStats {
 	return &pb.CoreStats{
 		Strength:     int32(s.Strength),
 		Dexterity:    int32(s.Dexterity),
@@ -92,10 +97,10 @@ func coreStatsToPB(s game.CoreStats) *pb.CoreStats {
 // eventToServerMessage wraps a domain Event in the right oneof branches of
 // Event and ServerMessage. Returns nil for unknown event types so the caller
 // can simply skip them.
-func eventToServerMessage(e game.Event) *pb.ServerMessage {
+func eventToServerMessage(e event.Event) *pb.ServerMessage {
 	var ev *pb.Event
 	switch v := e.(type) {
-	case game.PlayerJoinedEvent:
+	case event.PlayerJoinedEvent:
 		ev = &pb.Event{Payload: &pb.Event_PlayerJoined{PlayerJoined: &pb.PlayerJoined{
 			Entity: &pb.Entity{
 				Id:       v.PlayerID,
@@ -104,19 +109,19 @@ func eventToServerMessage(e game.Event) *pb.ServerMessage {
 				Position: positionPB(v.Position),
 			},
 		}}}
-	case game.PlayerLeftEvent:
+	case event.PlayerLeftEvent:
 		ev = &pb.Event{Payload: &pb.Event_PlayerLeft{PlayerLeft: &pb.PlayerLeft{
 			PlayerId: v.PlayerID,
 		}}}
-	case game.EntityMovedEvent:
+	case event.EntityMovedEvent:
 		ev = &pb.Event{Payload: &pb.Event_EntityMoved{EntityMoved: &pb.EntityMoved{
 			EntityId: v.EntityID,
 			From:     positionPB(v.From),
 			To:       positionPB(v.To),
 		}}}
-	case game.IntentFailedEvent:
+	case event.IntentFailedEvent:
 		ev = &pb.Event{Payload: &pb.Event_IntentFailed{IntentFailed: intentFailedPB(v)}}
-	case game.TimeTickEvent:
+	case event.TimeTickEvent:
 		ev = &pb.Event{Payload: &pb.Event_TimeTick{TimeTick: &pb.TimeTick{
 			CurrentTick: v.CurrentTick,
 			GameTime:    gameTimeToPB(v.GameTime),
@@ -128,7 +133,7 @@ func eventToServerMessage(e game.Event) *pb.ServerMessage {
 }
 
 // positionPB converts a domain Position into its wire form.
-func positionPB(p game.Position) *pb.Position {
+func positionPB(p geom.Position) *pb.Position {
 	return &pb.Position{X: int32(p.X), Y: int32(p.Y)}
 }
 
@@ -136,7 +141,7 @@ func positionPB(p game.Position) *pb.Position {
 // Reason is forwarded unchanged — it is a stable locale catalog key (see
 // game.ReasonIntent* constants) the client resolves through its i18n
 // bundle, keeping the server language-agnostic.
-func intentFailedPB(e game.IntentFailedEvent) *pb.IntentFailed {
+func intentFailedPB(e event.IntentFailedEvent) *pb.IntentFailed {
 	return &pb.IntentFailed{
 		EntityId: e.EntityID,
 		Reason:   e.Reason,
@@ -145,78 +150,78 @@ func intentFailedPB(e game.IntentFailedEvent) *pb.IntentFailed {
 
 // structurePBMapping translates the domain StructureKind enum to its wire
 // counterpart. Unknown values fall back to UNSPECIFIED.
-var structurePBMapping = map[game.StructureKind]pb.Structure{
-	game.StructureVillage: pb.Structure_STRUCTURE_VILLAGE,
-	game.StructureCastle:  pb.Structure_STRUCTURE_CASTLE,
+var structurePBMapping = map[world.StructureKind]pb.Structure{
+	world.StructureVillage: pb.Structure_STRUCTURE_VILLAGE,
+	world.StructureCastle:  pb.Structure_STRUCTURE_CASTLE,
 }
 
 // structureToPB looks up k in structurePBMapping. StructureNone maps
 // implicitly to UNSPECIFIED via the default return.
-func structureToPB(k game.StructureKind) pb.Structure {
+func structureToPB(k world.StructureKind) pb.Structure {
 	return lookupOr(structurePBMapping, k, pb.Structure_STRUCTURE_UNSPECIFIED)
 }
 
 // terrainPBMapping is the 1:1 translation table from the domain Terrain
 // enum to its wire counterpart. Kept as a map (not a switch) so adding a
 // new biome is a single-line change and cyclomatic complexity stays flat.
-var terrainPBMapping = map[game.Terrain]pb.Terrain{
-	game.TerrainPlains:    pb.Terrain_TERRAIN_PLAINS,
-	game.TerrainGrassland: pb.Terrain_TERRAIN_GRASSLAND,
-	game.TerrainMeadow:    pb.Terrain_TERRAIN_MEADOW,
-	game.TerrainBeach:     pb.Terrain_TERRAIN_BEACH,
-	game.TerrainDesert:    pb.Terrain_TERRAIN_DESERT,
-	game.TerrainSavanna:   pb.Terrain_TERRAIN_SAVANNA,
-	game.TerrainForest:    pb.Terrain_TERRAIN_FOREST,
-	game.TerrainJungle:    pb.Terrain_TERRAIN_JUNGLE,
-	game.TerrainTaiga:     pb.Terrain_TERRAIN_TAIGA,
-	game.TerrainTundra:    pb.Terrain_TERRAIN_TUNDRA,
-	game.TerrainSnow:      pb.Terrain_TERRAIN_SNOW,
-	game.TerrainHills:     pb.Terrain_TERRAIN_HILLS,
-	game.TerrainMountain:  pb.Terrain_TERRAIN_MOUNTAIN,
-	game.TerrainSnowyPeak: pb.Terrain_TERRAIN_SNOWY_PEAK,
-	game.TerrainOcean:     pb.Terrain_TERRAIN_OCEAN,
-	game.TerrainDeepOcean: pb.Terrain_TERRAIN_DEEP_OCEAN,
+var terrainPBMapping = map[world.Terrain]pb.Terrain{
+	world.TerrainPlains:    pb.Terrain_TERRAIN_PLAINS,
+	world.TerrainGrassland: pb.Terrain_TERRAIN_GRASSLAND,
+	world.TerrainMeadow:    pb.Terrain_TERRAIN_MEADOW,
+	world.TerrainBeach:     pb.Terrain_TERRAIN_BEACH,
+	world.TerrainDesert:    pb.Terrain_TERRAIN_DESERT,
+	world.TerrainSavanna:   pb.Terrain_TERRAIN_SAVANNA,
+	world.TerrainForest:    pb.Terrain_TERRAIN_FOREST,
+	world.TerrainJungle:    pb.Terrain_TERRAIN_JUNGLE,
+	world.TerrainTaiga:     pb.Terrain_TERRAIN_TAIGA,
+	world.TerrainTundra:    pb.Terrain_TERRAIN_TUNDRA,
+	world.TerrainSnow:      pb.Terrain_TERRAIN_SNOW,
+	world.TerrainHills:     pb.Terrain_TERRAIN_HILLS,
+	world.TerrainMountain:  pb.Terrain_TERRAIN_MOUNTAIN,
+	world.TerrainSnowyPeak: pb.Terrain_TERRAIN_SNOWY_PEAK,
+	world.TerrainOcean:     pb.Terrain_TERRAIN_OCEAN,
+	world.TerrainDeepOcean: pb.Terrain_TERRAIN_DEEP_OCEAN,
 
 	// Volcanic terrains — multi-tile volcano footprints overwrite the
 	// base biome at worldgen query time and travel the wire as ordinary
 	// Terrain values so the client renders from per-tile terrain alone.
-	game.TerrainVolcanoCore:        pb.Terrain_TERRAIN_VOLCANO_CORE,
-	game.TerrainVolcanoCoreDormant: pb.Terrain_TERRAIN_VOLCANO_CORE_DORMANT,
-	game.TerrainCraterLake:         pb.Terrain_TERRAIN_CRATER_LAKE,
-	game.TerrainVolcanoSlope:       pb.Terrain_TERRAIN_VOLCANO_SLOPE,
-	game.TerrainAshland:            pb.Terrain_TERRAIN_ASHLAND,
+	world.TerrainVolcanoCore:        pb.Terrain_TERRAIN_VOLCANO_CORE,
+	world.TerrainVolcanoCoreDormant: pb.Terrain_TERRAIN_VOLCANO_CORE_DORMANT,
+	world.TerrainCraterLake:         pb.Terrain_TERRAIN_CRATER_LAKE,
+	world.TerrainVolcanoSlope:       pb.Terrain_TERRAIN_VOLCANO_SLOPE,
+	world.TerrainAshland:            pb.Terrain_TERRAIN_ASHLAND,
 }
 
 // terrainToPB looks up t in terrainPBMapping. Unknown terrains fall back
 // to UNSPECIFIED so the client can render a clear "what is this" glyph.
-func terrainToPB(t game.Terrain) pb.Terrain {
+func terrainToPB(t world.Terrain) pb.Terrain {
 	return lookupOr(terrainPBMapping, t, pb.Terrain_TERRAIN_UNSPECIFIED)
 }
 
 // regionCharacterPBMapping is the 1:1 translation table from the domain
 // RegionCharacter enum to its wire counterpart. Kept as a map so adding a
 // seventh character (e.g. "Cultured") stays a one-line change.
-var regionCharacterPBMapping = map[game.RegionCharacter]pb.RegionCharacter{
-	game.RegionNormal:   pb.RegionCharacter_REGION_CHARACTER_NORMAL,
-	game.RegionBlighted: pb.RegionCharacter_REGION_CHARACTER_BLIGHTED,
-	game.RegionFey:      pb.RegionCharacter_REGION_CHARACTER_FEY,
-	game.RegionAncient:  pb.RegionCharacter_REGION_CHARACTER_ANCIENT,
-	game.RegionSavage:   pb.RegionCharacter_REGION_CHARACTER_SAVAGE,
-	game.RegionHoly:     pb.RegionCharacter_REGION_CHARACTER_HOLY,
-	game.RegionWild:     pb.RegionCharacter_REGION_CHARACTER_WILD,
+var regionCharacterPBMapping = map[world.RegionCharacter]pb.RegionCharacter{
+	world.RegionNormal:   pb.RegionCharacter_REGION_CHARACTER_NORMAL,
+	world.RegionBlighted: pb.RegionCharacter_REGION_CHARACTER_BLIGHTED,
+	world.RegionFey:      pb.RegionCharacter_REGION_CHARACTER_FEY,
+	world.RegionAncient:  pb.RegionCharacter_REGION_CHARACTER_ANCIENT,
+	world.RegionSavage:   pb.RegionCharacter_REGION_CHARACTER_SAVAGE,
+	world.RegionHoly:     pb.RegionCharacter_REGION_CHARACTER_HOLY,
+	world.RegionWild:     pb.RegionCharacter_REGION_CHARACTER_WILD,
 }
 
 // regionCharacterPB translates the domain RegionCharacter enum to its wire
 // counterpart. Unknown values fall back to NORMAL — the safe rendering
 // default (no tint, no crossing-verb prefix).
-func regionCharacterPB(c game.RegionCharacter) pb.RegionCharacter {
+func regionCharacterPB(c world.RegionCharacter) pb.RegionCharacter {
 	return lookupOr(regionCharacterPBMapping, c, pb.RegionCharacter_REGION_CHARACTER_NORMAL)
 }
 
 // regionInfluencePB builds a wire RegionInfluence from the domain struct.
 // The field order is intentional: it matches the proto declaration so a
 // visual diff against the .proto reads top-to-bottom.
-func regionInfluencePB(r game.RegionInfluence) *pb.RegionInfluence {
+func regionInfluencePB(r world.RegionInfluence) *pb.RegionInfluence {
 	return &pb.RegionInfluence{
 		Blight:  r.Blight,
 		Fae:     r.Fae,
@@ -229,10 +234,10 @@ func regionInfluencePB(r game.RegionInfluence) *pb.RegionInfluence {
 
 // regionPB converts a domain Region to its wire form. The anchor
 // position is intentionally not sent — clients derive it locally from
-// the world seed via game.AnchorOf to keep the Snapshot region payload
+// the world seed via geom.AnchorOf to keep the Snapshot region payload
 // compact. Name ships as structured, language-agnostic NameParts; the
 // client composes the display string locally.
-func regionPB(r game.Region) *pb.Region {
+func regionPB(r world.Region) *pb.Region {
 	return &pb.Region{
 		SuperChunkX: int32(r.Coord.X),
 		SuperChunkY: int32(r.Coord.Y),
@@ -268,7 +273,7 @@ func namePartsPB(p parts.Parts) *pb.NameParts {
 
 // landmarkPB converts a domain Landmark to its wire form. Kind maps via
 // the existing table; Name is a structured NameParts.
-func landmarkPB(l game.Landmark) *pb.Landmark {
+func landmarkPB(l world.Landmark) *pb.Landmark {
 	return &pb.Landmark{
 		Kind: landmarkKindPB(l.Kind),
 		Name: namePartsPB(l.Name),
@@ -292,26 +297,26 @@ func clampViewport(w, h int) (int, int) {
 // (MonthJanuary = 1 … MonthDecember = 12) so the table covers the twelve
 // real months; MonthZero has no wire entry and falls back to
 // CALENDAR_MONTH_UNSPECIFIED via lookupOr.
-var monthPBMapping = map[game.Month]pb.CalendarMonth{
-	game.MonthJanuary:   pb.CalendarMonth_CALENDAR_MONTH_JANUARY,
-	game.MonthFebruary:  pb.CalendarMonth_CALENDAR_MONTH_FEBRUARY,
-	game.MonthMarch:     pb.CalendarMonth_CALENDAR_MONTH_MARCH,
-	game.MonthApril:     pb.CalendarMonth_CALENDAR_MONTH_APRIL,
-	game.MonthMay:       pb.CalendarMonth_CALENDAR_MONTH_MAY,
-	game.MonthJune:      pb.CalendarMonth_CALENDAR_MONTH_JUNE,
-	game.MonthJuly:      pb.CalendarMonth_CALENDAR_MONTH_JULY,
-	game.MonthAugust:    pb.CalendarMonth_CALENDAR_MONTH_AUGUST,
-	game.MonthSeptember: pb.CalendarMonth_CALENDAR_MONTH_SEPTEMBER,
-	game.MonthOctober:   pb.CalendarMonth_CALENDAR_MONTH_OCTOBER,
-	game.MonthNovember:  pb.CalendarMonth_CALENDAR_MONTH_NOVEMBER,
-	game.MonthDecember:  pb.CalendarMonth_CALENDAR_MONTH_DECEMBER,
+var monthPBMapping = map[calendar.Month]pb.CalendarMonth{
+	calendar.MonthJanuary:   pb.CalendarMonth_CALENDAR_MONTH_JANUARY,
+	calendar.MonthFebruary:  pb.CalendarMonth_CALENDAR_MONTH_FEBRUARY,
+	calendar.MonthMarch:     pb.CalendarMonth_CALENDAR_MONTH_MARCH,
+	calendar.MonthApril:     pb.CalendarMonth_CALENDAR_MONTH_APRIL,
+	calendar.MonthMay:       pb.CalendarMonth_CALENDAR_MONTH_MAY,
+	calendar.MonthJune:      pb.CalendarMonth_CALENDAR_MONTH_JUNE,
+	calendar.MonthJuly:      pb.CalendarMonth_CALENDAR_MONTH_JULY,
+	calendar.MonthAugust:    pb.CalendarMonth_CALENDAR_MONTH_AUGUST,
+	calendar.MonthSeptember: pb.CalendarMonth_CALENDAR_MONTH_SEPTEMBER,
+	calendar.MonthOctober:   pb.CalendarMonth_CALENDAR_MONTH_OCTOBER,
+	calendar.MonthNovember:  pb.CalendarMonth_CALENDAR_MONTH_NOVEMBER,
+	calendar.MonthDecember:  pb.CalendarMonth_CALENDAR_MONTH_DECEMBER,
 }
 
 // monthToPB translates the domain Month enum to its wire counterpart.
 // The zero value (MonthZero) and any out-of-range value fall back to
 // CALENDAR_MONTH_UNSPECIFIED — the proto3 sentinel that marks an
 // uninitialised GameTime.
-func monthToPB(m game.Month) pb.CalendarMonth {
+func monthToPB(m calendar.Month) pb.CalendarMonth {
 	return lookupOr(monthPBMapping, m, pb.CalendarMonth_CALENDAR_MONTH_UNSPECIFIED)
 }
 
@@ -320,17 +325,17 @@ func monthToPB(m game.Month) pb.CalendarMonth {
 // SeasonWinter = 0 while the wire enum reserves 0 for UNSPECIFIED, so
 // the table is explicit rather than a cast; any out-of-range domain
 // value (corrupted memory) falls back to UNSPECIFIED via lookupOr.
-var seasonPBMapping = map[game.Season]pb.CalendarSeason{
-	game.SeasonWinter: pb.CalendarSeason_CALENDAR_SEASON_WINTER,
-	game.SeasonSpring: pb.CalendarSeason_CALENDAR_SEASON_SPRING,
-	game.SeasonSummer: pb.CalendarSeason_CALENDAR_SEASON_SUMMER,
-	game.SeasonAutumn: pb.CalendarSeason_CALENDAR_SEASON_AUTUMN,
+var seasonPBMapping = map[calendar.Season]pb.CalendarSeason{
+	calendar.SeasonWinter: pb.CalendarSeason_CALENDAR_SEASON_WINTER,
+	calendar.SeasonSpring: pb.CalendarSeason_CALENDAR_SEASON_SPRING,
+	calendar.SeasonSummer: pb.CalendarSeason_CALENDAR_SEASON_SUMMER,
+	calendar.SeasonAutumn: pb.CalendarSeason_CALENDAR_SEASON_AUTUMN,
 }
 
 // seasonToPB translates the domain Season enum to its wire counterpart.
 // Out-of-range values fall back to CALENDAR_SEASON_UNSPECIFIED so a
 // corrupted value renders as "no season" rather than as a wrong one.
-func seasonToPB(s game.Season) pb.CalendarSeason {
+func seasonToPB(s calendar.Season) pb.CalendarSeason {
 	return lookupOr(seasonPBMapping, s, pb.CalendarSeason_CALENDAR_SEASON_UNSPECIFIED)
 }
 
@@ -340,7 +345,7 @@ func seasonToPB(s game.Season) pb.CalendarSeason {
 // zero-calendar path on the server: a World without WithCalendar
 // returns GameTime{}, which wire-encodes to an all-zero pb.GameTime
 // that decodes cleanly on the client as "no calendar configured".
-func gameTimeToPB(gt game.GameTime) *pb.GameTime {
+func gameTimeToPB(gt calendar.GameTime) *pb.GameTime {
 	return &pb.GameTime{
 		Year:       gt.Year,
 		Month:      monthToPB(gt.Month),
@@ -357,9 +362,9 @@ func gameTimeToPB(gt game.GameTime) *pb.GameTime {
 // has no Calendar wired without a separate null check.
 //
 // The epoch offset travels alongside the cadence fields so the client
-// can construct its own game.Calendar mirror and derive GameTime
+// can construct its own calendar.Calendar mirror and derive GameTime
 // locally between snapshots via the Snapshot.current_tick anchor.
-func calendarConfigToPB(c game.Calendar) *pb.CalendarConfig {
+func calendarConfigToPB(c calendar.Calendar) *pb.CalendarConfig {
 	return &pb.CalendarConfig{
 		TicksPerDay:     c.TicksPerDay(),
 		DaysPerMonth:    int32(c.DaysPerMonth()),
@@ -372,20 +377,20 @@ func calendarConfigToPB(c game.Calendar) *pb.CalendarConfig {
 // LandmarkKind enum to its wire counterpart. Kept as a map (not a switch)
 // so adding a new landmark kind stays a single-line change, matching the
 // convention used for terrain and region-character mappings above.
-var landmarkKindPBMapping = map[game.LandmarkKind]pb.LandmarkKind{
-	game.LandmarkNone:           pb.LandmarkKind_LANDMARK_KIND_NONE,
-	game.LandmarkTower:          pb.LandmarkKind_LANDMARK_KIND_TOWER,
-	game.LandmarkGiantTree:      pb.LandmarkKind_LANDMARK_KIND_GIANT_TREE,
-	game.LandmarkStandingStones: pb.LandmarkKind_LANDMARK_KIND_STANDING_STONES,
-	game.LandmarkObelisk:        pb.LandmarkKind_LANDMARK_KIND_OBELISK,
-	game.LandmarkChasm:          pb.LandmarkKind_LANDMARK_KIND_CHASM,
-	game.LandmarkShrine:         pb.LandmarkKind_LANDMARK_KIND_SHRINE,
+var landmarkKindPBMapping = map[world.LandmarkKind]pb.LandmarkKind{
+	world.LandmarkNone:           pb.LandmarkKind_LANDMARK_KIND_NONE,
+	world.LandmarkTower:          pb.LandmarkKind_LANDMARK_KIND_TOWER,
+	world.LandmarkGiantTree:      pb.LandmarkKind_LANDMARK_KIND_GIANT_TREE,
+	world.LandmarkStandingStones: pb.LandmarkKind_LANDMARK_KIND_STANDING_STONES,
+	world.LandmarkObelisk:        pb.LandmarkKind_LANDMARK_KIND_OBELISK,
+	world.LandmarkChasm:          pb.LandmarkKind_LANDMARK_KIND_CHASM,
+	world.LandmarkShrine:         pb.LandmarkKind_LANDMARK_KIND_SHRINE,
 }
 
 // landmarkKindPB translates the domain LandmarkKind enum to its wire
 // counterpart. Unknown values fall back to NONE — the safe zero value
 // meaning "no landmark on this tile".
-func landmarkKindPB(k game.LandmarkKind) pb.LandmarkKind {
+func landmarkKindPB(k world.LandmarkKind) pb.LandmarkKind {
 	return lookupOr(landmarkKindPBMapping, k, pb.LandmarkKind_LANDMARK_KIND_NONE)
 }
 
@@ -403,7 +408,7 @@ func landmarkKindPB(k game.LandmarkKind) pb.LandmarkKind {
 // unchanged. Passing the override in explicitly (rather than
 // re-querying the world from inside the mapper) keeps tileFromDomain
 // deterministic and unit-testable without a world.
-func tileFromDomain(t game.Tile, landmark game.Landmark, override game.Terrain, hasOverride bool) *pb.Tile {
+func tileFromDomain(t world.Tile, landmark world.Landmark, override world.Terrain, hasOverride bool) *pb.Tile {
 	terrain := t.Terrain
 	if hasOverride {
 		terrain = override
@@ -413,10 +418,10 @@ func tileFromDomain(t game.Tile, landmark game.Landmark, override game.Terrain, 
 		Overlays:  uint32(t.Overlays),
 		Structure: structureToPB(t.Structure),
 	}
-	if landmark.Kind != game.LandmarkNone {
+	if landmark.Kind != world.LandmarkNone {
 		out.Landmark = landmarkPB(landmark)
 	}
-	if p, ok := t.Occupant.(*game.Player); ok && p != nil {
+	if p, ok := t.Occupant.(*entity.Player); ok && p != nil {
 		out.Occupant = pb.OccupantKind_OCCUPANT_PLAYER
 		out.EntityId = p.ID
 	}
@@ -433,17 +438,17 @@ func tileFromDomain(t game.Tile, landmark game.Landmark, override game.Terrain, 
 // (always 4 in the current implementation). A viewport covers at most
 // 4 super-chunks, so the total work per snapshot is viewW×viewH×4 =
 // ~41×21×4 ≈ 3 444 simple comparisons — well within the <500µs budget.
-func landmarkAtTile(lc *landmarkCache, worldX, worldY int) game.Landmark {
+func landmarkAtTile(lc *landmarkCache, worldX, worldY int) world.Landmark {
 	if lc == nil {
-		return game.Landmark{}
+		return world.Landmark{}
 	}
-	sc := game.WorldToSuperChunk(worldX, worldY)
+	sc := geom.WorldToSuperChunk(worldX, worldY)
 	for _, l := range lc.LandmarksIn(sc) {
 		if l.Coord.X == worldX && l.Coord.Y == worldY {
 			return l
 		}
 	}
-	return game.Landmark{}
+	return world.Landmark{}
 }
 
 // snapshotOf builds a viewport Snapshot of viewW × viewH tiles centred
@@ -457,7 +462,7 @@ func landmarkAtTile(lc *landmarkCache, worldX, worldY int) game.Landmark {
 // configured; tiles will carry no landmark. Pass a nil vc when no
 // VolcanoSource is configured; tiles will carry their base terrain
 // unchanged.
-func snapshotOf(w *game.World, center game.Position, viewW, viewH int, region *pb.Region, lc *landmarkCache, vc *volcanoCache) *pb.Snapshot {
+func snapshotOf(w *world.World, center geom.Position, viewW, viewH int, region *pb.Region, lc *landmarkCache, vc *volcanoCache) *pb.Snapshot {
 	viewW, viewH = clampViewport(viewW, viewH)
 	halfW := viewW / 2
 	halfH := viewH / 2
@@ -466,7 +471,7 @@ func snapshotOf(w *game.World, center game.Position, viewW, viewH int, region *p
 	tiles := make([]*pb.Tile, 0, viewW*viewH)
 	for dy := range viewH {
 		for dx := range viewW {
-			p := game.Position{X: originX + dx, Y: originY + dy}
+			p := geom.Position{X: originX + dx, Y: originY + dy}
 			t, _ := w.TileAt(p)
 			lm := landmarkAtTile(lc, p.X, p.Y)
 			override, hasOverride := volcanoOverrideAtTile(vc, p)
@@ -476,7 +481,7 @@ func snapshotOf(w *game.World, center game.Position, viewW, viewH int, region *p
 	return &pb.Snapshot{
 		Width:       int32(viewW),
 		Height:      int32(viewH),
-		Origin:      positionPB(game.Position{X: originX, Y: originY}),
+		Origin:      positionPB(geom.Position{X: originX, Y: originY}),
 		Tiles:       tiles,
 		Entities:    entitiesOf(w),
 		Region:      region,
@@ -489,7 +494,7 @@ func snapshotOf(w *game.World, center game.Position, viewW, viewH int, region *p
 // volcano cache, or ("", false) when vc is nil (no volcano source
 // configured). Split into a named helper so snapshotOf stays readable
 // at a glance and the nil-source branch has one obvious home.
-func volcanoOverrideAtTile(vc *volcanoCache, p game.Position) (game.Terrain, bool) {
+func volcanoOverrideAtTile(vc *volcanoCache, p geom.Position) (world.Terrain, bool) {
 	if vc == nil {
 		return "", false
 	}
@@ -498,7 +503,7 @@ func volcanoOverrideAtTile(vc *volcanoCache, p game.Position) (game.Terrain, boo
 
 // entitiesOf returns one Entity per player currently in the world, sorted
 // by ID for stability (World.Players guarantees that).
-func entitiesOf(w *game.World) []*pb.Entity {
+func entitiesOf(w *world.World) []*pb.Entity {
 	players := w.Players()
 	out := make([]*pb.Entity, 0, len(players))
 	for _, p := range players {
@@ -526,7 +531,7 @@ func errorResponse(msg, code string) *pb.ServerMessage {
 // Calendar cadence. Clients use the seed to construct a local region
 // source for per-tile influence sampling and the CalendarConfig to
 // render in-game time locally.
-func acceptedResponse(playerID string, spawn game.Position, worldSeed int64, cal game.Calendar) *pb.ServerMessage {
+func acceptedResponse(playerID string, spawn geom.Position, worldSeed int64, cal calendar.Calendar) *pb.ServerMessage {
 	return &pb.ServerMessage{Payload: &pb.ServerMessage_Accepted{Accepted: &pb.JoinAccepted{
 		PlayerId:  playerID,
 		Spawn:     positionPB(spawn),

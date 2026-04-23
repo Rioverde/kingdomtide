@@ -1,8 +1,12 @@
-package game
+package world
 
 import (
 	"math/rand/v2"
 	"sort"
+
+	"github.com/Rioverde/gongeons/internal/game/calendar"
+	"github.com/Rioverde/gongeons/internal/game/entity"
+	"github.com/Rioverde/gongeons/internal/game/geom"
 )
 
 // TileSource is the read-only pluggable backend that tells a World what
@@ -18,17 +22,17 @@ type TileSource interface {
 // safe for concurrent use; callers (server) own the lock.
 type World struct {
 	source    TileSource
-	players   map[string]*Player
-	monsters  map[string]*Monster
-	positions map[string]Position
+	players   map[string]*entity.Player
+	monsters  map[string]*entity.Monster
+	positions map[string]geom.Position
 	// occupants shadows the TileSource with runtime player occupant info.
 	// TileAt merges it in on read so the TileSource stays read-only.
-	occupants map[Position]*Player
+	occupants map[geom.Position]*entity.Player
 	// monsterOccupants is the monster-side occupancy map. Kept disjoint
 	// from occupants (players) so the wire-level mapper can continue to
-	// switch on *game.Player for player glyphs; monster glyphs will
+	// switch on *entity.Player for player glyphs; monster glyphs will
 	// arrive via a dedicated mapping path when AI ships.
-	monsterOccupants map[Position]*Monster
+	monsterOccupants map[geom.Position]*entity.Monster
 	// seed is the world-level entropy shared with anchor geometry and the
 	// region source. Zero when unset; RegionAt tolerates that by returning a
 	// placeholder Region.
@@ -56,14 +60,14 @@ type World struct {
 	depositSource DepositSource
 	// currentTick is the monotonic tick counter — advances by exactly 1
 	// per Tick() call. Zero on a freshly constructed world. Calendar-
-	// derived GameTime reads from this counter through w.calendar.
+	// derived GameTime reads from this counter through w.cal.
 	currentTick int64
-	// calendar is the tick-to-GameTime derivation config. The zero value
-	// (ticksPerDay = 0) is a sentinel for "no calendar wired" — in that
-	// mode Tick() still increments currentTick but emits no calendar
+	// cal is the tick-to-GameTime derivation config. The zero value
+	// (TicksPerDay() == 0) is a sentinel for "no calendar wired" — in
+	// that mode Tick() still increments currentTick but emits no calendar
 	// boundary events and GameTime() returns the zero-value GameTime.
-	// Production paths go through WithCalendar(NewCalendar(...)).
-	calendar Calendar
+	// Production paths go through WithCalendar(calendar.NewCalendar(...)).
+	cal calendar.Calendar
 }
 
 // WorldOption configures optional fields on a World during construction.
@@ -138,10 +142,10 @@ func WithDepositSource(source DepositSource) WorldOption {
 // the same as "no calendar wired" — Tick() still advances the internal
 // counter but emits no boundary events and GameTime() returns the zero
 // value. Production code always supplies a valid Calendar via
-// NewCalendar; tests can skip the option to exercise the no-calendar
+// calendar.NewCalendar; tests can skip the option to exercise the no-calendar
 // path.
-func WithCalendar(cal Calendar) WorldOption {
-	return func(w *World) { w.calendar = cal }
+func WithCalendar(c calendar.Calendar) WorldOption {
+	return func(w *World) { w.cal = c }
 }
 
 // NewWorld constructs an infinite World around the given TileSource. Use
@@ -160,11 +164,11 @@ func NewWorld(source TileSource, opts ...WorldOption) *World {
 func NewWorldFromSource(source TileSource, opts ...WorldOption) *World {
 	w := &World{
 		source:           source,
-		players:          make(map[string]*Player),
-		monsters:         make(map[string]*Monster),
-		positions:        make(map[string]Position),
-		occupants:        make(map[Position]*Player),
-		monsterOccupants: make(map[Position]*Monster),
+		players:          make(map[string]*entity.Player),
+		monsters:         make(map[string]*entity.Monster),
+		positions:        make(map[string]geom.Position),
+		occupants:        make(map[geom.Position]*entity.Player),
+		monsterOccupants: make(map[geom.Position]*entity.Monster),
 	}
 	for _, opt := range opts {
 		opt(w)
@@ -237,8 +241,8 @@ func (w *World) CurrentTick() int64 {
 // calendar is wired — callers should check `cal.TicksPerDay() > 0`
 // before calling Derive on the result. The server uses this to
 // propagate CalendarConfig to clients via JoinAccepted.
-func (w *World) Calendar() Calendar {
-	return w.calendar
+func (w *World) Calendar() calendar.Calendar {
+	return w.cal
 }
 
 // GameTime returns the derived calendar position at the current tick.
@@ -246,15 +250,15 @@ func (w *World) Calendar() Calendar {
 // can treat "missing calendar" as "Year 0 Month 0" without a separate
 // nil check. Cheap (<20 ns); call freely on the hot path.
 //
-// Threading: reads w.currentTick and w.calendar. The calendar is
+// Threading: reads w.currentTick and w.cal. The calendar is
 // immutable after construction; currentTick is mutated only by Tick().
 // Callers that share the world with a concurrent Tick() caller must
 // hold the same mutex (the server path always holds s.mu).
-func (w *World) GameTime() GameTime {
-	if w.calendar.ticksPerDay == 0 {
-		return GameTime{}
+func (w *World) GameTime() calendar.GameTime {
+	if w.cal.TicksPerDay() == 0 {
+		return calendar.GameTime{}
 	}
-	return w.calendar.Derive(w.currentTick)
+	return w.cal.Derive(w.currentTick)
 }
 
 // RegionAt returns the region covering the given world position. It
@@ -264,8 +268,8 @@ func (w *World) GameTime() GameTime {
 // placeholder so callers need not special-case the nil source. Names
 // are emitted as structured Parts records; the client composes
 // localized display text using its own Markov corpora and catalogs.
-func (w *World) RegionAt(p Position) Region {
-	anchor, sc := AnchorAt(w.seed, p.X, p.Y)
+func (w *World) RegionAt(p geom.Position) Region {
+	anchor, sc := geom.AnchorAt(w.seed, p.X, p.Y)
 	if w.regionSource == nil {
 		return Region{Coord: sc, Anchor: anchor, Character: RegionNormal}
 	}
@@ -279,7 +283,7 @@ func (w *World) RegionAt(p Position) Region {
 // a separate branch for the missing-source case. Each landmark's
 // structured Name is language-agnostic; the client composes the final
 // display string.
-func (w *World) LandmarksIn(sc SuperChunkCoord) []Landmark {
+func (w *World) LandmarksIn(sc geom.SuperChunkCoord) []Landmark {
 	if w.landmarkSource == nil {
 		return nil
 	}
@@ -291,7 +295,7 @@ func (w *World) LandmarksIn(sc SuperChunkCoord) []Landmark {
 // when no VolcanoSource is wired — the server's per-sc cache can treat
 // a nil result the same as "no volcanoes here" without a separate
 // branch for the missing-source case.
-func (w *World) VolcanoAt(sc SuperChunkCoord) []Volcano {
+func (w *World) VolcanoAt(sc geom.SuperChunkCoord) []Volcano {
 	if w.volcanoSource == nil {
 		return nil
 	}
@@ -304,7 +308,7 @@ func (w *World) VolcanoAt(sc SuperChunkCoord) []Volcano {
 // override on top of the base TileSource so a volcano's core, slope, or
 // ashland ring shows the correct terrain without mutating the tile
 // backend.
-func (w *World) VolcanoTerrainOverride(t Position) (Terrain, bool) {
+func (w *World) VolcanoTerrainOverride(t geom.Position) (Terrain, bool) {
 	if w.volcanoSource == nil {
 		return "", false
 	}
@@ -315,7 +319,7 @@ func (w *World) VolcanoTerrainOverride(t Position) (Terrain, bool) {
 // (Deposit{}, false) when no deposit sits on p or no DepositSource is
 // wired. Called by the future prospect action, quest generation, and
 // tests that need a deterministic lookup.
-func (w *World) DepositAt(p Position) (Deposit, bool) {
+func (w *World) DepositAt(p geom.Position) (Deposit, bool) {
 	if w.depositSource == nil {
 		return Deposit{}, false
 	}
@@ -325,7 +329,7 @@ func (w *World) DepositAt(p Position) (Deposit, bool) {
 // DepositsIn returns every deposit whose Position lies inside rect.
 // Returns nil when no DepositSource is wired. Used by Phase-5a city
 // placement to seed the candidate pool with resource-anchor tiles.
-func (w *World) DepositsIn(rect Rect) []Deposit {
+func (w *World) DepositsIn(rect geom.Rect) []Deposit {
 	if w.depositSource == nil {
 		return nil
 	}
@@ -336,7 +340,7 @@ func (w *World) DepositsIn(rect Rect) []Deposit {
 // sorted by distance ascending. Returns nil when no DepositSource is
 // wired. Used by the future contextual info-panel when the player
 // approaches a feature.
-func (w *World) DepositsNear(p Position, radius int) []Deposit {
+func (w *World) DepositsNear(p geom.Position, radius int) []Deposit {
 	if w.depositSource == nil {
 		return nil
 	}
@@ -347,7 +351,7 @@ func (w *World) DepositsNear(p Position, radius int) []Deposit {
 // infinite world this is always true; the method stays on the API so
 // callers are prepared to treat it as a real check when (if) we introduce
 // hard world limits.
-func (w *World) InBounds(p Position) bool {
+func (w *World) InBounds(p geom.Position) bool {
 	_ = p
 	return true
 }
@@ -355,7 +359,7 @@ func (w *World) InBounds(p Position) bool {
 // TileAt returns the tile at p with any runtime occupant merged in. The
 // second return is always true in an infinite world — kept for API
 // compatibility with the previous fixed-grid variant.
-func (w *World) TileAt(p Position) (Tile, bool) {
+func (w *World) TileAt(p geom.Position) (Tile, bool) {
 	t := w.source.TileAt(p.X, p.Y)
 	if occ, ok := w.occupants[p]; ok {
 		t.Occupant = occ
@@ -365,14 +369,14 @@ func (w *World) TileAt(p Position) (Tile, bool) {
 
 // PlayerByID returns the player with the given id. The second return is
 // false when no such player is registered.
-func (w *World) PlayerByID(id string) (*Player, bool) {
+func (w *World) PlayerByID(id string) (*entity.Player, bool) {
 	p, ok := w.players[id]
 	return p, ok
 }
 
 // PositionOf returns the position of the player with the given id. The
 // second return is false when no such player is registered.
-func (w *World) PositionOf(id string) (Position, bool) {
+func (w *World) PositionOf(id string) (geom.Position, bool) {
 	p, ok := w.positions[id]
 	return p, ok
 }
@@ -380,13 +384,13 @@ func (w *World) PositionOf(id string) (Position, bool) {
 // Players returns a snapshot of active players sorted by ID for deterministic
 // iteration. The returned slice is a defensive copy: mutating it does not
 // affect the world's internal registry.
-func (w *World) Players() []*Player {
+func (w *World) Players() []*entity.Player {
 	ids := make([]string, 0, len(w.players))
 	for id := range w.players {
 		ids = append(ids, id)
 	}
 	sort.Strings(ids)
-	out := make([]*Player, 0, len(ids))
+	out := make([]*entity.Player, 0, len(ids))
 	for _, id := range ids {
 		out = append(out, w.players[id])
 	}
@@ -396,7 +400,7 @@ func (w *World) Players() []*Player {
 // Monsters returns the world's monster map. The returned map is the live
 // internal registry — callers must not mutate it directly. Exposed for
 // snapshot and tick consumers that hold the server mutex while reading.
-func (w *World) Monsters() map[string]*Monster {
+func (w *World) Monsters() map[string]*entity.Monster {
 	return w.monsters
 }
 
@@ -408,12 +412,12 @@ func (w *World) Monsters() map[string]*Monster {
 // observes the tile as occupied. This remains an admin/fixture entry
 // point; geometric legality (passable terrain, no player present) is
 // the caller's responsibility at admin-insert time.
-func (w *World) AddMonster(m *Monster) {
+func (w *World) AddMonster(m *entity.Monster) {
 	if w.monsters == nil {
-		w.monsters = make(map[string]*Monster)
+		w.monsters = make(map[string]*entity.Monster)
 	}
 	if w.monsterOccupants == nil {
-		w.monsterOccupants = make(map[Position]*Monster)
+		w.monsterOccupants = make(map[geom.Position]*entity.Monster)
 	}
 	if prev, ok := w.monsters[m.ID]; ok {
 		// Clear the previous occupancy slot only if the stored map entry
@@ -438,29 +442,4 @@ func (w *World) RemoveMonster(id string) {
 		delete(w.monsterOccupants, m.Position)
 	}
 	delete(w.monsters, id)
-}
-
-// Passable reports whether an entity can stand on a tile of this terrain.
-// Water and high peaks block movement; the empty string and unknown values
-// are treated as impassable so buggy map data fails closed rather than open.
-func (t Terrain) Passable() bool {
-	switch t {
-	case TerrainPlains,
-		TerrainGrassland,
-		TerrainMeadow,
-		TerrainBeach,
-		TerrainSavanna,
-		TerrainDesert,
-		TerrainSnow,
-		TerrainTundra,
-		TerrainTaiga,
-		TerrainForest,
-		TerrainJungle,
-		TerrainHills,
-		TerrainVolcanoSlope,
-		TerrainAshland:
-		return true
-	default:
-		return false
-	}
 }

@@ -4,12 +4,13 @@ import (
 	"math/rand/v2"
 	"testing"
 
-	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/geom"
+	"github.com/Rioverde/gongeons/internal/game/world"
 )
 
 // zoneSet returns a position set for fast contains checks.
-func zoneSet(ps []game.Position) map[game.Position]struct{} {
-	m := make(map[game.Position]struct{}, len(ps))
+func zoneSet(ps []geom.Position) map[geom.Position]struct{} {
+	m := make(map[geom.Position]struct{}, len(ps))
 	for _, p := range ps {
 		m[p] = struct{}{}
 	}
@@ -19,19 +20,19 @@ func zoneSet(ps []game.Position) map[game.Position]struct{} {
 // fourConnected reports whether every tile in ps is reachable from ps[0]
 // via 4-connected orthogonal steps that stay inside ps. A zone with zero
 // or one tile is trivially connected.
-func fourConnected(ps []game.Position) bool {
+func fourConnected(ps []geom.Position) bool {
 	if len(ps) < 2 {
 		return true
 	}
 	set := zoneSet(ps)
-	visited := make(map[game.Position]struct{}, len(ps))
-	stack := []game.Position{ps[0]}
+	visited := make(map[geom.Position]struct{}, len(ps))
+	stack := []geom.Position{ps[0]}
 	visited[ps[0]] = struct{}{}
 	for len(stack) > 0 {
 		cur := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
 		for _, off := range footprintNeighbourOffsets {
-			n := game.Position{X: cur.X + off[0], Y: cur.Y + off[1]}
+			n := geom.Position{X: cur.X + off[0], Y: cur.Y + off[1]}
 			if _, inZone := set[n]; !inZone {
 				continue
 			}
@@ -51,14 +52,14 @@ func TestGrowFootprint_ZoneSizes(t *testing.T) {
 	}
 	const seed int64 = 2024
 	wg := NewWorldGenerator(seed)
-	states := []game.VolcanoState{game.VolcanoActive, game.VolcanoDormant, game.VolcanoExtinct}
+	states := []world.VolcanoState{world.VolcanoActive, world.VolcanoDormant, world.VolcanoExtinct}
 
 	// 100 anchor × state trials, with anchors drawn from a PRNG keyed on
 	// the test so reruns exercise the same distribution.
 	rng := rand.New(rand.NewPCG(uint64(seed), 0x1234))
 	for i := 0; i < 100; i++ {
 		state := states[rng.IntN(len(states))]
-		anchor := game.Position{X: rng.IntN(8192) - 4096, Y: rng.IntN(8192) - 4096}
+		anchor := geom.Position{X: rng.IntN(8192) - 4096, Y: rng.IntN(8192) - 4096}
 		core, slope, ashland := growFootprint(anchor, state, seed, wg, nil)
 
 		sizes := tierSizes[state]
@@ -86,7 +87,7 @@ func TestGrowFootprint_4Connectivity(t *testing.T) {
 	}
 	const seed int64 = 31337
 	wg := NewWorldGenerator(seed)
-	states := []game.VolcanoState{game.VolcanoActive, game.VolcanoDormant, game.VolcanoExtinct}
+	states := []world.VolcanoState{world.VolcanoActive, world.VolcanoDormant, world.VolcanoExtinct}
 
 	// Ring-shape refactor: slope and ashland radiate outward from EVERY
 	// tile of the prior zone in parallel, not from one seed. That means
@@ -98,19 +99,19 @@ func TestGrowFootprint_4Connectivity(t *testing.T) {
 	rng := rand.New(rand.NewPCG(uint64(seed), 0xbeef))
 	for i := 0; i < 80; i++ {
 		state := states[rng.IntN(len(states))]
-		anchor := game.Position{X: rng.IntN(4096) - 2048, Y: rng.IntN(4096) - 2048}
+		anchor := geom.Position{X: rng.IntN(4096) - 2048, Y: rng.IntN(4096) - 2048}
 		core, slope, ashland := growFootprint(anchor, state, seed, wg, nil)
 
 		if !fourConnected(core) {
 			t.Errorf("state=%s anchor=%+v core not 4-connected: %+v", state, anchor, core)
 		}
-		coreSlope := append(append([]game.Position{}, core...), slope...)
+		coreSlope := append(append([]geom.Position{}, core...), slope...)
 		if !fourConnected(coreSlope) {
 			t.Errorf("state=%s anchor=%+v core∪slope not 4-connected: core=%+v slope=%+v",
 				state, anchor, core, slope)
 		}
 		if len(ashland) > 0 {
-			all := append(append(append([]game.Position{}, core...), slope...), ashland...)
+			all := append(append(append([]geom.Position{}, core...), slope...), ashland...)
 			if !fourConnected(all) {
 				t.Errorf("state=%s anchor=%+v core∪slope∪ashland not 4-connected: core=%+v slope=%+v ashland=%+v",
 					state, anchor, core, slope, ashland)
@@ -123,8 +124,8 @@ func TestGrowFootprint_ExtinctNoAshland(t *testing.T) {
 	const seed int64 = 777
 	wg := NewWorldGenerator(seed)
 	for i := 0; i < 20; i++ {
-		anchor := game.Position{X: i * 500, Y: i * 700}
-		_, _, ashland := growFootprint(anchor, game.VolcanoExtinct, seed, wg, nil)
+		anchor := geom.Position{X: i * 500, Y: i * 700}
+		_, _, ashland := growFootprint(anchor, world.VolcanoExtinct, seed, wg, nil)
 		if len(ashland) != 0 {
 			t.Errorf("Extinct anchor=%+v yielded %d ashland tiles", anchor, len(ashland))
 		}
@@ -147,7 +148,7 @@ func TestGrowFootprint_AshlandNotOnWater(t *testing.T) {
 	trials := 0
 	for x := -16; x < 16; x++ {
 		for y := -16; y < 16; y++ {
-			sc := game.SuperChunkCoord{X: x, Y: y}
+			sc := geom.SuperChunkCoord{X: x, Y: y}
 			regions := NewNoiseRegionSource(seed)
 			lm := NewNoiseLandmarkSource(seed, regions, wg)
 			src := NewNoiseVolcanoSource(seed, wg, lm)
@@ -169,14 +170,14 @@ func TestGrowFootprint_AshlandNotOnWater(t *testing.T) {
 func TestGrowFootprint_NoLandmarkOverwrite(t *testing.T) {
 	const seed int64 = 8080
 	wg := NewWorldGenerator(seed)
-	anchor := game.Position{X: 100, Y: 100}
+	anchor := geom.Position{X: 100, Y: 100}
 	// Place a synthetic landmark next to the anchor so the growth
 	// walk must route around it.
-	landmark := game.Landmark{Coord: game.Position{X: 101, Y: 100}}
-	landmarks := []game.Landmark{landmark}
+	landmark := world.Landmark{Coord: geom.Position{X: 101, Y: 100}}
+	landmarks := []world.Landmark{landmark}
 
-	core, slope, ashland := growFootprint(anchor, game.VolcanoActive, seed, wg, landmarks)
-	check := func(zone []game.Position, label string) {
+	core, slope, ashland := growFootprint(anchor, world.VolcanoActive, seed, wg, landmarks)
+	check := func(zone []geom.Position, label string) {
 		for _, p := range zone {
 			if p.Equal(landmark.Coord) {
 				t.Errorf("%s tile collides with landmark at %+v", label, landmark.Coord)
@@ -191,10 +192,10 @@ func TestGrowFootprint_NoLandmarkOverwrite(t *testing.T) {
 func TestGrowFootprint_CoreContainsAnchor(t *testing.T) {
 	const seed int64 = 99
 	wg := NewWorldGenerator(seed)
-	states := []game.VolcanoState{game.VolcanoActive, game.VolcanoDormant, game.VolcanoExtinct}
+	states := []world.VolcanoState{world.VolcanoActive, world.VolcanoDormant, world.VolcanoExtinct}
 	for i := 0; i < 30; i++ {
 		for _, st := range states {
-			anchor := game.Position{X: i * 123, Y: i * 456}
+			anchor := geom.Position{X: i * 123, Y: i * 456}
 			core, _, _ := growFootprint(anchor, st, seed, wg, nil)
 			found := false
 			for _, p := range core {
@@ -216,10 +217,10 @@ func TestGrowFootprint_SortedStable(t *testing.T) {
 	}
 	const seed int64 = 54321
 	wg := NewWorldGenerator(seed)
-	anchor := game.Position{X: 77, Y: 88}
-	core, slope, ashland := growFootprint(anchor, game.VolcanoActive, seed, wg, nil)
+	anchor := geom.Position{X: 77, Y: 88}
+	core, slope, ashland := growFootprint(anchor, world.VolcanoActive, seed, wg, nil)
 
-	isSorted := func(ps []game.Position) bool {
+	isSorted := func(ps []geom.Position) bool {
 		for i := 1; i < len(ps); i++ {
 			if ps[i-1].X > ps[i].X {
 				return false
@@ -247,14 +248,14 @@ func TestGrowFootprint_ZonesDisjoint(t *testing.T) {
 	}
 	const seed int64 = 4242
 	wg := NewWorldGenerator(seed)
-	states := []game.VolcanoState{game.VolcanoActive, game.VolcanoDormant, game.VolcanoExtinct}
+	states := []world.VolcanoState{world.VolcanoActive, world.VolcanoDormant, world.VolcanoExtinct}
 
 	for i := 0; i < 40; i++ {
 		for _, st := range states {
-			anchor := game.Position{X: i * 71, Y: i * 97}
+			anchor := geom.Position{X: i * 71, Y: i * 97}
 			core, slope, ashland := growFootprint(anchor, st, seed, wg, nil)
-			all := make(map[game.Position]string)
-			reg := func(ps []game.Position, label string) {
+			all := make(map[geom.Position]string)
+			reg := func(ps []geom.Position, label string) {
 				for _, p := range ps {
 					if prev, dup := all[p]; dup {
 						t.Errorf("state=%s anchor=%+v tile %+v appears in both %s and %s",
@@ -272,19 +273,19 @@ func TestGrowFootprint_ZonesDisjoint(t *testing.T) {
 
 func TestTerrainForZone(t *testing.T) {
 	cases := []struct {
-		zone  game.VolcanoZone
-		state game.VolcanoState
-		want  game.Terrain
+		zone  world.VolcanoZone
+		state world.VolcanoState
+		want  world.Terrain
 	}{
-		{game.VolcanoZoneCore, game.VolcanoActive, game.TerrainVolcanoCore},
-		{game.VolcanoZoneCore, game.VolcanoDormant, game.TerrainVolcanoCoreDormant},
-		{game.VolcanoZoneCore, game.VolcanoExtinct, game.TerrainCraterLake},
-		{game.VolcanoZoneSlope, game.VolcanoActive, game.TerrainVolcanoSlope},
-		{game.VolcanoZoneSlope, game.VolcanoDormant, game.TerrainVolcanoSlope},
-		{game.VolcanoZoneSlope, game.VolcanoExtinct, game.TerrainVolcanoSlope},
-		{game.VolcanoZoneAshland, game.VolcanoActive, game.TerrainAshland},
-		{game.VolcanoZoneAshland, game.VolcanoDormant, game.TerrainAshland},
-		{game.VolcanoZoneNone, game.VolcanoActive, ""},
+		{world.VolcanoZoneCore, world.VolcanoActive, world.TerrainVolcanoCore},
+		{world.VolcanoZoneCore, world.VolcanoDormant, world.TerrainVolcanoCoreDormant},
+		{world.VolcanoZoneCore, world.VolcanoExtinct, world.TerrainCraterLake},
+		{world.VolcanoZoneSlope, world.VolcanoActive, world.TerrainVolcanoSlope},
+		{world.VolcanoZoneSlope, world.VolcanoDormant, world.TerrainVolcanoSlope},
+		{world.VolcanoZoneSlope, world.VolcanoExtinct, world.TerrainVolcanoSlope},
+		{world.VolcanoZoneAshland, world.VolcanoActive, world.TerrainAshland},
+		{world.VolcanoZoneAshland, world.VolcanoDormant, world.TerrainAshland},
+		{world.VolcanoZoneNone, world.VolcanoActive, ""},
 	}
 	for _, c := range cases {
 		got := terrainForZone(c.zone, c.state)

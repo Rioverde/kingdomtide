@@ -3,8 +3,8 @@ package worldgen
 import (
 	"math/rand/v2"
 	"sort"
-
-	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/geom"
+	"github.com/Rioverde/gongeons/internal/game/world"
 )
 
 // pointKinds enumerates every deposit kind placed via Poisson-disk.
@@ -12,13 +12,13 @@ import (
 // iterating common-first (Iron, Stone) and rare-last (Gold, Silver, Gems)
 // keeps the output slice easy to reason about when tracing a specific
 // seed's output by eye.
-var pointKinds = []game.DepositKind{
-	game.DepositIron,
-	game.DepositStone,
-	game.DepositSalt,
-	game.DepositGold,
-	game.DepositSilver,
-	game.DepositGems,
+var pointKinds = []world.DepositKind{
+	world.DepositIron,
+	world.DepositStone,
+	world.DepositSalt,
+	world.DepositGold,
+	world.DepositSilver,
+	world.DepositGems,
 }
 
 // pointSubSalts carries the per-kind 64-bit salt XOR-ed into the world
@@ -28,13 +28,13 @@ var pointKinds = []game.DepositKind{
 // region_source, landmarks, volcanoes_placement, resources_zonal,
 // resources_structural). Routed through regionToInt64 because the top
 // bit is set — Go rejects those as untyped signed literals.
-var pointSubSalts = map[game.DepositKind]int64{
-	game.DepositIron:   regionToInt64(0x4e2a9b3f7d15c80a),
-	game.DepositStone:  regionToInt64(0x5f3b8c4e2a1d9b0c),
-	game.DepositSalt:   regionToInt64(0x6a4c9d5f3b2e1a0d),
-	game.DepositGold:   regionToInt64(0x7b5d2a6c4f3e1b0e),
-	game.DepositSilver: regionToInt64(0x8c6e3b7d5a4f2c0f),
-	game.DepositGems:   regionToInt64(0x9d7f4c8e6b5a3d10),
+var pointSubSalts = map[world.DepositKind]int64{
+	world.DepositIron:   regionToInt64(0x4e2a9b3f7d15c80a),
+	world.DepositStone:  regionToInt64(0x5f3b8c4e2a1d9b0c),
+	world.DepositSalt:   regionToInt64(0x6a4c9d5f3b2e1a0d),
+	world.DepositGold:   regionToInt64(0x7b5d2a6c4f3e1b0e),
+	world.DepositSilver: regionToInt64(0x8c6e3b7d5a4f2c0f),
+	world.DepositGems:   regionToInt64(0x9d7f4c8e6b5a3d10),
 }
 
 // seedSaltDepositPoisson is the top-level salt for the point-like family.
@@ -48,13 +48,13 @@ var seedSaltDepositPoisson = regionToInt64(0xaf6c3e9d1b5a7f28)
 // (Gems 600). At the 256-tile super-region side, these produce roughly
 // 40 Stone candidates but often 0 Gems per SR — matching the plan's
 // "rare-and-sometimes-absent" semantics.
-var pointMinDistance = map[game.DepositKind]int{
-	game.DepositStone:  40,
-	game.DepositIron:   80,
-	game.DepositSalt:   100,
-	game.DepositSilver: 200,
-	game.DepositGold:   400,
-	game.DepositGems:   600,
+var pointMinDistance = map[world.DepositKind]int{
+	world.DepositStone:  40,
+	world.DepositIron:   80,
+	world.DepositSalt:   100,
+	world.DepositSilver: 200,
+	world.DepositGold:   400,
+	world.DepositGems:   600,
 }
 
 // pointPoissonK is Bridson's candidate count per attempt. 30 is the
@@ -65,13 +65,13 @@ const pointPoissonK = 30
 // CurrentAmount equals MaxAmount on every placed deposit in the static-
 // placement phase; later depletion work reads these ceilings as the
 // respawn target.
-var pointMaxAmount = map[game.DepositKind]int32{
-	game.DepositStone:  1000,
-	game.DepositIron:   600,
-	game.DepositSalt:   400,
-	game.DepositSilver: 100,
-	game.DepositGold:   50,
-	game.DepositGems:   30,
+var pointMaxAmount = map[world.DepositKind]int32{
+	world.DepositStone:  1000,
+	world.DepositIron:   600,
+	world.DepositSalt:   400,
+	world.DepositSilver: 100,
+	world.DepositGold:   50,
+	world.DepositGems:   30,
 }
 
 // pointBiomeAccepts reports whether kind can spawn on ter. Mountain-tier
@@ -80,20 +80,20 @@ var pointMaxAmount = map[game.DepositKind]int32{
 // Gold narrows to Mountain only because gold is historically mined on
 // accessible slopes, not glaciated crests. Salt covers Desert and Beach
 // (marsh has no project equivalent — see CLAUDE.md adaptation note).
-func pointBiomeAccepts(kind game.DepositKind, ter game.Terrain) bool {
+func pointBiomeAccepts(kind world.DepositKind, ter world.Terrain) bool {
 	switch kind {
-	case game.DepositIron, game.DepositStone, game.DepositSilver, game.DepositGems:
+	case world.DepositIron, world.DepositStone, world.DepositSilver, world.DepositGems:
 		switch ter {
-		case game.TerrainMountain, game.TerrainSnowyPeak, game.TerrainHills:
+		case world.TerrainMountain, world.TerrainSnowyPeak, world.TerrainHills:
 			return true
 		}
-	case game.DepositGold:
-		if ter == game.TerrainMountain {
+	case world.DepositGold:
+		if ter == world.TerrainMountain {
 			return true
 		}
-	case game.DepositSalt:
+	case world.DepositSalt:
 		switch ter {
-		case game.TerrainDesert, game.TerrainBeach:
+		case world.TerrainDesert, world.TerrainBeach:
 			return true
 		}
 	}
@@ -117,15 +117,15 @@ func pointBiomeAccepts(kind game.DepositKind, ter game.Terrain) bool {
 // rather than iterating the 3x3 SC neighbourhood's volcano list and
 // scanning each volcano's CoreTiles/SlopeTiles/AshlandTiles — the source
 // already maintains that index internally and exposes the cheap path.
-func tileBlocked(p game.Position, wg *WorldGenerator, lm game.LandmarkSource, vs game.VolcanoSource) bool {
+func tileBlocked(p geom.Position, wg *WorldGenerator, lm world.LandmarkSource, vs world.VolcanoSource) bool {
 	if isWaterOrRiverTile(wg.TileAt(p.X, p.Y)) {
 		return true
 	}
 	if lm != nil {
-		home := game.WorldToSuperChunk(p.X, p.Y)
+		home := geom.WorldToSuperChunk(p.X, p.Y)
 		for dy := -1; dy <= 1; dy++ {
 			for dx := -1; dx <= 1; dx++ {
-				sc := game.SuperChunkCoord{X: home.X + dx, Y: home.Y + dy}
+				sc := geom.SuperChunkCoord{X: home.X + dx, Y: home.Y + dy}
 				for _, l := range lm.LandmarksIn(sc) {
 					if l.Coord.Equal(p) {
 						return true
@@ -153,13 +153,13 @@ func pointDepositsInRegion(
 	seed int64,
 	sr superRegion,
 	wg *WorldGenerator,
-	lm game.LandmarkSource,
-	vs game.VolcanoSource,
-) []game.Deposit {
+	lm world.LandmarkSource,
+	vs world.VolcanoSource,
+) []world.Deposit {
 	side := volcanoSuperRegionSideTiles
 	minX := sr.X * side
 	minY := sr.Y * side
-	out := make([]game.Deposit, 0, 64)
+	out := make([]world.Deposit, 0, 64)
 	for _, kind := range pointKinds {
 		lo := uint64(seed ^ seedSaltDepositPoisson ^ pointSubSalts[kind])
 		hi := hashSR(sr) ^ uint64(pointSubSalts[kind])
@@ -172,7 +172,7 @@ func pointDepositsInRegion(
 			if tileBlocked(p, wg, lm, vs) {
 				continue
 			}
-			out = append(out, game.Deposit{
+			out = append(out, world.Deposit{
 				Position:      p,
 				Kind:          kind,
 				MaxAmount:     pointMaxAmount[kind],
@@ -190,7 +190,7 @@ func pointDepositsInRegion(
 // DepositsIn applies inside each super-region, so downstream iteration
 // stays stable across calls and across independent sources with the
 // same seed.
-func sortPointDeposits(ds []game.Deposit) {
+func sortPointDeposits(ds []world.Deposit) {
 	sort.Slice(ds, func(i, j int) bool {
 		if ds[i].Kind != ds[j].Kind {
 			return ds[i].Kind < ds[j].Kind

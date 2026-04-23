@@ -126,11 +126,11 @@ const (
 	KeyCreationStatWisdom       = "creation.stat.wisdom"
 	KeyCreationStatCharisma     = "creation.stat.charisma"
 
-	KeyCreationCost         = "creation.cost"
-	KeyCreationHintAdjust   = "creation.hint.adjust"
-	KeyCreationHintConfirm  = "creation.hint.confirm"
-	KeyCreationErrorBudget  = "creation.error.budget"
-	KeyCreationErrorRange   = "creation.error.range"
+	KeyCreationCost        = "creation.cost"
+	KeyCreationHintAdjust  = "creation.hint.adjust"
+	KeyCreationHintConfirm = "creation.hint.confirm"
+	KeyCreationErrorBudget = "creation.error.budget"
+	KeyCreationErrorRange  = "creation.error.range"
 )
 
 // Event log message keys.
@@ -142,7 +142,7 @@ const (
 
 // Calendar catalog keys. KeyCalendarDateTemplate is the top-bar date line
 // template; the remaining constants identify month and season labels by
-// their domain-side lowercase key (game.Month.Key / game.Season.Key). Use
+// their domain-side lowercase key (calendar.Month.Key / calendar.Season.Key). Use
 // CalendarMonthKey / CalendarSeasonKey to look up the full catalog key for
 // a given month or season value so call sites don't maintain 12 + 4
 // hand-written string constants.
@@ -169,7 +169,7 @@ const (
 )
 
 // CalendarMonthKey returns the catalog key for a lowercase month name
-// (e.g. "october") produced by game.Month.Key. An empty input returns the
+// (e.g. "october") produced by calendar.Month.Key. An empty input returns the
 // empty string — the caller is expected to short-circuit rendering when
 // the Month is unset.
 func CalendarMonthKey(monthKey string) string {
@@ -180,7 +180,7 @@ func CalendarMonthKey(monthKey string) string {
 }
 
 // CalendarSeasonKey returns the catalog key for a lowercase season name
-// (e.g. "winter") produced by game.Season.Key. Empty input returns the
+// (e.g. "winter") produced by calendar.Season.Key. Empty input returns the
 // empty string for symmetry with CalendarMonthKey.
 func CalendarSeasonKey(seasonKey string) string {
 	if seasonKey == "" {

@@ -1,6 +1,9 @@
-package game
+package world
 
-import "github.com/Rioverde/gongeons/internal/game/naming/parts"
+import (
+	"github.com/Rioverde/gongeons/internal/game/geom"
+	"github.com/Rioverde/gongeons/internal/game/naming/parts"
+)
 
 // RegionCharacter is the dominant thematic identity of a super-chunk region.
 // It is derived at read time from a RegionInfluence vector via Dominant; a
@@ -152,8 +155,8 @@ func (r RegionInfluence) Max() float32 {
 // locale keys under "region.name.*" and "region.prefix.*" and an
 // embedded Markov corpus keyed on Name.BodySeed.
 type Region struct {
-	Coord     SuperChunkCoord
-	Anchor    Position
+	Coord     geom.SuperChunkCoord
+	Anchor    geom.Position
 	Influence RegionInfluence
 	Character RegionCharacter
 	Name      parts.Parts
@@ -170,5 +173,5 @@ type Region struct {
 // be deterministic (same sc yields the same Region every call) and
 // safe for concurrent read.
 type RegionSource interface {
-	RegionAt(sc SuperChunkCoord) Region
+	RegionAt(sc geom.SuperChunkCoord) Region
 }

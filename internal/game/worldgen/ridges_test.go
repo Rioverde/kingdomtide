@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/world"
 )
 
 // TestRidgeScaleJitterDeterministic pins the contract that two WorldGenerators built from
@@ -410,7 +410,7 @@ func TestRidgeDoesNotBreakBiomeReachability(t *testing.T) {
 	const side = 256
 	const half = side / 2
 
-	hist := make(map[game.Terrain]int)
+	hist := make(map[world.Terrain]int)
 	for s := int64(1); s <= seeds; s++ {
 		g := NewWorldGenerator(s)
 		for y := -half; y < half; y++ {
@@ -420,7 +420,7 @@ func TestRidgeDoesNotBreakBiomeReachability(t *testing.T) {
 		}
 	}
 
-	for _, terrain := range game.AllTerrains() {
+	for _, terrain := range world.AllTerrains() {
 		if isVolcanicTerrain(terrain) {
 			continue
 		}

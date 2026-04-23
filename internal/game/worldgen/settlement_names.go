@@ -1,8 +1,9 @@
 package worldgen
 
 import (
-	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/geom"
 	"github.com/Rioverde/gongeons/internal/game/naming"
+	"github.com/Rioverde/gongeons/internal/game/world"
 )
 
 // SettlementKind enumerates settlement types at the naming level. The
@@ -137,9 +138,9 @@ func SettlementBounds() naming.Bounds {
 func SettlementName(
 	culture Culture,
 	kind SettlementKind,
-	character game.RegionCharacter,
+	character world.RegionCharacter,
 	seed int64,
-	coord game.Position,
+	coord geom.Position,
 ) naming.Parts {
 	return naming.Generate(
 		naming.Input{

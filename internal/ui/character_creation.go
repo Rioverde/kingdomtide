@@ -6,7 +6,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/stats"
 	"github.com/Rioverde/gongeons/internal/ui/locale"
 )
 
@@ -125,7 +125,7 @@ func (m *Model) renderStatRow(i int) string {
 	label := locale.Tr(m.lang, creationStatKeys[i])
 	value := m.stats[i]
 	cost := locale.Tr(m.lang, locale.KeyCreationCost,
-		locale.ArgCost, game.PointBuyCost(value))
+		locale.ArgCost, stats.PointBuyCost(value))
 
 	// Fixed column layout: "<label> [<val>] <cost>". strconv would be
 	// marginally faster than fmt.Sprintf here but this path is not hot

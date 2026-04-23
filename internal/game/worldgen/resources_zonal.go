@@ -1,6 +1,10 @@
 package worldgen
 
-import "github.com/Rioverde/gongeons/internal/game"
+import (
+	"github.com/Rioverde/gongeons/internal/game/geom"
+	"github.com/Rioverde/gongeons/internal/game/world"
+	"github.com/Rioverde/gongeons/internal/game/worldgen/noise"
+)
 
 // zonalKinds enumerates every deposit kind placed via the zonal Perlin
 // strategy. Declaration order defines the iteration order inside
@@ -9,10 +13,10 @@ import "github.com/Rioverde/gongeons/internal/game"
 // the tile passes. Fertile, Timber, Game is the plan's canonical order
 // and matches the "one deposit per tile" tiebreak documented on
 // zonalDepositAt.
-var zonalKinds = []game.DepositKind{
-	game.DepositFertile,
-	game.DepositTimber,
-	game.DepositGame,
+var zonalKinds = []world.DepositKind{
+	world.DepositFertile,
+	world.DepositTimber,
+	world.DepositGame,
 }
 
 // zonalSubSalts carries the per-kind 64-bit salt XOR-ed into the world
@@ -22,10 +26,10 @@ var zonalKinds = []game.DepositKind{
 // through regionToInt64 because the top bit is set — Go rejects signed
 // literals with the top bit set, so the conversion preserves the full
 // 64-bit pattern at runtime.
-var zonalSubSalts = map[game.DepositKind]int64{
-	game.DepositFertile: regionToInt64(0x1a7f15c9e3779b0d),
-	game.DepositTimber:  regionToInt64(0x2b3e8f27a6c14d5e),
-	game.DepositGame:    regionToInt64(0x3c5d2f59e4a8b2af),
+var zonalSubSalts = map[world.DepositKind]int64{
+	world.DepositFertile: regionToInt64(0x1a7f15c9e3779b0d),
+	world.DepositTimber:  regionToInt64(0x2b3e8f27a6c14d5e),
+	world.DepositGame:    regionToInt64(0x3c5d2f59e4a8b2af),
 }
 
 // zonalPerlinScale multiplies world-space coords before feeding into
@@ -41,7 +45,7 @@ const zonalPerlinScale = 0.02
 // the dominant low-frequency shape. Scale=1 because the caller
 // pre-scales world coords via zonalPerlinScale — the noise library
 // cannot use a scale < 1 directly, so the outer scaler does the work.
-var zonalNoiseOpts = OctaveOpts{
+var zonalNoiseOpts = noise.OctaveOpts{
 	Octaves:     3,
 	Persistence: 0.5,
 	Lacunarity:  2.0,
@@ -62,20 +66,20 @@ var zonalNoiseOpts = OctaveOpts{
 //	Fertile ~35% of plains/grassland family (threshold 0.557)
 //	Timber  ~40% of forest family          (threshold 0.540)
 //	Game    ~38% of forest + grassland     (threshold 0.547)
-var zonalThresholds = map[game.DepositKind]float64{
-	game.DepositFertile: 0.557,
-	game.DepositTimber:  0.540,
-	game.DepositGame:    0.547,
+var zonalThresholds = map[world.DepositKind]float64{
+	world.DepositFertile: 0.557,
+	world.DepositTimber:  0.540,
+	world.DepositGame:    0.547,
 }
 
 // zonalMaxAmount carries the starting yield for each zonal deposit.
 // Values mirror the plan's constants — tuned for the static-placement
 // milestone so future depletion work (M5+) does not require a domain
 // migration.
-var zonalMaxAmount = map[game.DepositKind]int32{
-	game.DepositFertile: 500,
-	game.DepositTimber:  800,
-	game.DepositGame:    300,
+var zonalMaxAmount = map[world.DepositKind]int32{
+	world.DepositFertile: 500,
+	world.DepositTimber:  800,
+	world.DepositGame:    300,
 }
 
 // zonalBiomeAccepts reports whether kind can spawn on ter. Fertile
@@ -85,31 +89,31 @@ var zonalMaxAmount = map[game.DepositKind]int32{
 // gates it out via threshold. Unknown kinds and terrains fall through
 // to false so a future kind without an entry here fails loudly in
 // tests rather than silently producing zero deposits.
-func zonalBiomeAccepts(kind game.DepositKind, ter game.Terrain) bool {
+func zonalBiomeAccepts(kind world.DepositKind, ter world.Terrain) bool {
 	switch kind {
-	case game.DepositFertile:
+	case world.DepositFertile:
 		switch ter {
-		case game.TerrainPlains,
-			game.TerrainGrassland,
-			game.TerrainMeadow,
-			game.TerrainSavanna:
+		case world.TerrainPlains,
+			world.TerrainGrassland,
+			world.TerrainMeadow,
+			world.TerrainSavanna:
 			return true
 		}
-	case game.DepositTimber:
+	case world.DepositTimber:
 		switch ter {
-		case game.TerrainForest,
-			game.TerrainTaiga,
-			game.TerrainJungle:
+		case world.TerrainForest,
+			world.TerrainTaiga,
+			world.TerrainJungle:
 			return true
 		}
-	case game.DepositGame:
+	case world.DepositGame:
 		switch ter {
-		case game.TerrainForest,
-			game.TerrainTaiga,
-			game.TerrainJungle,
-			game.TerrainGrassland,
-			game.TerrainMeadow,
-			game.TerrainSavanna:
+		case world.TerrainForest,
+			world.TerrainTaiga,
+			world.TerrainJungle,
+			world.TerrainGrassland,
+			world.TerrainMeadow,
+			world.TerrainSavanna:
 			return true
 		}
 	}
@@ -124,27 +128,27 @@ func zonalBiomeAccepts(kind game.DepositKind, ter game.Terrain) bool {
 // tiebreak. Noise is sampled only when the biome gate passes, so
 // mountain / ocean / desert tiles pay nothing per-kind.
 func zonalDepositAt(
-	t game.Position,
-	ter game.Terrain,
-	noises map[game.DepositKind]OctaveNoise,
-) (game.Deposit, bool) {
+	t geom.Position,
+	ter world.Terrain,
+	noises map[world.DepositKind]noise.OctaveNoise,
+) (world.Deposit, bool) {
 	fx := float64(t.X) * zonalPerlinScale
 	fy := float64(t.Y) * zonalPerlinScale
 	for _, kind := range zonalKinds {
 		if !zonalBiomeAccepts(kind, ter) {
 			continue
 		}
-		noise := noises[kind]
-		v := noise.Eval2Normalized(fx, fy)
+		n := noises[kind]
+		v := n.Eval2Normalized(fx, fy)
 		if v <= zonalThresholds[kind] {
 			continue
 		}
-		return game.Deposit{
+		return world.Deposit{
 			Position:      t,
 			Kind:          kind,
 			MaxAmount:     zonalMaxAmount[kind],
 			CurrentAmount: zonalMaxAmount[kind],
 		}, true
 	}
-	return game.Deposit{}, false
+	return world.Deposit{}, false
 }

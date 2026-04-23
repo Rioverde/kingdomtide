@@ -3,7 +3,8 @@ package server
 import (
 	lru "github.com/hashicorp/golang-lru/v2"
 
-	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/geom"
+	"github.com/Rioverde/gongeons/internal/game/world"
 )
 
 // DefaultRegionCacheCapacity is the default LRU capacity for regionCache.
@@ -12,13 +13,13 @@ import (
 // cells without re-sampling six noise fields per snapshot.
 const DefaultRegionCacheCapacity = 64
 
-// regionCache wraps a game.RegionSource with a fixed-size LRU keyed by the
+// regionCache wraps a world.RegionSource with a fixed-size LRU keyed by the
 // anchor's SuperChunkCoord. Two distant tiles that share an anchor share a
 // cache entry. hashicorp/golang-lru/v2 is safe for concurrent use, so
 // regionCache has no additional synchronisation of its own.
 type regionCache struct {
-	source game.RegionSource
-	lru    *lru.Cache[game.SuperChunkCoord, game.Region]
+	source world.RegionSource
+	lru    *lru.Cache[geom.SuperChunkCoord, world.Region]
 }
 
 // newRegionCache builds a cache of the requested capacity around source.
@@ -27,11 +28,11 @@ type regionCache struct {
 // forwards every call. Panics on lru.New failure because a failure there
 // is a programmer error — the only documented error is a non-positive
 // size, which we've already guarded against.
-func newRegionCache(source game.RegionSource, capacity int) *regionCache {
+func newRegionCache(source world.RegionSource, capacity int) *regionCache {
 	if capacity <= 0 {
 		capacity = DefaultRegionCacheCapacity
 	}
-	cache, err := lru.New[game.SuperChunkCoord, game.Region](capacity)
+	cache, err := lru.New[geom.SuperChunkCoord, world.Region](capacity)
 	if err != nil {
 		panic("region cache: " + err.Error())
 	}
@@ -44,7 +45,7 @@ func newRegionCache(source game.RegionSource, capacity int) *regionCache {
 // callers must not mutate its fields. Region names are
 // language-agnostic Parts records so the cache key is just sc — no
 // per-language sharding required.
-func (c *regionCache) At(sc game.SuperChunkCoord) game.Region {
+func (c *regionCache) At(sc geom.SuperChunkCoord) world.Region {
 	if r, ok := c.lru.Get(sc); ok {
 		return r
 	}

@@ -6,7 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/geom"
 	pb "github.com/Rioverde/gongeons/internal/proto"
 )
 
@@ -255,5 +255,5 @@ type testError string
 
 func (e testError) Error() string { return string(e) }
 
-// Compile-time sanity: game.Position is still the value type UI uses.
-var _ = game.Position{}
+// Compile-time sanity: geom.Position is still the value type UI uses.
+var _ = geom.Position{}

@@ -8,7 +8,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/stats"
 	pb "github.com/Rioverde/gongeons/internal/proto"
 )
 
@@ -65,7 +65,7 @@ func TestJoinAcceptsValidStats(t *testing.T) {
 	// Cross-check the in-world Player carries the derived fields from
 	// the validated distribution so the domain → server → wire chain is
 	// proven end-to-end.
-	expected, err := game.NewStatsPointBuy(15, 14, 13, 12, 10, 8)
+	expected, err := stats.NewStatsPointBuy(15, 14, 13, 12, 10, 8)
 	if err != nil {
 		t.Fatalf("NewStatsPointBuy: %v", err)
 	}
@@ -171,7 +171,7 @@ func TestJoinAcceptsMissingStats(t *testing.T) {
 	if !ok {
 		t.Fatalf("player missing from world after join")
 	}
-	if p.Stats != game.DefaultCoreStats() {
+	if p.Stats != stats.DefaultCoreStats() {
 		t.Errorf("Stats = %+v, want DefaultCoreStats", p.Stats)
 	}
 }
@@ -181,7 +181,7 @@ func TestJoinAcceptsMissingStats(t *testing.T) {
 // unchanged. A fast regression signal if the proto field numbering or
 // type widths drift.
 func TestCoreStatsRoundTrip(t *testing.T) {
-	src := game.CoreStats{
+	src := stats.CoreStats{
 		Strength: 15, Dexterity: 14, Constitution: 13,
 		Intelligence: 12, Wisdom: 10, Charisma: 8,
 	}

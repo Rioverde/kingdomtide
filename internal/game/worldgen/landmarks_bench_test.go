@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/geom"
 )
 
 // BenchmarkLandmarksIn measures single-super-chunk landmark generation
@@ -17,7 +17,7 @@ func BenchmarkLandmarksIn(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := range b.N {
-		sc := game.SuperChunkCoord{X: i & 0xffff, Y: (i >> 16) & 0xffff}
+		sc := geom.SuperChunkCoord{X: i & 0xffff, Y: (i >> 16) & 0xffff}
 		_ = src.LandmarksIn(sc)
 	}
 }
@@ -43,12 +43,12 @@ func TestBenchGuardLandmarksIn(t *testing.T) {
 	// enough to amortise one-time allocations without hiding genuine
 	// per-call cost.
 	for i := range 8 {
-		_ = src.LandmarksIn(game.SuperChunkCoord{X: i, Y: -i})
+		_ = src.LandmarksIn(geom.SuperChunkCoord{X: i, Y: -i})
 	}
 
 	start := time.Now()
 	for i := range samples {
-		sc := game.SuperChunkCoord{X: i & 0xff, Y: (i >> 8) & 0xff}
+		sc := geom.SuperChunkCoord{X: i & 0xff, Y: (i >> 8) & 0xff}
 		_ = src.LandmarksIn(sc)
 	}
 	avg := time.Since(start) / samples

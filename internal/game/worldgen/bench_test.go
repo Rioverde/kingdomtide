@@ -3,6 +3,8 @@ package worldgen
 import (
 	"testing"
 	"time"
+
+	"github.com/Rioverde/gongeons/internal/game/worldgen/chunk"
 )
 
 // raceEnabled is set to true in race_on_test.go when the `race` build tag is
@@ -41,7 +43,7 @@ func TestChunkPerformanceBudget(t *testing.T) {
 	start := time.Now()
 	for i := range samples {
 		g := NewWorldGenerator(int64(i + 1))
-		_ = g.Chunk(ChunkCoord{X: i, Y: -i})
+		_ = g.Chunk(chunk.ChunkCoord{X: i, Y: -i})
 	}
 	avg := time.Since(start) / samples
 
@@ -58,7 +60,7 @@ func BenchmarkChunkCold(b *testing.B) {
 	b.ReportAllocs()
 	for i := range b.N {
 		g := NewWorldGenerator(int64(i + 1))
-		_ = g.Chunk(ChunkCoord{X: i, Y: -i})
+		_ = g.Chunk(chunk.ChunkCoord{X: i, Y: -i})
 	}
 }
 
@@ -67,7 +69,7 @@ func BenchmarkChunkCold(b *testing.B) {
 // single frame may query the same chunk many times.
 func BenchmarkChunkWarm(b *testing.B) {
 	g := NewWorldGenerator(42)
-	cc := ChunkCoord{X: 3, Y: -1}
+	cc := chunk.ChunkCoord{X: 3, Y: -1}
 	_ = g.Chunk(cc)
 	b.ResetTimer()
 	b.ReportAllocs()

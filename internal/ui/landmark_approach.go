@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/geom"
 	"github.com/Rioverde/gongeons/internal/game/naming"
+	"github.com/Rioverde/gongeons/internal/game/world"
 	pb "github.com/Rioverde/gongeons/internal/proto"
 	"github.com/Rioverde/gongeons/internal/ui/locale"
 )
@@ -35,7 +36,7 @@ func (m *Model) detectLandmarkApproach() {
 	}
 
 	var nearest *pb.Landmark
-	var nearestCoord game.Position
+	var nearestCoord geom.Position
 	nearestDist := math.MaxInt
 
 	for idx, tile := range m.tiles {
@@ -49,11 +50,11 @@ func (m *Model) detectLandmarkApproach() {
 		// Reconstruct world coord from tile index using the viewport origin.
 		tx := m.origin.X + (idx % m.width)
 		ty := m.origin.Y + (idx / m.width)
-		d := chebyshev(self.Pos, game.Position{X: tx, Y: ty})
+		d := chebyshev(self.Pos, geom.Position{X: tx, Y: ty})
 		if d < nearestDist {
 			nearestDist = d
 			nearest = lm
-			nearestCoord = game.Position{X: tx, Y: ty}
+			nearestCoord = geom.Position{X: tx, Y: ty}
 		}
 	}
 
@@ -79,12 +80,12 @@ func (m *Model) detectLandmarkApproach() {
 }
 
 // emitApproachLog appends a localized approach event-log line for lm.
-// The wire LandmarkKind casts directly into game.LandmarkKind because the
+// The wire LandmarkKind casts directly into world.LandmarkKind because the
 // proto enum mirrors the domain enum bit-for-bit (same order, zero is
 // None in both). This keeps a single source of truth for the string key:
-// game.LandmarkKind.Key().
+// world.LandmarkKind.Key().
 func (m *Model) emitApproachLog(lm *pb.Landmark) {
-	kind := game.LandmarkKind(lm.GetKind())
+	kind := world.LandmarkKind(lm.GetKind())
 	kindKey := kind.Key()
 	if kindKey == "" {
 		return
@@ -96,7 +97,7 @@ func (m *Model) emitApproachLog(lm *pb.Landmark) {
 
 // chebyshev returns the Chebyshev distance between two positions, which is
 // max(|dx|, |dy|). This matches movement in all 8 directions equally.
-func chebyshev(a, b game.Position) int {
+func chebyshev(a, b geom.Position) int {
 	dx := a.X - b.X
 	if dx < 0 {
 		dx = -dx

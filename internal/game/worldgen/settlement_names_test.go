@@ -3,8 +3,9 @@ package worldgen
 import (
 	"testing"
 
-	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/geom"
 	"github.com/Rioverde/gongeons/internal/game/naming"
+	"github.com/Rioverde/gongeons/internal/game/world"
 )
 
 // allSettlementKinds lists every production SettlementKind. Kept in
@@ -28,14 +29,14 @@ var allCultures = []Culture{
 
 // allCharacters mirrors the production RegionCharacter set. Declared
 // locally rather than imported from game so this test stays readable.
-var allCharacters = []game.RegionCharacter{
-	game.RegionNormal,
-	game.RegionBlighted,
-	game.RegionFey,
-	game.RegionAncient,
-	game.RegionSavage,
-	game.RegionHoly,
-	game.RegionWild,
+var allCharacters = []world.RegionCharacter{
+	world.RegionNormal,
+	world.RegionBlighted,
+	world.RegionFey,
+	world.RegionAncient,
+	world.RegionSavage,
+	world.RegionHoly,
+	world.RegionWild,
 }
 
 // TestSettlementName_Smoke drives the cartesian product of (culture,
@@ -45,7 +46,7 @@ var allCharacters = []game.RegionCharacter{
 // the "<culture>.<kind>" format the client dispatches on.
 func TestSettlementName_Smoke(t *testing.T) {
 	const seed int64 = 1
-	coord := game.Position{X: 0, Y: 0}
+	coord := geom.Position{X: 0, Y: 0}
 
 	for _, culture := range allCultures {
 		for _, kind := range allSettlementKinds {
@@ -99,13 +100,13 @@ func TestSettlementName_Smoke(t *testing.T) {
 // against accidental globals creeping into the wrapper.
 func TestSettlementName_Determinism(t *testing.T) {
 	const seed int64 = 42
-	coord := game.Position{X: 7, Y: -13}
+	coord := geom.Position{X: 7, Y: -13}
 
 	want := SettlementName(CultureDrevan, SettlementVillage,
-		game.RegionNormal, seed, coord)
+		world.RegionNormal, seed, coord)
 	for i := range 5 {
 		got := SettlementName(CultureDrevan, SettlementVillage,
-			game.RegionNormal, seed, coord)
+			world.RegionNormal, seed, coord)
 		if got != want {
 			t.Fatalf("iteration %d: %+v, want %+v", i, got, want)
 		}
@@ -118,11 +119,11 @@ func TestSettlementName_Determinism(t *testing.T) {
 // map and either enum.
 func TestSettlementName_SubKindCoverage(t *testing.T) {
 	const seed int64 = 99
-	coord := game.Position{X: 0, Y: 0}
+	coord := geom.Position{X: 0, Y: 0}
 
 	for _, culture := range allCultures {
 		for _, kind := range allSettlementKinds {
-			p := SettlementName(culture, kind, game.RegionNormal, seed, coord)
+			p := SettlementName(culture, kind, world.RegionNormal, seed, coord)
 			if p.SubKind == "" {
 				t.Errorf("SettlementName(%s,%s): empty SubKind", culture, kind)
 				continue

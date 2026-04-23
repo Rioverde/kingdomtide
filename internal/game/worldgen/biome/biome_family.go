@@ -1,6 +1,6 @@
-package worldgen
+package biome
 
-import "github.com/Rioverde/gongeons/internal/game"
+import "github.com/Rioverde/gongeons/internal/game/world"
 
 // BiomeFamily is a coarse grouping of Terrain values used by region naming.
 // The Whittaker biome matrix in biome.go has 16 specific cells; the naming
@@ -61,21 +61,21 @@ func (f BiomeFamily) Key() string {
 // values collapse to FamilyUnknown rather than panicking — region naming
 // can still pick a plausible name from the "generic" geo-term list in that
 // case, so there is no benefit to a hard failure at the mapping boundary.
-func FamilyOf(t game.Terrain) BiomeFamily {
+func FamilyOf(t world.Terrain) BiomeFamily {
 	switch t {
-	case game.TerrainPlains, game.TerrainGrassland, game.TerrainMeadow, game.TerrainSavanna:
+	case world.TerrainPlains, world.TerrainGrassland, world.TerrainMeadow, world.TerrainSavanna:
 		return FamilyPlain
-	case game.TerrainForest, game.TerrainJungle, game.TerrainTaiga:
+	case world.TerrainForest, world.TerrainJungle, world.TerrainTaiga:
 		return FamilyForest
-	case game.TerrainHills, game.TerrainMountain, game.TerrainSnowyPeak,
-		game.TerrainVolcanoCore, game.TerrainVolcanoCoreDormant,
-		game.TerrainCraterLake, game.TerrainVolcanoSlope, game.TerrainAshland:
+	case world.TerrainHills, world.TerrainMountain, world.TerrainSnowyPeak,
+		world.TerrainVolcanoCore, world.TerrainVolcanoCoreDormant,
+		world.TerrainCraterLake, world.TerrainVolcanoSlope, world.TerrainAshland:
 		return FamilyMountain
-	case game.TerrainDeepOcean, game.TerrainOcean, game.TerrainBeach:
+	case world.TerrainDeepOcean, world.TerrainOcean, world.TerrainBeach:
 		return FamilyWater
-	case game.TerrainDesert:
+	case world.TerrainDesert:
 		return FamilyDesert
-	case game.TerrainTundra, game.TerrainSnow:
+	case world.TerrainTundra, world.TerrainSnow:
 		return FamilyTundra
 	default:
 		return FamilyUnknown

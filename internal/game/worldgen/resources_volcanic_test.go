@@ -3,8 +3,8 @@ package worldgen
 import (
 	"math"
 	"testing"
-
-	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/geom"
+	"github.com/Rioverde/gongeons/internal/game/world"
 )
 
 // newVolcanicDepositTestSource wires a fresh NoiseDepositSource with a
@@ -23,11 +23,11 @@ func newVolcanicDepositTestSource(tb testing.TB, seed int64) (*NoiseDepositSourc
 // collectSlopeTiles returns every slope tile in the volcano window
 // alongside the owning volcano. Used by invariant tests that need a
 // one-to-many lookup from slope to its containing volcano.
-func collectSlopeTiles(vs *NoiseVolcanoSource, minSCX, minSCY, maxSCX, maxSCY int) map[game.Position]game.Volcano {
-	out := make(map[game.Position]game.Volcano)
+func collectSlopeTiles(vs *NoiseVolcanoSource, minSCX, minSCY, maxSCX, maxSCY int) map[geom.Position]world.Volcano {
+	out := make(map[geom.Position]world.Volcano)
 	for x := minSCX; x < maxSCX; x++ {
 		for y := minSCY; y < maxSCY; y++ {
-			for _, v := range vs.VolcanoAt(game.SuperChunkCoord{X: x, Y: y}) {
+			for _, v := range vs.VolcanoAt(geom.SuperChunkCoord{X: x, Y: y}) {
 				for _, p := range v.SlopeTiles {
 					out[p] = v
 				}
@@ -41,11 +41,11 @@ func collectSlopeTiles(vs *NoiseVolcanoSource, minSCX, minSCY, maxSCX, maxSCY in
 // state inside the window. Returns a map keyed by VolcanoState so
 // individual tests can pick "give me an active one" without walking
 // the full set again.
-func volcanoByState(vs *NoiseVolcanoSource, minSCX, minSCY, maxSCX, maxSCY int) map[game.VolcanoState]game.Volcano {
-	out := make(map[game.VolcanoState]game.Volcano)
+func volcanoByState(vs *NoiseVolcanoSource, minSCX, minSCY, maxSCX, maxSCY int) map[world.VolcanoState]world.Volcano {
+	out := make(map[world.VolcanoState]world.Volcano)
 	for x := minSCX; x < maxSCX; x++ {
 		for y := minSCY; y < maxSCY; y++ {
-			for _, v := range vs.VolcanoAt(game.SuperChunkCoord{X: x, Y: y}) {
+			for _, v := range vs.VolcanoAt(geom.SuperChunkCoord{X: x, Y: y}) {
 				if _, seen := out[v.State]; !seen {
 					out[v.State] = v
 				}
@@ -88,7 +88,7 @@ func TestObsidianDepositAt_OnlyOnSlope(t *testing.T) {
 			continue
 		}
 		found++
-		if dep.Kind != game.DepositObsidian {
+		if dep.Kind != world.DepositObsidian {
 			t.Errorf("obsidian helper returned non-obsidian kind %q at %+v", dep.Kind, p)
 		}
 		if dep.Position != p {
@@ -113,7 +113,7 @@ func TestObsidianDepositAt_NoCoreOrAshland(t *testing.T) {
 
 	for x := volcanoScanMinSC; x < volcanoScanMaxSC; x++ {
 		for y := volcanoScanMinSC; y < volcanoScanMaxSC; y++ {
-			for _, v := range vs.VolcanoAt(game.SuperChunkCoord{X: x, Y: y}) {
+			for _, v := range vs.VolcanoAt(geom.SuperChunkCoord{X: x, Y: y}) {
 				for _, p := range v.CoreTiles {
 					if _, ok := obsidianDepositAt(seed, p, vs); ok {
 						t.Errorf("obsidian on core tile %+v (anchor %+v)", p, v.Anchor)
@@ -144,7 +144,7 @@ func TestObsidianDepositAt_Density(t *testing.T) {
 	var total, hits int
 	for x := volcanoScanMinSC; x < volcanoScanMaxSC; x++ {
 		for y := volcanoScanMinSC; y < volcanoScanMaxSC; y++ {
-			for _, v := range vs.VolcanoAt(game.SuperChunkCoord{X: x, Y: y}) {
+			for _, v := range vs.VolcanoAt(geom.SuperChunkCoord{X: x, Y: y}) {
 				for _, p := range v.SlopeTiles {
 					total++
 					if _, ok := obsidianDepositAt(seed, p, vs); ok {
@@ -188,15 +188,15 @@ func TestObsidianDepositAt_StateIndependent(t *testing.T) {
 	var activeTotal, activeHits, extinctTotal, extinctHits int
 	for x := wideMin; x < wideMax; x++ {
 		for y := wideMin; y < wideMax; y++ {
-			for _, v := range vs.VolcanoAt(game.SuperChunkCoord{X: x, Y: y}) {
+			for _, v := range vs.VolcanoAt(geom.SuperChunkCoord{X: x, Y: y}) {
 				for _, p := range v.SlopeTiles {
 					switch v.State {
-					case game.VolcanoActive:
+					case world.VolcanoActive:
 						activeTotal++
 						if _, ok := obsidianDepositAt(seed, p, vs); ok {
 							activeHits++
 						}
-					case game.VolcanoExtinct:
+					case world.VolcanoExtinct:
 						extinctTotal++
 						if _, ok := obsidianDepositAt(seed, p, vs); ok {
 							extinctHits++
@@ -234,14 +234,14 @@ func TestSulfurDepositAt_OnlyCoreAdjacent(t *testing.T) {
 	found := 0
 	for x := volcanoScanMinSC; x < volcanoScanMaxSC; x++ {
 		for y := volcanoScanMinSC; y < volcanoScanMaxSC; y++ {
-			for _, v := range vs.VolcanoAt(game.SuperChunkCoord{X: x, Y: y}) {
+			for _, v := range vs.VolcanoAt(geom.SuperChunkCoord{X: x, Y: y}) {
 				for _, p := range v.SlopeTiles {
 					dep, ok := sulfurDepositAt(seed, p, vs)
 					if !ok {
 						continue
 					}
 					found++
-					if dep.Kind != game.DepositSulfur {
+					if dep.Kind != world.DepositSulfur {
 						t.Errorf("sulfur helper returned non-sulfur kind %q at %+v", dep.Kind, p)
 					}
 					if !slopeAdjacentToCore(p, v) {
@@ -269,14 +269,14 @@ func TestSulfurDepositAt_StateDependentDensity(t *testing.T) {
 	_, vs := newVolcanicDepositTestSource(t, seed)
 
 	type bucket struct{ total, hits int }
-	counts := map[game.VolcanoState]*bucket{
-		game.VolcanoActive:  {},
-		game.VolcanoDormant: {},
-		game.VolcanoExtinct: {},
+	counts := map[world.VolcanoState]*bucket{
+		world.VolcanoActive:  {},
+		world.VolcanoDormant: {},
+		world.VolcanoExtinct: {},
 	}
 	for x := volcanoScanMinSC; x < volcanoScanMaxSC; x++ {
 		for y := volcanoScanMinSC; y < volcanoScanMaxSC; y++ {
-			for _, v := range vs.VolcanoAt(game.SuperChunkCoord{X: x, Y: y}) {
+			for _, v := range vs.VolcanoAt(geom.SuperChunkCoord{X: x, Y: y}) {
 				for _, p := range v.SlopeTiles {
 					if !slopeAdjacentToCore(p, v) {
 						continue
@@ -293,7 +293,7 @@ func TestSulfurDepositAt_StateDependentDensity(t *testing.T) {
 			}
 		}
 	}
-	check := func(state game.VolcanoState, want, tol float64) {
+	check := func(state world.VolcanoState, want, tol float64) {
 		b := counts[state]
 		if b.total < 10 {
 			t.Logf("state=%s: only %d core-adjacent slope samples, skipping density check", state, b.total)
@@ -305,9 +305,9 @@ func TestSulfurDepositAt_StateDependentDensity(t *testing.T) {
 			t.Errorf("state=%s sulfur density = %.3f, want %.3f ± %.2f (n=%d)", state, frac, want, tol, b.total)
 		}
 	}
-	check(game.VolcanoActive, 1.0, 0.01)
-	check(game.VolcanoDormant, sulfurDormantFraction, 0.15)
-	check(game.VolcanoExtinct, 0.0, 0.01)
+	check(world.VolcanoActive, 1.0, 0.01)
+	check(world.VolcanoDormant, sulfurDormantFraction, 0.15)
+	check(world.VolcanoExtinct, 0.0, 0.01)
 }
 
 // TestSulfurDepositAt_NilVolcanoSource_ReturnsFalse asserts sulfur
@@ -317,7 +317,7 @@ func TestSulfurDepositAt_StateDependentDensity(t *testing.T) {
 // the identical nil-guard.
 func TestSulfurDepositAt_NilVolcanoSource_ReturnsFalse(t *testing.T) {
 	const seed int64 = 42
-	p := game.Position{X: 1, Y: 2}
+	p := geom.Position{X: 1, Y: 2}
 	if dep, ok := sulfurDepositAt(seed, p, nil); ok {
 		t.Errorf("sulfurDepositAt(nil vs) returned deposit %+v, want not-found", dep)
 	}
@@ -339,7 +339,7 @@ func TestSulfurDepositAt_NotOnNonAdjacentSlope(t *testing.T) {
 	found := false
 	for x := volcanoScanMinSC; x < volcanoScanMaxSC && !found; x++ {
 		for y := volcanoScanMinSC; y < volcanoScanMaxSC && !found; y++ {
-			for _, v := range vs.VolcanoAt(game.SuperChunkCoord{X: x, Y: y}) {
+			for _, v := range vs.VolcanoAt(geom.SuperChunkCoord{X: x, Y: y}) {
 				for _, p := range v.SlopeTiles {
 					if slopeAdjacentToCore(p, v) {
 						continue
@@ -395,15 +395,15 @@ func TestNoiseDepositSource_VolcanicIntegration(t *testing.T) {
 				continue
 			}
 			switch d.Kind {
-			case game.DepositObsidian:
+			case world.DepositObsidian:
 				obsidianHits++
-			case game.DepositSulfur:
+			case world.DepositSulfur:
 				switch state {
-				case game.VolcanoActive:
+				case world.VolcanoActive:
 					sulfurActiveHits++
-				case game.VolcanoDormant:
+				case world.VolcanoDormant:
 					sulfurDormantHits++
-				case game.VolcanoExtinct:
+				case world.VolcanoExtinct:
 					sulfurExtinctHits++
 				}
 			}
@@ -439,7 +439,7 @@ func TestNoiseDepositSource_VolcanicDeterminism(t *testing.T) {
 	count := 0
 	for x := -2; x < 2; x++ {
 		for y := -2; y < 2; y++ {
-			for _, v := range vsA.VolcanoAt(game.SuperChunkCoord{X: x, Y: y}) {
+			for _, v := range vsA.VolcanoAt(geom.SuperChunkCoord{X: x, Y: y}) {
 				for _, p := range v.SlopeTiles {
 					a, aok := dsA.DepositAt(p)
 					b, bok := dsB.DepositAt(p)

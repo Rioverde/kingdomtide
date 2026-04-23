@@ -1,11 +1,11 @@
-package game
+package entity
 
 import (
 	"errors"
-)
 
-// Ensure that Player implements the Combatant interface at compile time.
-var _ Combatant = (*Player)(nil)
+	"github.com/Rioverde/gongeons/internal/game/geom"
+	"github.com/Rioverde/gongeons/internal/game/stats"
+)
 
 // Player is the in-world representation of a human controller.
 //
@@ -17,22 +17,25 @@ var _ Combatant = (*Player)(nil)
 // Speed, Energy, Initiative and Intent drive the tick-based turn
 // resolution system: Speed is Energy accumulated per World.Tick, Energy
 // is the current pool, Initiative is the within-tick tiebreaker, and
-// Intent is the single-slot pending action (nil when idle).
+// Intent is the single-slot pending action (nil when idle). Intent is
+// typed as any while the concrete Intent interface still lives in
+// package game; a follow-up step of the ongoing package split retypes
+// this field once the interface lands in internal/game/action.
 type Player struct {
 	ID        string          `json:"id"`
 	Name      string          `json:"name"`
-	Position  Position        `json:"position"`
-	Stats     CoreStats       `json:"stats"`
+	Position  geom.Position   `json:"position"`
+	Stats     stats.CoreStats `json:"stats"`
 	Equipment map[Slot]*Armor `json:"equipment,omitempty"`
 
 	MaxHP int `json:"max_hp"`
 	HP    int `json:"hp"`
 	Mana  int `json:"mana"`
 
-	Speed      int    `json:"speed"`
-	Energy     int    `json:"energy"`
-	Initiative int    `json:"initiative"`
-	Intent     Intent `json:"-"`
+	Speed      int `json:"speed"`
+	Energy     int `json:"energy"`
+	Initiative int `json:"initiative"`
+	Intent     any `json:"-"`
 }
 
 // Armor represents the armor equipped by the player, which can provide
@@ -95,25 +98,25 @@ func (p *Player) Equip(slot Slot, armor *Armor) {
 // path: NewStatsPointBuy on the join frame); MaxHP/HP/Mana/Speed/
 // Initiative/Energy are derived from the stats so the returned Player is
 // immediately tick-ready.
-func NewPlayer(id, name string, stats CoreStats, pos Position) (*Player, error) {
+func NewPlayer(id, name string, cs stats.CoreStats, pos geom.Position) (*Player, error) {
 	if id == "" {
 		return nil, errors.New("invalid player ID")
 	}
 	if name == "" {
 		return nil, errors.New("invalid player name")
 	}
-	maxHP := stats.MaxHP()
+	maxHP := cs.MaxHP()
 	return &Player{
 		ID:         id,
 		Name:       name,
 		Position:   pos,
-		Stats:      stats,
-		Equipment:  make(map[Slot]*Armor, numberOfSlots),
+		Stats:      cs,
+		Equipment:  make(map[Slot]*Armor, NumberOfSlots),
 		MaxHP:      maxHP,
 		HP:         maxHP,
-		Mana:       stats.Mana(),
-		Speed:      stats.DerivedSpeed(),
-		Energy:     BaseActionCost,
-		Initiative: stats.DerivedInitiative(),
+		Mana:       cs.Mana(),
+		Speed:      cs.DerivedSpeed(),
+		Energy:     stats.BaseActionCost,
+		Initiative: cs.DerivedInitiative(),
 	}, nil
 }

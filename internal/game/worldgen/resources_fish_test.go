@@ -3,20 +3,20 @@ package worldgen
 import (
 	"math"
 	"testing"
-
-	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/geom"
+	"github.com/Rioverde/gongeons/internal/game/world"
 )
 
 // sweepFish walks a side×side window and returns the fish deposits it
 // finds, plus the count of eligible beach-facing-ocean tiles observed
 // so tests can compute the selection fraction without re-walking.
-func sweepFish(seed int64, side int) (fish []game.Deposit, eligible int) {
+func sweepFish(seed int64, side int) (fish []world.Deposit, eligible int) {
 	wg := NewWorldGenerator(seed)
 	for y := 0; y < side; y++ {
 		for x := 0; x < side; x++ {
-			t := game.Position{X: x, Y: y}
+			t := geom.Position{X: x, Y: y}
 			tile := wg.TileAt(x, y)
-			if tile.Terrain == game.TerrainBeach && beachFacesOpenOcean(t, wg) {
+			if tile.Terrain == world.TerrainBeach && beachFacesOpenOcean(t, wg) {
 				eligible++
 			}
 			if dep, ok := fishDepositAt(seed, t, wg); ok {
@@ -43,7 +43,7 @@ func TestFishDepositAt_OnlyBeachFacingOcean(t *testing.T) {
 	}
 	for _, dep := range fish {
 		tile := wg.TileAt(dep.Position.X, dep.Position.Y)
-		if tile.Terrain != game.TerrainBeach {
+		if tile.Terrain != world.TerrainBeach {
 			t.Errorf("fish on non-beach terrain %q at %+v", tile.Terrain, dep.Position)
 		}
 		if !beachFacesOpenOcean(dep.Position, wg) {
@@ -65,7 +65,7 @@ func TestFishDepositAt_NoCrashOnLandmarks(t *testing.T) {
 	wg := NewWorldGenerator(seed)
 	for y := -50; y < 50; y++ {
 		for x := -50; x < 50; x++ {
-			_, _ = fishDepositAt(seed, game.Position{X: x, Y: y}, wg)
+			_, _ = fishDepositAt(seed, geom.Position{X: x, Y: y}, wg)
 		}
 	}
 }
@@ -109,7 +109,7 @@ func TestFishDepositAt_Determinism(t *testing.T) {
 	wg2 := NewWorldGenerator(seed)
 	for y := 0; y < 200; y++ {
 		for x := 0; x < 200; x++ {
-			p := game.Position{X: x, Y: y}
+			p := geom.Position{X: x, Y: y}
 			a, okA := fishDepositAt(seed, p, wg1)
 			b, okB := fishDepositAt(seed, p, wg2)
 			if okA != okB {
@@ -135,9 +135,9 @@ func TestFishDepositAt_RejectsNonBeach(t *testing.T) {
 	checked := 0
 	for y := -500; y < 500 && checked < 10; y++ {
 		for x := -500; x < 500 && checked < 10; x++ {
-			p := game.Position{X: x, Y: y}
+			p := geom.Position{X: x, Y: y}
 			tile := wg.TileAt(x, y)
-			if tile.Terrain == game.TerrainBeach {
+			if tile.Terrain == world.TerrainBeach {
 				continue
 			}
 			_, ok := fishDepositAt(seed, p, wg)

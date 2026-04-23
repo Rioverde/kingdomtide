@@ -5,7 +5,8 @@ import (
 	"math/rand/v2"
 	"testing"
 
-	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/geom"
+	"github.com/Rioverde/gongeons/internal/game/world"
 )
 
 // TestNoiseRegionSourceDeterminism guarantees the core interface contract:
@@ -16,7 +17,7 @@ func TestNoiseRegionSourceDeterminism(t *testing.T) {
 	srcA := NewNoiseRegionSource(seed)
 	srcB := NewNoiseRegionSource(seed)
 
-	coords := []game.SuperChunkCoord{
+	coords := []geom.SuperChunkCoord{
 		{X: 0, Y: 0},
 		{X: 1, Y: -3},
 		{X: -7, Y: 42},
@@ -105,7 +106,7 @@ func TestInfluenceAtContinuity(t *testing.T) {
 func TestInfluenceAtVsRegionAt(t *testing.T) {
 	src := NewNoiseRegionSource(0xcafe_babe)
 
-	coords := []game.SuperChunkCoord{
+	coords := []geom.SuperChunkCoord{
 		{X: 0, Y: 0},
 		{X: 3, Y: -2},
 		{X: -1, Y: 1},
@@ -125,6 +126,6 @@ func TestInfluenceAtVsRegionAt(t *testing.T) {
 // assertion in region_source.go. Keeping it in the test file too gives a
 // second point of discoverability when the interface changes.
 func TestInterfaceCompliance(t *testing.T) {
-	var _ game.RegionSource = (*NoiseRegionSource)(nil)
-	var _ game.RegionSource = NewNoiseRegionSource(1)
+	var _ world.RegionSource = (*NoiseRegionSource)(nil)
+	var _ world.RegionSource = NewNoiseRegionSource(1)
 }

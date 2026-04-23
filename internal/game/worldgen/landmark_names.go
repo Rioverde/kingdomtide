@@ -1,8 +1,9 @@
 package worldgen
 
 import (
-	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/geom"
 	"github.com/Rioverde/gongeons/internal/game/naming"
+	"github.com/Rioverde/gongeons/internal/game/world"
 )
 
 // landmarkBounds caps PrefixIndex and PatternIndex draws to the number
@@ -41,14 +42,14 @@ func LandmarkBounds() naming.Bounds {
 
 // LandmarkName produces a deterministic structured name for a
 // landmark. Same (kind, character, seed, coord) inputs always return
-// the same Parts. The returned Parts is stored on game.Landmark and
+// the same Parts. The returned Parts is stored on world.Landmark and
 // composed into a display string by the client via the locale catalog
 // under "landmark.name.*" and "landmark.prefix.*" keys.
 func LandmarkName(
-	kind game.LandmarkKind,
-	character game.RegionCharacter,
+	kind world.LandmarkKind,
+	character world.RegionCharacter,
 	seed int64,
-	coord game.Position,
+	coord geom.Position,
 ) naming.Parts {
 	return naming.Generate(
 		naming.Input{

@@ -1,4 +1,9 @@
-package game
+package event
+
+import (
+	"github.com/Rioverde/gongeons/internal/game/calendar"
+	"github.com/Rioverde/gongeons/internal/game/geom"
+)
 
 // Event is the closed sum type of domain transitions produced by
 // ApplyCommand. Events are past-tense facts: a consumer replaying them onto
@@ -11,7 +16,7 @@ type Event interface {
 type PlayerJoinedEvent struct {
 	PlayerID string
 	Name     string
-	Position Position
+	Position geom.Position
 }
 
 // PlayerLeftEvent reports a player leaving the world.
@@ -23,9 +28,9 @@ type PlayerLeftEvent struct {
 // deliberately neutral so the same event shape serves monsters once combat
 // arrives in later phases.
 type EntityMovedEvent struct {
-	EntityID string   `json:"entity_id"`
-	From     Position `json:"from"`
-	To       Position `json:"to"`
+	EntityID string        `json:"entity_id"`
+	From     geom.Position `json:"from"`
+	To       geom.Position `json:"to"`
 }
 
 // Canonical IntentFailedEvent reason codes. The domain emits the key, the
@@ -60,9 +65,9 @@ type IntentFailedEvent struct {
 // event; subscribers that want monthly cycling (per-month weather
 // rolls, NPC memory decay) wire here.
 type MonthChangedEvent struct {
-	Month  Month `json:"month"`
-	Year   int32 `json:"year"`
-	AtTick int64 `json:"at_tick"`
+	Month  calendar.Month `json:"month"`
+	Year   int32          `json:"year"`
+	AtTick int64          `json:"at_tick"`
 }
 
 // SeasonChangedEvent fires on the tick where the derived Season differs
@@ -70,9 +75,9 @@ type MonthChangedEvent struct {
 // where the season bucket crosses (Feb→Mar, May→Jun, Aug→Sep, Nov→Dec).
 // Always accompanied by a MonthChangedEvent on the same tick.
 type SeasonChangedEvent struct {
-	Season Season `json:"season"`
-	Year   int32  `json:"year"`
-	AtTick int64  `json:"at_tick"`
+	Season calendar.Season `json:"season"`
+	Year   int32           `json:"year"`
+	AtTick int64           `json:"at_tick"`
 }
 
 // YearStartedEvent fires on the tick where the derived Year advances
@@ -92,9 +97,9 @@ type YearStartedEvent struct {
 // per wall-clock second at 10 Hz). Carries both the raw tick counter
 // and the derived GameTime so the client has zero calendar math to do.
 type TimeTickEvent struct {
-	CurrentTick int64    `json:"current_tick"`
-	GameTime    GameTime `json:"game_time"`
-	AtTick      int64    `json:"at_tick"`
+	CurrentTick int64             `json:"current_tick"`
+	GameTime    calendar.GameTime `json:"game_time"`
+	AtTick      int64             `json:"at_tick"`
 }
 
 func (PlayerJoinedEvent) isEvent()  {}

@@ -5,8 +5,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
-
-	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/geom"
+	"github.com/Rioverde/gongeons/internal/game/world"
 	"github.com/Rioverde/gongeons/internal/game/worldgen"
 	pb "github.com/Rioverde/gongeons/internal/proto"
 )
@@ -19,15 +19,15 @@ const testLandmarkSeed int64 = 0x1a2b3c4d5e6f7a8b
 // testLandmarkWorld builds a fully-wired world (tile source, region source,
 // landmark source) at testLandmarkSeed, matching the production buildWorld
 // path in cmd/server/main.go.
-func testLandmarkWorld() *game.World {
+func testLandmarkWorld() *world.World {
 	wg := worldgen.NewChunkedSource(testLandmarkSeed)
 	regionSrc := worldgen.NewNoiseRegionSource(testLandmarkSeed)
 	landmarkSrc := worldgen.NewNoiseLandmarkSource(testLandmarkSeed, regionSrc, wg.Generator())
-	return game.NewWorld(
+	return world.NewWorld(
 		wg,
-		game.WithSeed(testLandmarkSeed),
-		game.WithRegionSource(regionSrc),
-		game.WithLandmarkSource(landmarkSrc),
+		world.WithSeed(testLandmarkSeed),
+		world.WithRegionSource(regionSrc),
+		world.WithLandmarkSource(landmarkSrc),
 	)
 }
 
@@ -47,12 +47,12 @@ func TestSnapshotTileLandmarksPopulated(t *testing.T) {
 	}
 
 	// Locate the first landmark in the 5×5 super-chunk grid centred on origin.
-	var landmarkPos game.Position
+	var landmarkPos geom.Position
 	var found bool
 outer:
 	for scx := -2; scx <= 2 && !found; scx++ {
 		for scy := -2; scy <= 2 && !found; scy++ {
-			sc := game.SuperChunkCoord{X: scx, Y: scy}
+			sc := geom.SuperChunkCoord{X: scx, Y: scy}
 			for _, lm := range svc.landmarks.LandmarksIn(sc) {
 				landmarkPos = lm.Coord
 				found = true
@@ -84,11 +84,11 @@ outer:
 // countingLandmarkSource wraps an inner LandmarkSource with an atomic call
 // counter. Constructed once and used read-only — safe for concurrent use.
 type countingLandmarkSource struct {
-	inner game.LandmarkSource
+	inner world.LandmarkSource
 	calls atomic.Int64
 }
 
-func (c *countingLandmarkSource) LandmarksIn(sc game.SuperChunkCoord) []game.Landmark {
+func (c *countingLandmarkSource) LandmarksIn(sc geom.SuperChunkCoord) []world.Landmark {
 	c.calls.Add(1)
 	return c.inner.LandmarksIn(sc)
 }
@@ -104,7 +104,7 @@ func TestLandmarkCacheHitRate(t *testing.T) {
 	counter := &countingLandmarkSource{inner: inner}
 	cache := newLandmarkCache(counter, DefaultLandmarkCacheCapacity)
 
-	sc := game.SuperChunkCoord{X: 5, Y: -3}
+	sc := geom.SuperChunkCoord{X: 5, Y: -3}
 	const repeats = 10
 	for range repeats {
 		_ = cache.LandmarksIn(sc)
@@ -131,7 +131,7 @@ func TestLandmarkCacheRace(t *testing.T) {
 	counter := &countingLandmarkSource{inner: inner}
 	cache := newLandmarkCache(counter, DefaultLandmarkCacheCapacity)
 
-	coords := []game.SuperChunkCoord{
+	coords := []geom.SuperChunkCoord{
 		{X: 0, Y: 0}, {X: 1, Y: 0}, {X: 0, Y: 1}, {X: 1, Y: 1},
 		{X: -1, Y: 0}, {X: 0, Y: -1}, {X: 2, Y: 3}, {X: -3, Y: 2},
 	}
@@ -163,7 +163,7 @@ func BenchmarkSnapshotWithLandmarks(b *testing.B) {
 
 	const playerID = "bench-player"
 	svc.mu.Lock()
-	_, err := w.ApplyCommand(game.JoinCmd{PlayerID: playerID, Name: "bench"})
+	_, err := w.ApplyCommand(world.JoinCmd{PlayerID: playerID, Name: "bench"})
 	svc.viewports[playerID] = viewportDims{width: DefaultViewportWidth, height: DefaultViewportHeight}
 	svc.mu.Unlock()
 	if err != nil {

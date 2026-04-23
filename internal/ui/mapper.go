@@ -3,8 +3,10 @@ package ui
 import (
 	"fmt"
 
-	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/calendar"
+	"github.com/Rioverde/gongeons/internal/game/geom"
 	"github.com/Rioverde/gongeons/internal/game/naming"
+	"github.com/Rioverde/gongeons/internal/game/world"
 	"github.com/Rioverde/gongeons/internal/game/worldgen"
 	pb "github.com/Rioverde/gongeons/internal/proto"
 	"github.com/Rioverde/gongeons/internal/ui/locale"
@@ -13,11 +15,11 @@ import (
 // positionFromPB converts a proto Position to the domain value type. A nil
 // receiver maps to the origin — callers don't have to guard every field
 // access.
-func positionFromPB(p *pb.Position) game.Position {
+func positionFromPB(p *pb.Position) geom.Position {
 	if p == nil {
-		return game.Position{}
+		return geom.Position{}
 	}
-	return game.Position{X: int(p.GetX()), Y: int(p.GetY())}
+	return geom.Position{X: int(p.GetX()), Y: int(p.GetY())}
 }
 
 // applyJoinAccepted folds the JoinAccepted reply into the Model. The player
@@ -45,7 +47,7 @@ func applyJoinAccepted(m *Model, v acceptedMsg) {
 // local cache type. A nil receiver yields the zero value, which the
 // date HUD renderer treats as "not yet configured" and therefore draws
 // nothing. The epoch offset is forwarded so applyJoinAccepted can build
-// a game.Calendar mirror aligned with the server's epoch.
+// a calendar.Calendar mirror aligned with the server's epoch.
 func calendarConfigFromPB(c *pb.CalendarConfig) calendarConfig {
 	if c == nil {
 		return calendarConfig{}
@@ -95,7 +97,7 @@ func applySnapshot(m *Model, s *pb.Snapshot) {
 	// previous gameTime rather than blanking the HUD on such snapshots
 	// so the display stays stable if a single snapshot happens to be
 	// calendar-less after TimeTick has already seeded a value.
-	if gt := gameTimeFromPB(s.GetGameTime()); gt.Month != game.MonthZero {
+	if gt := gameTimeFromPB(s.GetGameTime()); gt.Month != calendar.MonthZero {
 		m.gameTime = gt
 	}
 	m.detectLandmarkApproach()
@@ -125,8 +127,8 @@ func applyRegion(m *Model, r *pb.Region) {
 // regionCoord extracts the anchor's SuperChunkCoord from a wire Region.
 // Equivalent to constructing the value inline but named for readability at
 // call sites.
-func regionCoord(r *pb.Region) game.SuperChunkCoord {
-	return game.SuperChunkCoord{
+func regionCoord(r *pb.Region) geom.SuperChunkCoord {
+	return geom.SuperChunkCoord{
 		X: int(r.GetSuperChunkX()),
 		Y: int(r.GetSuperChunkY()),
 	}
@@ -136,22 +138,22 @@ func regionCoord(r *pb.Region) game.SuperChunkCoord {
 // Unknown wire values map to RegionNormal so version-skewed enums degrade
 // gracefully. This is the single authoritative pb→domain mapping; the
 // reverse (domain→pb) lives in view.go's pbCharacter function.
-func fromPBCharacter(c pb.RegionCharacter) game.RegionCharacter {
+func fromPBCharacter(c pb.RegionCharacter) world.RegionCharacter {
 	switch c {
 	case pb.RegionCharacter_REGION_CHARACTER_BLIGHTED:
-		return game.RegionBlighted
+		return world.RegionBlighted
 	case pb.RegionCharacter_REGION_CHARACTER_FEY:
-		return game.RegionFey
+		return world.RegionFey
 	case pb.RegionCharacter_REGION_CHARACTER_ANCIENT:
-		return game.RegionAncient
+		return world.RegionAncient
 	case pb.RegionCharacter_REGION_CHARACTER_SAVAGE:
-		return game.RegionSavage
+		return world.RegionSavage
 	case pb.RegionCharacter_REGION_CHARACTER_HOLY:
-		return game.RegionHoly
+		return world.RegionHoly
 	case pb.RegionCharacter_REGION_CHARACTER_WILD:
-		return game.RegionWild
+		return world.RegionWild
 	}
-	return game.RegionNormal
+	return world.RegionNormal
 }
 
 // regionCharacterKey maps a wire RegionCharacter to the lowercase catalog
@@ -208,7 +210,7 @@ func applyEvent(m *Model, ev *pb.Event) {
 		// payload (legacy server or calendar-less world) the same way
 		// applySnapshot does so a malformed broadcast never wipes a
 		// previously valid HUD.
-		if gt := gameTimeFromPB(payload.TimeTick.GetGameTime()); gt.Month != game.MonthZero {
+		if gt := gameTimeFromPB(payload.TimeTick.GetGameTime()); gt.Month != calendar.MonthZero {
 			m.gameTime = gt
 		}
 	}
@@ -219,11 +221,11 @@ func applyEvent(m *Model, ev *pb.Event) {
 // renderers can tell "no calendar configured" apart from any valid
 // in-world date without a separate null check. Mirrors gameTimeToPB on
 // the server side.
-func gameTimeFromPB(p *pb.GameTime) game.GameTime {
+func gameTimeFromPB(p *pb.GameTime) calendar.GameTime {
 	if p == nil {
-		return game.GameTime{}
+		return calendar.GameTime{}
 	}
-	return game.GameTime{
+	return calendar.GameTime{
 		Year:       p.GetYear(),
 		Month:      monthFromPB(p.GetMonth()),
 		DayOfMonth: p.GetDayOfMonth(),
@@ -236,29 +238,29 @@ func gameTimeFromPB(p *pb.GameTime) game.GameTime {
 // CalendarMonth enum to the domain Month. Kept as a map so adding a
 // thirteenth month stays a single-line change and CALENDAR_MONTH_
 // UNSPECIFIED falls through to MonthZero via the default return.
-var monthFromPBMapping = map[pb.CalendarMonth]game.Month{
-	pb.CalendarMonth_CALENDAR_MONTH_JANUARY:   game.MonthJanuary,
-	pb.CalendarMonth_CALENDAR_MONTH_FEBRUARY:  game.MonthFebruary,
-	pb.CalendarMonth_CALENDAR_MONTH_MARCH:     game.MonthMarch,
-	pb.CalendarMonth_CALENDAR_MONTH_APRIL:     game.MonthApril,
-	pb.CalendarMonth_CALENDAR_MONTH_MAY:       game.MonthMay,
-	pb.CalendarMonth_CALENDAR_MONTH_JUNE:      game.MonthJune,
-	pb.CalendarMonth_CALENDAR_MONTH_JULY:      game.MonthJuly,
-	pb.CalendarMonth_CALENDAR_MONTH_AUGUST:    game.MonthAugust,
-	pb.CalendarMonth_CALENDAR_MONTH_SEPTEMBER: game.MonthSeptember,
-	pb.CalendarMonth_CALENDAR_MONTH_OCTOBER:   game.MonthOctober,
-	pb.CalendarMonth_CALENDAR_MONTH_NOVEMBER:  game.MonthNovember,
-	pb.CalendarMonth_CALENDAR_MONTH_DECEMBER:  game.MonthDecember,
+var monthFromPBMapping = map[pb.CalendarMonth]calendar.Month{
+	pb.CalendarMonth_CALENDAR_MONTH_JANUARY:   calendar.MonthJanuary,
+	pb.CalendarMonth_CALENDAR_MONTH_FEBRUARY:  calendar.MonthFebruary,
+	pb.CalendarMonth_CALENDAR_MONTH_MARCH:     calendar.MonthMarch,
+	pb.CalendarMonth_CALENDAR_MONTH_APRIL:     calendar.MonthApril,
+	pb.CalendarMonth_CALENDAR_MONTH_MAY:       calendar.MonthMay,
+	pb.CalendarMonth_CALENDAR_MONTH_JUNE:      calendar.MonthJune,
+	pb.CalendarMonth_CALENDAR_MONTH_JULY:      calendar.MonthJuly,
+	pb.CalendarMonth_CALENDAR_MONTH_AUGUST:    calendar.MonthAugust,
+	pb.CalendarMonth_CALENDAR_MONTH_SEPTEMBER: calendar.MonthSeptember,
+	pb.CalendarMonth_CALENDAR_MONTH_OCTOBER:   calendar.MonthOctober,
+	pb.CalendarMonth_CALENDAR_MONTH_NOVEMBER:  calendar.MonthNovember,
+	pb.CalendarMonth_CALENDAR_MONTH_DECEMBER:  calendar.MonthDecember,
 }
 
 // monthFromPB translates a wire CalendarMonth enum to the domain
 // Month. Unknown wire values (including CALENDAR_MONTH_UNSPECIFIED)
 // return MonthZero so the renderer treats them as "no calendar".
-func monthFromPB(m pb.CalendarMonth) game.Month {
+func monthFromPB(m pb.CalendarMonth) calendar.Month {
 	if v, ok := monthFromPBMapping[m]; ok {
 		return v
 	}
-	return game.MonthZero
+	return calendar.MonthZero
 }
 
 // seasonFromPBMapping is the 1:1 translation table from the wire
@@ -266,22 +268,22 @@ func monthFromPB(m pb.CalendarMonth) game.Month {
 // symmetry with monthFromPBMapping; the zero-value UNSPECIFIED falls
 // through to SeasonWinter via the default return (matches SeasonOf
 // behaviour for out-of-range months).
-var seasonFromPBMapping = map[pb.CalendarSeason]game.Season{
-	pb.CalendarSeason_CALENDAR_SEASON_WINTER: game.SeasonWinter,
-	pb.CalendarSeason_CALENDAR_SEASON_SPRING: game.SeasonSpring,
-	pb.CalendarSeason_CALENDAR_SEASON_SUMMER: game.SeasonSummer,
-	pb.CalendarSeason_CALENDAR_SEASON_AUTUMN: game.SeasonAutumn,
+var seasonFromPBMapping = map[pb.CalendarSeason]calendar.Season{
+	pb.CalendarSeason_CALENDAR_SEASON_WINTER: calendar.SeasonWinter,
+	pb.CalendarSeason_CALENDAR_SEASON_SPRING: calendar.SeasonSpring,
+	pb.CalendarSeason_CALENDAR_SEASON_SUMMER: calendar.SeasonSummer,
+	pb.CalendarSeason_CALENDAR_SEASON_AUTUMN: calendar.SeasonAutumn,
 }
 
 // seasonFromPB translates a wire CalendarSeason enum to the domain
 // Season. Unknown wire values (including CALENDAR_SEASON_UNSPECIFIED)
 // return SeasonWinter as the safe default — matches the server-side
 // SeasonOf behaviour for an out-of-range Month.
-func seasonFromPB(s pb.CalendarSeason) game.Season {
+func seasonFromPB(s pb.CalendarSeason) calendar.Season {
 	if v, ok := seasonFromPBMapping[s]; ok {
 		return v
 	}
-	return game.SeasonWinter
+	return calendar.SeasonWinter
 }
 
 // logEvent appends a default-styled bulleted, localized event-log entry.
@@ -323,7 +325,7 @@ func displayName(name, id string) string {
 
 // tileIndex translates a world-space position into the local tile-array
 // offset, or -1 when the position falls outside the current viewport.
-func (m *Model) tileIndex(p game.Position) int {
+func (m *Model) tileIndex(p geom.Position) int {
 	if m.width <= 0 || m.height <= 0 {
 		return -1
 	}
@@ -337,7 +339,7 @@ func (m *Model) tileIndex(p game.Position) int {
 
 // withTile looks up the tile at p in the local viewport and invokes fn
 // if it exists. No-op for out-of-viewport positions or nil tile slots.
-func (m *Model) withTile(p game.Position, fn func(*pb.Tile)) {
+func (m *Model) withTile(p geom.Position, fn func(*pb.Tile)) {
 	idx := m.tileIndex(p)
 	if idx < 0 || idx >= len(m.tiles) {
 		return
@@ -349,7 +351,7 @@ func (m *Model) withTile(p game.Position, fn func(*pb.Tile)) {
 
 // setOccupant writes occupant metadata to a tile. No-op if the position is
 // out of the viewport or the tile slot is nil.
-func (m *Model) setOccupant(p game.Position, entityID string, kind pb.OccupantKind) {
+func (m *Model) setOccupant(p geom.Position, entityID string, kind pb.OccupantKind) {
 	m.withTile(p, func(t *pb.Tile) {
 		t.Occupant = kind
 		t.EntityId = entityID
@@ -359,7 +361,7 @@ func (m *Model) setOccupant(p game.Position, entityID string, kind pb.OccupantKi
 // clearOccupantAt blanks occupant metadata only when the entity currently
 // listed on that tile matches id. Prevents out-of-order events from wiping a
 // cell a different entity has since moved onto.
-func (m *Model) clearOccupantAt(p game.Position, id string) {
+func (m *Model) clearOccupantAt(p geom.Position, id string) {
 	m.withTile(p, func(t *pb.Tile) {
 		if t.GetEntityId() != id {
 			return

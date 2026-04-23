@@ -1,7 +1,4 @@
-package game
-
-// Slot identifies an equipment slot on a combatant's body (head, body, legs).
-type Slot string
+package world
 
 // Terrain is the biome identifier for a map tile, used to drive passability,
 // rendering, and world-generation classification.
@@ -20,12 +17,6 @@ const (
 )
 
 const (
-	// Equipment slots.
-
-	SlotHead Slot = "head"
-	SlotBody Slot = "body"
-	SlotLegs Slot = "legs"
-
 	// Terrain values. The set is tuned for a Whittaker-style biome matrix: water at low
 	// elevation, mountain/snow at high elevation, and a climate grid in between that mixes
 	// temperature and moisture.
@@ -55,36 +46,38 @@ const (
 	TerrainCraterLake         Terrain = "crater_lake"
 	TerrainVolcanoSlope       Terrain = "volcano_slope"
 	TerrainAshland            Terrain = "ashland"
-
-	// Damage multipliers for different body parts.
-	HeadDamageMultiplier = 2.0
-	BodyDamageMultiplier = 1.0
-	LegsDamageMultiplier = 0.5
-	numberOfSlots        = 3
 )
-
-// Speed scale values applied to Player and Monster entities. NetHack-style
-// units: 12 is the baseline, doubling is "very fast", halving is "very slow".
-// The absolute numbers matter only relative to BaseActionCost.
-const (
-	SpeedVerySlow = 6
-	SpeedSlow     = 9
-	SpeedNormal   = 12
-	SpeedFast     = 18
-	SpeedVeryFast = 24
-)
-
-// BaseActionCost is the Energy consumed by a standard gameplay action
-// (move, basic attack). Exotic actions override this via Intent.Cost.
-// Exported so the server can populate the self_energy_cost Snapshot field
-// that lets the client render the energy progress bar denominator.
-const BaseActionCost = 12
 
 // AllStructureKinds returns every StructureKind except StructureNone in a
 // stable order. Useful when a client needs to enumerate all structures
 // (for example, to pre-load sprite assets).
 func AllStructureKinds() []StructureKind {
 	return []StructureKind{StructureVillage, StructureCastle}
+}
+
+// Passable reports whether an entity can stand on a tile of this terrain.
+// Water and high peaks block movement; the empty string and unknown values
+// are treated as impassable so buggy map data fails closed rather than open.
+func (t Terrain) Passable() bool {
+	switch t {
+	case TerrainPlains,
+		TerrainGrassland,
+		TerrainMeadow,
+		TerrainBeach,
+		TerrainSavanna,
+		TerrainDesert,
+		TerrainSnow,
+		TerrainTundra,
+		TerrainTaiga,
+		TerrainForest,
+		TerrainJungle,
+		TerrainHills,
+		TerrainVolcanoSlope,
+		TerrainAshland:
+		return true
+	default:
+		return false
+	}
 }
 
 // AllTerrains lists every Terrain value in a stable order. Useful when a client

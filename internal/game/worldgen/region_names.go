@@ -1,8 +1,10 @@
 package worldgen
 
 import (
-	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/geom"
 	"github.com/Rioverde/gongeons/internal/game/naming"
+	"github.com/Rioverde/gongeons/internal/game/world"
+	"github.com/Rioverde/gongeons/internal/game/worldgen/biome"
 )
 
 // regionBounds caps the PrefixIndex and PatternIndex draws to the
@@ -43,20 +45,20 @@ func RegionBounds() naming.Bounds {
 // Parts — the naming package owns body-seed derivation, so the client
 // can reproduce any language's body locally from Name.BodySeed.
 //
-// The returned Parts is stored on game.Region and composed into a
+// The returned Parts is stored on world.Region and composed into a
 // display string by the client via the locale catalog under
 // "region.name.*" and "region.prefix.*" keys.
 func RegionName(
-	character game.RegionCharacter,
-	biome BiomeFamily,
+	character world.RegionCharacter,
+	family biome.BiomeFamily,
 	seed int64,
-	sc game.SuperChunkCoord,
+	sc geom.SuperChunkCoord,
 ) naming.Parts {
 	return naming.Generate(
 		naming.Input{
 			Domain:    naming.DomainRegion,
 			Character: character.Key(),
-			SubKind:   biome.Key(),
+			SubKind:   family.Key(),
 			Seed:      seed,
 			CoordX:    sc.X,
 			CoordY:    sc.Y,
@@ -82,6 +84,6 @@ const (
 // Exposed for the distribution regression test; the production naming
 // path uses the identical-shaped mixer inside internal/game/naming
 // with distinct primes.
-func hashCoord(sc game.SuperChunkCoord) uint64 {
+func hashCoord(sc geom.SuperChunkCoord) uint64 {
 	return uint64(int64(sc.X))*hashCoordPrimeX ^ uint64(int64(sc.Y))*hashCoordPrimeY
 }

@@ -1,4 +1,6 @@
-package game
+package world
+
+import "github.com/Rioverde/gongeons/internal/game/stats"
 
 // Command is the closed sum type of domain intents. Concrete command types
 // live in this file and implement the unexported isCommand marker so the set
@@ -12,12 +14,12 @@ type Command interface {
 // and Name is the human-readable label. Stats carries the D&D 5e Point
 // Buy distribution the client assembled during character creation; the
 // domain picks the spawn tile. A zero-value Stats (all zeros) is rejected
-// by applyJoin as invalid — the server layer fills in DefaultCoreStats
+// by applyJoin as invalid — the server layer fills in stats.DefaultCoreStats
 // before dispatch when a legacy client omits the field on the wire.
 type JoinCmd struct {
 	PlayerID string
 	Name     string
-	Stats    CoreStats
+	Stats    stats.CoreStats
 }
 
 // MoveCmd asks the world to move a player one step. Exactly one of DX,

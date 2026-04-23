@@ -1,4 +1,6 @@
-package game
+package world
+
+import "github.com/Rioverde/gongeons/internal/game/geom"
 
 // DepositKind enumerates every resource deposit type the game recognizes.
 // Order is stable — the iota value participates in any future persistence
@@ -137,7 +139,7 @@ func CategoryOf(k DepositKind) DepositCategory {
 // invalid state; DepositAt returns (Deposit{}, false) when no deposit
 // covers the queried tile.
 type Deposit struct {
-	Position      Position
+	Position      geom.Position
 	Kind          DepositKind
 	MaxAmount     int32
 	CurrentAmount int32
@@ -160,7 +162,7 @@ type Deposit struct {
 // result is fully deterministic. Used by the future contextual info-
 // panel when a player approaches a feature.
 type DepositSource interface {
-	DepositAt(p Position) (Deposit, bool)
-	DepositsIn(rect Rect) []Deposit
-	DepositsNear(p Position, radius int) []Deposit
+	DepositAt(p geom.Position) (Deposit, bool)
+	DepositsIn(rect geom.Rect) []Deposit
+	DepositsNear(p geom.Position, radius int) []Deposit
 }

@@ -1,4 +1,8 @@
-package game
+package calendar
+
+import (
+	"github.com/Rioverde/gongeons/internal/game/geom"
+)
 
 // Month enumerates the twelve calendar months in real-world Gregorian
 // order. Values are 1-indexed so MonthZero is the "not set" sentinel
@@ -236,7 +240,7 @@ var DefaultCalendarConfig = struct {
 // for a well-diffused mix — tests that want readable derivations pass
 // 0 directly via NewCalendar.
 func DefaultEpochOffset(seed int64) int64 {
-	h := splitmix64(uint64(seed) ^ calendarEpochSalt)
+	h := geom.Splitmix64(uint64(seed) ^ calendarEpochSalt)
 	ticksPerYear := DefaultCalendarConfig.TicksPerDay *
 		DefaultCalendarConfig.DaysPerMonth *
 		DefaultCalendarConfig.MonthsPerYear

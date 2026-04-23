@@ -4,7 +4,9 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/geom"
+	"github.com/Rioverde/gongeons/internal/game/world"
+	"github.com/Rioverde/gongeons/internal/game/worldgen/noise"
 )
 
 // Deposit generation shares the volcano super-region granularity
@@ -14,7 +16,7 @@ import (
 // `sr.bounds()` rather than through a local alias to avoid documenting
 // the coupling twice.
 
-// NoiseDepositSource implements game.DepositSource by generating resource
+// NoiseDepositSource implements world.DepositSource by generating resource
 // deposits deterministically from a world seed. Generation batches at the
 // 4x4 SC super-region granularity so the cache aligns with the volcano
 // layer; each super-region is produced exactly once under sync.Once and
@@ -30,8 +32,8 @@ import (
 type NoiseDepositSource struct {
 	seed      int64
 	worldgen  *WorldGenerator
-	landmarks game.LandmarkSource
-	volcanoes game.VolcanoSource
+	landmarks world.LandmarkSource
+	volcanoes world.VolcanoSource
 
 	// cache maps superRegion -> *depositRegionData. Lazy-filled via
 	// sync.Once per entry so concurrent readers collapse to one
@@ -42,7 +44,7 @@ type NoiseDepositSource struct {
 	// at wire time so per-tile sampling skips the noise-constructor
 	// overhead on the hot path. Map reads are safe for concurrent use
 	// because the map is never mutated after the constructor returns.
-	zonalNoise map[game.DepositKind]OctaveNoise
+	zonalNoise map[world.DepositKind]noise.OctaveNoise
 }
 
 // depositRegionData is the generated state for one super-region: the
@@ -51,8 +53,8 @@ type NoiseDepositSource struct {
 // map without synchronisation.
 type depositRegionData struct {
 	once     sync.Once
-	deposits []game.Deposit
-	byTile   map[game.Position]game.Deposit
+	deposits []world.Deposit
+	byTile   map[geom.Position]world.Deposit
 }
 
 // NewNoiseDepositSource wires a deposit source to a WorldGenerator (for
@@ -66,8 +68,8 @@ type depositRegionData struct {
 func NewNoiseDepositSource(
 	seed int64,
 	wg *WorldGenerator,
-	lm game.LandmarkSource,
-	vs game.VolcanoSource,
+	lm world.LandmarkSource,
+	vs world.VolcanoSource,
 ) *NoiseDepositSource {
 	s := &NoiseDepositSource{
 		seed:      seed,
@@ -75,17 +77,17 @@ func NewNoiseDepositSource(
 		landmarks: lm,
 		volcanoes: vs,
 	}
-	s.zonalNoise = make(map[game.DepositKind]OctaveNoise, len(zonalKinds))
+	s.zonalNoise = make(map[world.DepositKind]noise.OctaveNoise, len(zonalKinds))
 	for _, k := range zonalKinds {
-		s.zonalNoise[k] = NewOctaveNoise(seed^zonalSubSalts[k], zonalNoiseOpts)
+		s.zonalNoise[k] = noise.NewOctaveNoise(seed^zonalSubSalts[k], zonalNoiseOpts)
 	}
 	return s
 }
 
 // DepositAt returns the deposit covering tile p, or (Deposit{}, false)
 // when none exists. Deterministic and safe for concurrent read.
-func (s *NoiseDepositSource) DepositAt(p game.Position) (game.Deposit, bool) {
-	sr := superRegionOf(game.WorldToSuperChunk(p.X, p.Y))
+func (s *NoiseDepositSource) DepositAt(p geom.Position) (world.Deposit, bool) {
+	sr := superRegionOf(geom.WorldToSuperChunk(p.X, p.Y))
 	data := s.ensureRegion(sr)
 	d, ok := data.byTile[p]
 	return d, ok
@@ -96,12 +98,12 @@ func (s *NoiseDepositSource) DepositAt(p game.Position) (game.Deposit, bool) {
 // affecting the source cache. Iteration order is deterministic: deposits
 // are yielded super-region by super-region in ascending (X, Y) order,
 // and within a super-region in the order the generator produced them.
-func (s *NoiseDepositSource) DepositsIn(rect game.Rect) []game.Deposit {
+func (s *NoiseDepositSource) DepositsIn(rect geom.Rect) []world.Deposit {
 	if rect.Empty() {
 		return nil
 	}
 	srs := superRegionsIntersecting(rect)
-	out := make([]game.Deposit, 0, 32)
+	out := make([]world.Deposit, 0, 32)
 	for _, sr := range srs {
 		data := s.ensureRegion(sr)
 		for _, d := range data.deposits {
@@ -118,12 +120,12 @@ func (s *NoiseDepositSource) DepositsIn(rect game.Rect) []game.Deposit {
 // the result is fully deterministic across calls with the same inputs.
 // radius < 0 returns nil; radius == 0 returns the single deposit on p,
 // when one exists.
-func (s *NoiseDepositSource) DepositsNear(p game.Position, radius int) []game.Deposit {
+func (s *NoiseDepositSource) DepositsNear(p geom.Position, radius int) []world.Deposit {
 	if radius < 0 {
 		return nil
 	}
 	// Rect uses half-open bounds — add one to the inclusive max.
-	rect := game.Rect{
+	rect := geom.Rect{
 		MinX: p.X - radius, MaxX: p.X + radius + 1,
 		MinY: p.Y - radius, MaxY: p.Y + radius + 1,
 	}
@@ -192,14 +194,14 @@ const (
 // would otherwise appear on every overwrite — the flat deposits slice
 // is materialised exactly once at the end via emit.
 type placer struct {
-	byTile   map[game.Position]game.Deposit
-	priority map[game.Position]int
+	byTile   map[geom.Position]world.Deposit
+	priority map[geom.Position]int
 }
 
 func newPlacer(cap int) *placer {
 	return &placer{
-		byTile:   make(map[game.Position]game.Deposit, cap),
-		priority: make(map[game.Position]int, cap),
+		byTile:   make(map[geom.Position]world.Deposit, cap),
+		priority: make(map[geom.Position]int, cap),
 	}
 }
 
@@ -208,7 +210,7 @@ func newPlacer(cap int) *placer {
 // "first-wins-at-tier" property callers rely on (e.g. point-kinds of
 // equal rarity iterate in pointKinds order, and the first one to land
 // on a shared tile keeps it).
-func (pl *placer) place(t game.Position, dep game.Deposit, pri int) {
+func (pl *placer) place(t geom.Position, dep world.Deposit, pri int) {
 	if existing, ok := pl.priority[t]; ok && existing >= pri {
 		return
 	}
@@ -220,8 +222,8 @@ func (pl *placer) place(t game.Position, dep game.Deposit, pri int) {
 // Sorting by (X, Y) lex order keeps downstream iteration stable across
 // calls and across independent sources with the same seed — map-range
 // order in Go is deliberately randomised per-call.
-func (pl *placer) emit() []game.Deposit {
-	out := make([]game.Deposit, 0, len(pl.byTile))
+func (pl *placer) emit() []world.Deposit {
+	out := make([]world.Deposit, 0, len(pl.byTile))
 	for _, dep := range pl.byTile {
 		out = append(out, dep)
 	}
@@ -248,7 +250,7 @@ func (d *depositRegionData) generate(s *NoiseDepositSource, sr superRegion) {
 
 	for y := minY; y < minY+side; y++ {
 		for x := minX; x < minX+side; x++ {
-			t := game.Position{X: x, Y: y}
+			t := geom.Position{X: x, Y: y}
 			tile := s.worldgen.TileAt(x, y)
 			if dep, ok := zonalDepositAt(t, tile.Terrain, s.zonalNoise); ok {
 				pl.place(t, dep, priZonal)
@@ -284,11 +286,11 @@ func (d *depositRegionData) generate(s *NoiseDepositSource, sr superRegion) {
 	// not a flat 70% obsidian. The priority scheme (priSulfur >
 	// priObsidian) makes this explicit regardless of call order.
 	if s.volcanoes != nil {
-		minSC := game.WorldToSuperChunk(minX, minY)
-		maxSC := game.WorldToSuperChunk(minX+side-1, minY+side-1)
+		minSC := geom.WorldToSuperChunk(minX, minY)
+		maxSC := geom.WorldToSuperChunk(minX+side-1, minY+side-1)
 		for scX := minSC.X; scX <= maxSC.X; scX++ {
 			for scY := minSC.Y; scY <= maxSC.Y; scY++ {
-				sc := game.SuperChunkCoord{X: scX, Y: scY}
+				sc := geom.SuperChunkCoord{X: scX, Y: scY}
 				for _, v := range s.volcanoes.VolcanoAt(sc) {
 					for _, t := range v.SlopeTiles {
 						if t.X < minX || t.X >= minX+side || t.Y < minY || t.Y >= minY+side {
@@ -313,16 +315,16 @@ func (d *depositRegionData) generate(s *NoiseDepositSource, sr superRegion) {
 
 // superRegionsIntersecting returns every super-region whose bounds
 // overlap rect. rect is assumed half-open (MinX/MinY inclusive,
-// MaxX/MaxY exclusive), matching game.Rect's convention. Empty rects
+// MaxX/MaxY exclusive), matching geom.Rect's convention. Empty rects
 // produce an empty slice.
-func superRegionsIntersecting(rect game.Rect) []superRegion {
+func superRegionsIntersecting(rect geom.Rect) []superRegion {
 	if rect.Empty() {
 		return nil
 	}
 	// Map the inclusive corners of rect to super-regions. MaxX/MaxY are
 	// exclusive so the last tile that can lie inside is (MaxX-1, MaxY-1).
-	minSC := game.WorldToSuperChunk(rect.MinX, rect.MinY)
-	maxSC := game.WorldToSuperChunk(rect.MaxX-1, rect.MaxY-1)
+	minSC := geom.WorldToSuperChunk(rect.MinX, rect.MinY)
+	maxSC := geom.WorldToSuperChunk(rect.MaxX-1, rect.MaxY-1)
 	minSR := superRegionOf(minSC)
 	maxSR := superRegionOf(maxSC)
 
@@ -338,7 +340,7 @@ func superRegionsIntersecting(rect game.Rect) []superRegion {
 // chebyshev returns the Chebyshev (L-infinity) distance between two
 // tile positions on the square grid. Used by DepositsNear to match the
 // grid's 8-connectivity movement metric.
-func chebyshev(a, b game.Position) int {
+func chebyshev(a, b geom.Position) int {
 	dx := a.X - b.X
 	if dx < 0 {
 		dx = -dx
@@ -353,4 +355,4 @@ func chebyshev(a, b game.Position) int {
 // Compile-time assertion that NoiseDepositSource satisfies the consumer
 // interface. Mirrors the same assertion in volcanoes.go and
 // region_source.go so interface drift fails at build time.
-var _ game.DepositSource = (*NoiseDepositSource)(nil)
+var _ world.DepositSource = (*NoiseDepositSource)(nil)

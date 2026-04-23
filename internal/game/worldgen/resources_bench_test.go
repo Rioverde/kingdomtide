@@ -3,7 +3,7 @@ package worldgen
 import (
 	"testing"
 
-	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/geom"
 )
 
 // BenchmarkPointDepositsInRegion measures one full Poisson-disk pass
@@ -38,7 +38,7 @@ func BenchmarkDepositAt_Cached(b *testing.B) {
 
 	// Warm the origin super-region and pick a tile inside it.
 	_ = src.ensureRegion(superRegion{X: 0, Y: 0})
-	p := game.Position{X: 42, Y: 42}
+	p := geom.Position{X: 42, Y: 42}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -56,7 +56,7 @@ func BenchmarkDepositsIn_100x100(b *testing.B) {
 	vs := NewNoiseVolcanoSource(seed, wg, lm)
 	src := NewNoiseDepositSource(seed, wg, lm, vs)
 
-	rect := game.Rect{MinX: 0, MinY: 0, MaxX: 100, MaxY: 100}
+	rect := geom.Rect{MinX: 0, MinY: 0, MaxX: 100, MaxY: 100}
 	// Warm every super-region the rect touches so the bench reflects
 	// iteration cost rather than first-generation cost.
 	_ = src.DepositsIn(rect)

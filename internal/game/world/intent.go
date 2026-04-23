@@ -1,4 +1,6 @@
-package game
+package world
+
+import "github.com/Rioverde/gongeons/internal/game/stats"
 
 // Intent is the closed sum type of gameplay actions that resolve inside a
 // tick rather than immediately. Concrete intents implement the unexported
@@ -28,7 +30,7 @@ func (MoveIntent) isIntent() {}
 
 // Cost reports the Energy charged when the move resolves successfully.
 // Moves run at the baseline rate; faster or slower actions override this.
-func (MoveIntent) Cost() int { return BaseActionCost }
+func (MoveIntent) Cost() int { return stats.BaseActionCost }
 
 // Compile-time proof that every concrete intent satisfies Intent.
 var _ Intent = MoveIntent{}

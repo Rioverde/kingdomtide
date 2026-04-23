@@ -11,7 +11,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/world"
 	"github.com/Rioverde/gongeons/internal/game/worldgen"
 	pb "github.com/Rioverde/gongeons/internal/proto"
 )
@@ -23,7 +23,7 @@ const recvTimeout = 2 * time.Second
 
 // testWorld returns a deterministic world for integration tests. Uses a
 // fixed seed so failure modes are reproducible, not whim-of-the-clock.
-func testWorld() *game.World { return worldgen.NewWorld(1) }
+func testWorld() *world.World { return worldgen.NewWorld(1) }
 
 // startTestServer brings up a real gRPC server on a random localhost port and
 // returns a client plus a cleanup function. Each test gets its own world, so

@@ -15,7 +15,9 @@ import (
 	"github.com/charmbracelet/ssh"
 	"google.golang.org/grpc"
 
-	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/calendar"
+	"github.com/Rioverde/gongeons/internal/game/geom"
+	"github.com/Rioverde/gongeons/internal/game/stats"
 	"github.com/Rioverde/gongeons/internal/game/worldgen"
 	pb "github.com/Rioverde/gongeons/internal/proto"
 	"github.com/Rioverde/gongeons/internal/server"
@@ -44,7 +46,7 @@ const (
 	phaseEnterName phase = iota
 	// phaseCharacterCreation runs after a valid name is submitted and
 	// before the client dials the server. The player distributes the 5e
-	// Point Buy budget (game.PointBuyBudget) across six abilities; Enter
+	// Point Buy budget (stats.PointBuyBudget) across six abilities; Enter
 	// advances to phaseConnecting once the distribution balances, Esc
 	// returns to phaseEnterName.
 	phaseCharacterCreation
@@ -74,16 +76,16 @@ const (
 type playerInfo struct {
 	ID   string
 	Name string
-	Pos  game.Position
+	Pos  geom.Position
 }
 
 // calendarConfig is the client-side cache of the immutable calendar
 // cadence the server advertised in JoinAccepted. Stored as a UI-local
 // value type so state.go does not drag a hard dependency on the full
-// game.Calendar struct at this layer. Zero value indicates "not yet
+// calendar.Calendar struct at this layer. Zero value indicates "not yet
 // received" — the date HUD falls back to empty output until the fields
 // populate. EpochTickOffset carries the server's seed-derived calendar
-// epoch so the client can build a mirror game.Calendar and derive
+// epoch so the client can build a mirror calendar.Calendar and derive
 // GameTime locally between snapshots.
 type calendarConfig struct {
 	TicksPerDay     int64
@@ -115,7 +117,7 @@ type logEntry struct {
 // ring (approachExitRadius). Used to suppress repeat "you approach" messages
 // until the player actually leaves and returns.
 type approachedLandmark struct {
-	coord   game.Position // anchor tile of the last-approached landmark
+	coord   geom.Position // anchor tile of the last-approached landmark
 	valid   bool          // false until the first approach happens
 	outside bool          // true after player moved past approachExitRadius
 }
@@ -161,7 +163,7 @@ type Model struct {
 	// completes character creation and the phase transitions to Connecting.
 	// currentHP tracks the player's hit points client-side; it is set to
 	// coreStats.MaxHP() on join and will be updated by combat events later.
-	coreStats game.CoreStats
+	coreStats stats.CoreStats
 	currentHP int
 
 	// calendarCfg is the raw immutable cadence delivered once in
@@ -177,7 +179,7 @@ type Model struct {
 	// wall-clock second. The zero value (Month == MonthZero) means
 	// "no calendar wired / not yet received" and the date HUD
 	// suppresses rendering in that case.
-	gameTime game.GameTime
+	gameTime calendar.GameTime
 
 	// help renders the bottom-bar keybinding hint from Keys. Width is
 	// updated on every tea.WindowSizeMsg so the short view truncates
@@ -197,7 +199,7 @@ type Model struct {
 	myID     string
 	width    int
 	height   int
-	origin   game.Position // world coord of tiles[0]
+	origin   geom.Position // world coord of tiles[0]
 	tiles    []*pb.Tile
 	players  map[string]playerInfo
 	logLines []logEntry
@@ -209,7 +211,7 @@ type Model struct {
 	// initialised guards the first snapshot so joining a world does not emit
 	// a spurious "you enter X" log line.
 	region          *pb.Region
-	lastRegionCoord game.SuperChunkCoord
+	lastRegionCoord geom.SuperChunkCoord
 	initialised     bool
 
 	// approached tracks the landmark the player most recently stepped within
@@ -324,27 +326,27 @@ func (m *Model) appendLogLeave(line string) {
 }
 
 // resetStatsForCreation seeds the six ability scores to the 5e Point Buy
-// baseline (all at game.PointBuyMin) and parks the cursor on the first
+// baseline (all at stats.PointBuyMin) and parks the cursor on the first
 // row. Called on every entry to phaseCharacterCreation — both the forward
 // path from phaseEnterName and the backward path via Esc — so the player
 // sees a clean baseline instead of stale values from a previous pass.
 func (m *Model) resetStatsForCreation() {
 	for i := range m.stats {
-		m.stats[i] = game.PointBuyMin
+		m.stats[i] = stats.PointBuyMin
 	}
 	m.selectedStat = 0
 	m.statsError = ""
 }
 
 // pointBuyUsed returns the total Point Buy cost of the current stats
-// distribution. Each score's price comes from game.PointBuyCost, which
+// distribution. Each score's price comes from stats.PointBuyCost, which
 // returns 0 for out-of-range inputs — so even a malformed distribution
 // still yields a finite number and the remaining-budget line renders
 // without a panic.
 func (m *Model) pointBuyUsed() int {
 	used := 0
 	for _, s := range m.stats {
-		used += game.PointBuyCost(s)
+		used += stats.PointBuyCost(s)
 	}
 	return used
 }
@@ -355,6 +357,5 @@ func (m *Model) pointBuyUsed() int {
 // increment/decrement guards but is carried through so the UI can flash
 // a warning if the invariant ever breaks.
 func (m *Model) pointBuyRemaining() int {
-	return game.PointBuyBudget - m.pointBuyUsed()
+	return stats.PointBuyBudget - m.pointBuyUsed()
 }
-

@@ -7,7 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/stats"
 	"github.com/Rioverde/gongeons/internal/ui/locale"
 )
 
@@ -41,8 +41,8 @@ func TestPhaseTransitionEnterNameToCreation(t *testing.T) {
 		t.Fatalf("phase = %d, want phaseCharacterCreation", m.phase)
 	}
 	for i, s := range m.stats {
-		if s != game.PointBuyMin {
-			t.Errorf("stats[%d] = %d, want %d", i, s, game.PointBuyMin)
+		if s != stats.PointBuyMin {
+			t.Errorf("stats[%d] = %d, want %d", i, s, stats.PointBuyMin)
 		}
 	}
 	if m.selectedStat != 0 {
@@ -86,8 +86,8 @@ func TestPhaseTransitionCreationBack(t *testing.T) {
 		t.Fatalf("phase = %d, want phaseEnterName", m.phase)
 	}
 	for i, s := range m.stats {
-		if s != game.PointBuyMin {
-			t.Errorf("stats[%d] = %d after Esc reset, want %d", i, s, game.PointBuyMin)
+		if s != stats.PointBuyMin {
+			t.Errorf("stats[%d] = %d after Esc reset, want %d", i, s, stats.PointBuyMin)
 		}
 	}
 }
@@ -99,17 +99,17 @@ func TestStatIncrement(t *testing.T) {
 	t.Parallel()
 	m := newCreationModel(t)
 	// Cursor starts on STR (index 0).
-	if got, want := m.pointBuyRemaining(), game.PointBuyBudget; got != want {
+	if got, want := m.pointBuyRemaining(), stats.PointBuyBudget; got != want {
 		t.Fatalf("initial remaining = %d, want %d", got, want)
 	}
 
 	model, _ := m.Update(tea.KeyMsg{Type: tea.KeyRight})
 	m = model.(*Model)
-	if m.stats[statIdxStrength] != game.PointBuyMin+1 {
-		t.Errorf("stats[STR] = %d, want %d", m.stats[statIdxStrength], game.PointBuyMin+1)
+	if m.stats[statIdxStrength] != stats.PointBuyMin+1 {
+		t.Errorf("stats[STR] = %d, want %d", m.stats[statIdxStrength], stats.PointBuyMin+1)
 	}
 	// Cost of 9 is 1, cost of 8 is 0: remaining drops by 1.
-	if got, want := m.pointBuyRemaining(), game.PointBuyBudget-1; got != want {
+	if got, want := m.pointBuyRemaining(), stats.PointBuyBudget-1; got != want {
 		t.Errorf("remaining = %d, want %d", got, want)
 	}
 }
@@ -159,9 +159,9 @@ func TestStatRangeGuard(t *testing.T) {
 
 	model, _ := m.Update(tea.KeyMsg{Type: tea.KeyRight})
 	m = model.(*Model)
-	if m.stats[statIdxStrength] != game.PointBuyMax {
+	if m.stats[statIdxStrength] != stats.PointBuyMax {
 		t.Errorf("stats[STR] = %d, want %d (capped)",
-			m.stats[statIdxStrength], game.PointBuyMax)
+			m.stats[statIdxStrength], stats.PointBuyMax)
 	}
 }
 

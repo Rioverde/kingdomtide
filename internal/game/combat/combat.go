@@ -1,18 +1,14 @@
-package game
+package combat
+
+import "github.com/Rioverde/gongeons/internal/game/entity"
 
 // Combatant is the interface satisfied by any entity that can participate
-// in combat: it can take damage, report liveness (via Occupant), and
-// surface its current outgoing base damage.
+// in combat: it can take damage, report liveness (via entity.Occupant),
+// and surface its current outgoing base damage.
 type Combatant interface {
-	Occupant
+	entity.Occupant
 	TakeDamage(damage int)
 	BaseDamage() int
-}
-
-// Occupant is the minimal interface for anything that can stand on a tile
-// and be checked for liveness.
-type Occupant interface {
-	IsAlive() bool
 }
 
 // Attack resolves one attack from attacker against defender. A random

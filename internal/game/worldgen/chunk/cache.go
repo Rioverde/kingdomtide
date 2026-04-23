@@ -1,4 +1,4 @@
-package worldgen
+package chunk
 
 import (
 	lru "github.com/hashicorp/golang-lru/v2"

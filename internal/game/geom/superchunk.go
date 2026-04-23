@@ -1,4 +1,4 @@
-package game
+package geom
 
 import (
 	"math/rand/v2"
@@ -18,13 +18,14 @@ type SuperChunkCoord struct {
 	X, Y int
 }
 
-// anchorJitterMin and anchorJitterMax bound where an anchor may land inside
+// AnchorJitterMin and AnchorJitterMax bound where an anchor may land inside
 // its super-chunk cell. Restricting jitter to [8, 56] keeps a minimum 16-
 // tile gap between any two neighbouring anchors and guarantees every Voronoi
 // region is at least ~8 tiles wide, avoiding degenerate zero-width cells.
+// Exported so invariant tests in sibling packages can assert the bound.
 const (
-	anchorJitterMin = 8
-	anchorJitterMax = SuperChunkSize - 8
+	AnchorJitterMin = 8
+	AnchorJitterMax = SuperChunkSize - 8
 )
 
 // Salts that mix the seed with the super-chunk coordinate when deriving an
@@ -70,11 +71,11 @@ func floorDiv(a, b int) int {
 	return q
 }
 
-// splitmix64 is the classic Steele-Vigna finalizer. Used to derive a
+// Splitmix64 is the classic Steele-Vigna finalizer. Used to derive a
 // deterministic 64-bit mix from the seed and a per-super-chunk input; the
 // resulting bits are statistically strong enough to split into two jitter
 // offsets and a PRNG state without visible lattice artifacts.
-func splitmix64(x uint64) uint64 {
+func Splitmix64(x uint64) uint64 {
 	x += 0x9e3779b97f4a7c15
 	x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9
 	x = (x ^ (x >> 27)) * 0x94d049bb133111eb
@@ -83,18 +84,18 @@ func splitmix64(x uint64) uint64 {
 
 // anchorMix combines the world seed with a SuperChunkCoord into a single
 // 64-bit value. The XOR structure matches the "seed ^ (X*saltX) ^ (Y*saltY)"
-// recipe; splitmix64 then diffuses the bits so close
+// recipe; Splitmix64 then diffuses the bits so close
 // coords produce visibly different outputs.
 func anchorMix(seed int64, sc SuperChunkCoord) uint64 {
 	h := uint64(seed) ^
 		uint64(int64(sc.X)*seedSaltAnchorX) ^
 		uint64(int64(sc.Y)*seedSaltAnchorY)
-	return splitmix64(h)
+	return Splitmix64(h)
 }
 
 // AnchorOf returns the jittered anchor position for a given super-chunk.
 // The anchor is a deterministic (seed, sc)-derived point inside the super-
-// chunk's cell, clamped to [anchorJitterMin, anchorJitterMax] on each axis.
+// chunk's cell, clamped to [AnchorJitterMin, AnchorJitterMax] on each axis.
 // Same (seed, sc) always returns the same Position.
 func AnchorOf(seed int64, sc SuperChunkCoord) Position {
 	h := anchorMix(seed, sc)
@@ -103,9 +104,9 @@ func AnchorOf(seed int64, sc SuperChunkCoord) Position {
 	// hash call.
 	hi := uint32(h >> 32)
 	lo := uint32(h)
-	const span = anchorJitterMax - anchorJitterMin + 1
-	dx := int(hi%uint32(span)) + anchorJitterMin
-	dy := int(lo%uint32(span)) + anchorJitterMin
+	const span = AnchorJitterMax - AnchorJitterMin + 1
+	dx := int(hi%uint32(span)) + AnchorJitterMin
+	dy := int(lo%uint32(span)) + AnchorJitterMin
 	return Position{
 		X: sc.X*SuperChunkSize + dx,
 		Y: sc.Y*SuperChunkSize + dy,
@@ -123,7 +124,7 @@ func AnchorAt(seed int64, worldX, worldY int) (Position, SuperChunkCoord) {
 	home := WorldToSuperChunk(worldX, worldY)
 	bestSC := home
 	bestAnchor := AnchorOf(seed, home)
-	bestDist := sqDist(bestAnchor.X, bestAnchor.Y, worldX, worldY)
+	bestDist := SqDist(bestAnchor.X, bestAnchor.Y, worldX, worldY)
 
 	for dy := -1; dy <= 1; dy++ {
 		for dx := -1; dx <= 1; dx++ {
@@ -132,8 +133,8 @@ func AnchorAt(seed int64, worldX, worldY int) (Position, SuperChunkCoord) {
 			}
 			cand := SuperChunkCoord{X: home.X + dx, Y: home.Y + dy}
 			a := AnchorOf(seed, cand)
-			d := sqDist(a.X, a.Y, worldX, worldY)
-			if d < bestDist || (d == bestDist && lessSC(cand, bestSC)) {
+			d := SqDist(a.X, a.Y, worldX, worldY)
+			if d < bestDist || (d == bestDist && LessSC(cand, bestSC)) {
 				bestDist = d
 				bestSC = cand
 				bestAnchor = a
@@ -143,19 +144,21 @@ func AnchorAt(seed int64, worldX, worldY int) (Position, SuperChunkCoord) {
 	return bestAnchor, bestSC
 }
 
-// sqDist returns the squared Euclidean distance between (ax, ay) and
+// SqDist returns the squared Euclidean distance between (ax, ay) and
 // (bx, by). Keeping the result in int avoids float rounding noise in the
-// tie-break comparison and saves a sqrt call.
-func sqDist(ax, ay, bx, by int) int {
+// tie-break comparison and saves a sqrt call. Exported so callers that
+// reconstruct the Voronoi tie-break (invariant tests, alternative anchor
+// pickers) share one reference implementation.
+func SqDist(ax, ay, bx, by int) int {
 	dx := ax - bx
 	dy := ay - by
 	return dx*dx + dy*dy
 }
 
-// lessSC reports whether a sorts before b in SuperChunkCoord lex order: X
+// LessSC reports whether a sorts before b in SuperChunkCoord lex order: X
 // first, then Y. Used as the deterministic tie-break when two anchors are
-// equidistant to a tile.
-func lessSC(a, b SuperChunkCoord) bool {
+// equidistant to a tile. Exported for the same reason as SqDist.
+func LessSC(a, b SuperChunkCoord) bool {
 	if a.X != b.X {
 		return a.X < b.X
 	}
@@ -223,7 +226,7 @@ func NormalizeAt(seed int64, worldX, worldY int) SuperChunkCoord {
 	bestCount := 0
 	for i := range othersLen {
 		o := others[i]
-		if o.count > bestCount || (o.count == bestCount && lessSC(o.sc, bestSC)) {
+		if o.count > bestCount || (o.count == bestCount && LessSC(o.sc, bestSC)) {
 			bestCount = o.count
 			bestSC = o.sc
 		}

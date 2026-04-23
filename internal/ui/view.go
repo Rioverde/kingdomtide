@@ -7,8 +7,11 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/calendar"
+	"github.com/Rioverde/gongeons/internal/game/geom"
 	"github.com/Rioverde/gongeons/internal/game/naming"
+	"github.com/Rioverde/gongeons/internal/game/stats"
+	"github.com/Rioverde/gongeons/internal/game/world"
 	pb "github.com/Rioverde/gongeons/internal/proto"
 	"github.com/Rioverde/gongeons/internal/ui/locale"
 )
@@ -175,7 +178,7 @@ func (m *Model) renderDateHUDRow(width int) string {
 		return ""
 	}
 	gt := m.gameTime
-	if gt.Month == game.MonthZero {
+	if gt.Month == calendar.MonthZero {
 		return strings.Repeat(" ", width)
 	}
 	monthKey := locale.CalendarMonthKey(gt.Month.Key())
@@ -196,7 +199,7 @@ func (m *Model) renderDateHUDRow(width int) string {
 // seasonStyle returns the lipgloss style registered for s. Out-of-range
 // values fall through to an unstyled renderer so rendering never panics
 // on a Season value the client does not recognise.
-func seasonStyle(s game.Season) lipgloss.Style {
+func seasonStyle(s calendar.Season) lipgloss.Style {
 	if st, ok := seasonStyles[s]; ok {
 		return st
 	}
@@ -305,7 +308,7 @@ func (m *Model) renderStatsBox() string {
 	}
 
 	// Before character creation is confirmed, show the placeholder.
-	zero := game.CoreStats{}
+	zero := stats.CoreStats{}
 	if m.coreStats == zero {
 		empty := locale.Tr(m.lang, locale.KeyStatsEmpty)
 		var content string
@@ -345,7 +348,7 @@ func (m *Model) renderStatsBox() string {
 	for i := range statsCount {
 		label := locale.Tr(m.lang, statKeys[i])
 		val := statVals[i]
-		mod := game.Modifier(val)
+		mod := stats.Modifier(val)
 		var modStr string
 		switch {
 		case mod > 0:
@@ -595,11 +598,11 @@ func (m *Model) renderTile2w(t *pb.Tile, worldX, worldY int) string {
 		}
 		return styles.unknownTile.Render(runeUnspecified + " ")
 	}
-	overlays := game.TileOverlay(t.GetOverlays())
-	if overlays.Has(game.OverlayLake) {
+	overlays := world.TileOverlay(t.GetOverlays())
+	if overlays.Has(world.OverlayLake) {
 		return styles.river.Render(lakeRune + " ")
 	}
-	if overlays.Has(game.OverlayRiver) {
+	if overlays.Has(world.OverlayRiver) {
 		return styles.river.Render(riverRune + " ")
 	}
 	r, s := lookTile(t)
@@ -634,17 +637,17 @@ func (m *Model) renderCell(t *pb.Tile, worldX, worldY int) string {
 		// falling through to the terrain underneath.
 		return styles.unknownTile.Render(runeUnspecified)
 	}
-	overlays := game.TileOverlay(t.GetOverlays())
+	overlays := world.TileOverlay(t.GetOverlays())
 	// Lake sits above river in the precedence order: a tile where both flags
 	// ended up set is visually a lake (a river trace resolved a depression
 	// here and marked it as standing water). The "this is standing water"
 	// reading is stronger than "a river runs through here" for basin tiles.
 	// TODO(Rioverde): introduce styles.lake if the shared styles.river colour
 	// ends up reading same-y against the river glyph in live play.
-	if overlays.Has(game.OverlayLake) {
+	if overlays.Has(world.OverlayLake) {
 		return styles.river.Render(lakeRune)
 	}
-	if overlays.Has(game.OverlayRiver) {
+	if overlays.Has(world.OverlayRiver) {
 		return styles.river.Render(riverRune)
 	}
 	r, s := lookTile(t)
@@ -663,15 +666,15 @@ func (m *Model) tintForTile(base lipgloss.Style, worldX, worldY int) lipgloss.St
 	}
 	infl := m.influenceSource.InfluenceAt(worldX, worldY)
 	character := infl.Dominant()
-	if character == game.RegionNormal || infl.Sum() <= 0 {
+	if character == world.RegionNormal || infl.Sum() <= 0 {
 		return base
 	}
 	accent := regionAccent(pbCharacter(character))
 	if accent == "" {
 		return base
 	}
-	_, sc := game.AnchorAt(m.worldSeed, worldX, worldY)
-	anchor := game.AnchorOf(m.worldSeed, sc)
+	_, sc := geom.AnchorAt(m.worldSeed, worldX, worldY)
+	anchor := geom.AnchorOf(m.worldSeed, sc)
 	dist := distanceFalloff(worldX, worldY, anchor, m.worldSeed, sc)
 	strength := math.Min(float64(infl.Max())*tintStrengthFactor*dist, tintCap)
 	return tintedStyle(base, accent, strength)
@@ -684,7 +687,7 @@ func (m *Model) tintForTile(base lipgloss.Style, worldX, worldY int) lipgloss.St
 // candidates collapsed into the same region — possible near map edges or in
 // degenerate seeds), we fall back to treating SuperChunkSize as the
 // boundary radius so the falloff is still finite instead of NaN.
-func distanceFalloff(worldX, worldY int, anchor game.Position, seed int64, own game.SuperChunkCoord) float64 {
+func distanceFalloff(worldX, worldY int, anchor geom.Position, seed int64, own geom.SuperChunkCoord) float64 {
 	boundary := boundaryRadius(seed, own)
 	if boundary <= 0 {
 		return 0
@@ -706,16 +709,16 @@ func distanceFalloff(worldX, worldY int, anchor game.Position, seed int64, own g
 // cell. Returns SuperChunkSize (a sensible constant fallback) when every
 // neighbour is the same region, which happens for degenerate seeds and near
 // the world edge of the 2^31 tile grid.
-func boundaryRadius(seed int64, own game.SuperChunkCoord) float64 {
-	ownAnchor := game.AnchorOf(seed, own)
+func boundaryRadius(seed int64, own geom.SuperChunkCoord) float64 {
+	ownAnchor := geom.AnchorOf(seed, own)
 	nearest := math.MaxFloat64
 	for dy := -1; dy <= 1; dy++ {
 		for dx := -1; dx <= 1; dx++ {
 			if dx == 0 && dy == 0 {
 				continue
 			}
-			neighbour := game.SuperChunkCoord{X: own.X + dx, Y: own.Y + dy}
-			a := game.AnchorOf(seed, neighbour)
+			neighbour := geom.SuperChunkCoord{X: own.X + dx, Y: own.Y + dy}
+			a := geom.AnchorOf(seed, neighbour)
 			ddx := float64(a.X - ownAnchor.X)
 			ddy := float64(a.Y - ownAnchor.Y)
 			d := math.Sqrt(ddx*ddx + ddy*ddy)
@@ -725,7 +728,7 @@ func boundaryRadius(seed int64, own game.SuperChunkCoord) float64 {
 		}
 	}
 	if nearest == math.MaxFloat64 {
-		return float64(game.SuperChunkSize)
+		return float64(geom.SuperChunkSize)
 	}
 	return nearest / voronoiBoundaryHalf
 }
@@ -736,19 +739,19 @@ func boundaryRadius(seed int64, own game.SuperChunkCoord) float64 {
 // reuse the same pb-keyed accent palette the region header uses. Unknown
 // values fall through to REGION_CHARACTER_NORMAL — the pipeline already
 // short-circuits on Normal, so an unmapped value silently disables tint.
-func pbCharacter(c game.RegionCharacter) pb.RegionCharacter {
+func pbCharacter(c world.RegionCharacter) pb.RegionCharacter {
 	switch c {
-	case game.RegionBlighted:
+	case world.RegionBlighted:
 		return pb.RegionCharacter_REGION_CHARACTER_BLIGHTED
-	case game.RegionFey:
+	case world.RegionFey:
 		return pb.RegionCharacter_REGION_CHARACTER_FEY
-	case game.RegionAncient:
+	case world.RegionAncient:
 		return pb.RegionCharacter_REGION_CHARACTER_ANCIENT
-	case game.RegionSavage:
+	case world.RegionSavage:
 		return pb.RegionCharacter_REGION_CHARACTER_SAVAGE
-	case game.RegionHoly:
+	case world.RegionHoly:
 		return pb.RegionCharacter_REGION_CHARACTER_HOLY
-	case game.RegionWild:
+	case world.RegionWild:
 		return pb.RegionCharacter_REGION_CHARACTER_WILD
 	}
 	return pb.RegionCharacter_REGION_CHARACTER_NORMAL

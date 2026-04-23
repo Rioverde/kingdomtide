@@ -3,7 +3,8 @@ package server
 import (
 	lru "github.com/hashicorp/golang-lru/v2"
 
-	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/geom"
+	"github.com/Rioverde/gongeons/internal/game/world"
 )
 
 // DefaultLandmarkCacheCapacity is the default LRU capacity for landmarkCache.
@@ -12,15 +13,15 @@ import (
 // super-chunks reachable in a typical play session without eviction.
 const DefaultLandmarkCacheCapacity = 64
 
-// landmarkCache wraps a game.LandmarkSource with a fixed-size LRU keyed by
+// landmarkCache wraps a world.LandmarkSource with a fixed-size LRU keyed by
 // SuperChunkCoord. Landmark lookups are deterministic and cheap once cached;
 // even a small cache is highly effective under typical viewport drift because
 // players stay in the same cluster of super-chunks across many moves.
 // hashicorp/golang-lru/v2 is safe for concurrent use, so landmarkCache has
 // no additional synchronisation of its own.
 type landmarkCache struct {
-	source game.LandmarkSource
-	lru    *lru.Cache[game.SuperChunkCoord, []game.Landmark]
+	source world.LandmarkSource
+	lru    *lru.Cache[geom.SuperChunkCoord, []world.Landmark]
 }
 
 // newLandmarkCache builds a cache of the requested capacity around source.
@@ -28,11 +29,11 @@ type landmarkCache struct {
 // callers cannot accidentally construct a zero-size cache that silently
 // forwards every call. Panics on lru.New failure because that can only
 // happen with a non-positive size, which we guard against above.
-func newLandmarkCache(source game.LandmarkSource, capacity int) *landmarkCache {
+func newLandmarkCache(source world.LandmarkSource, capacity int) *landmarkCache {
 	if capacity <= 0 {
 		capacity = DefaultLandmarkCacheCapacity
 	}
-	cache, err := lru.New[game.SuperChunkCoord, []game.Landmark](capacity)
+	cache, err := lru.New[geom.SuperChunkCoord, []world.Landmark](capacity)
 	if err != nil {
 		panic("landmark cache: " + err.Error())
 	}
@@ -45,7 +46,7 @@ func newLandmarkCache(source game.LandmarkSource, capacity int) *landmarkCache {
 // callers must not mutate it. Landmark names are language-agnostic
 // Parts records so the cache key is just sc — no per-language
 // sharding required.
-func (c *landmarkCache) LandmarksIn(sc game.SuperChunkCoord) []game.Landmark {
+func (c *landmarkCache) LandmarksIn(sc geom.SuperChunkCoord) []world.Landmark {
 	if v, ok := c.lru.Get(sc); ok {
 		return v
 	}

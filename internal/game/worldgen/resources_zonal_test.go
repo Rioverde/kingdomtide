@@ -4,16 +4,18 @@ import (
 	"math"
 	"testing"
 
-	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/geom"
+	"github.com/Rioverde/gongeons/internal/game/world"
+	"github.com/Rioverde/gongeons/internal/game/worldgen/noise"
 )
 
 // newZonalNoiseMap builds the per-kind noise map the same way
 // NewNoiseDepositSource does. Used by focused tests that exercise
 // zonalDepositAt without paying for a full source construction.
-func newZonalNoiseMap(seed int64) map[game.DepositKind]OctaveNoise {
-	noises := make(map[game.DepositKind]OctaveNoise, len(zonalKinds))
+func newZonalNoiseMap(seed int64) map[world.DepositKind]noise.OctaveNoise {
+	noises := make(map[world.DepositKind]noise.OctaveNoise, len(zonalKinds))
 	for _, k := range zonalKinds {
-		noises[k] = NewOctaveNoise(seed^zonalSubSalts[k], zonalNoiseOpts)
+		noises[k] = noise.NewOctaveNoise(seed^zonalSubSalts[k], zonalNoiseOpts)
 	}
 	return noises
 }
@@ -21,13 +23,13 @@ func newZonalNoiseMap(seed int64) map[game.DepositKind]OctaveNoise {
 // sweepZonal iterates a square window, calls zonalDepositAt on every
 // tile, and returns every (position, deposit) that passed. Used by
 // determinism and frequency tests. Window origin defaults to (0, 0).
-func sweepZonal(seed int64, side int) map[game.Position]game.Deposit {
+func sweepZonal(seed int64, side int) map[geom.Position]world.Deposit {
 	wg := NewWorldGenerator(seed)
 	noises := newZonalNoiseMap(seed)
-	out := make(map[game.Position]game.Deposit, side*side/4)
+	out := make(map[geom.Position]world.Deposit, side*side/4)
 	for y := 0; y < side; y++ {
 		for x := 0; x < side; x++ {
-			t := game.Position{X: x, Y: y}
+			t := geom.Position{X: x, Y: y}
 			tile := wg.TileAt(x, y)
 			if dep, ok := zonalDepositAt(t, tile.Terrain, noises); ok {
 				out[t] = dep
@@ -76,7 +78,7 @@ func TestZonalDepositAt_BiomeGate(t *testing.T) {
 
 	for y := 0; y < side; y++ {
 		for x := 0; x < side; x++ {
-			p := game.Position{X: x, Y: y}
+			p := geom.Position{X: x, Y: y}
 			tile := wg.TileAt(x, y)
 			dep, ok := zonalDepositAt(p, tile.Terrain, noises)
 			if !ok {
@@ -91,29 +93,29 @@ func TestZonalDepositAt_BiomeGate(t *testing.T) {
 			// plains, ocean, desert, or mountain; Game must never on
 			// desert, ocean, or mountain.
 			switch dep.Kind {
-			case game.DepositFertile:
+			case world.DepositFertile:
 				switch tile.Terrain {
-				case game.TerrainMountain, game.TerrainSnowyPeak,
-					game.TerrainOcean, game.TerrainDeepOcean,
-					game.TerrainDesert,
-					game.TerrainForest, game.TerrainTaiga, game.TerrainJungle:
+				case world.TerrainMountain, world.TerrainSnowyPeak,
+					world.TerrainOcean, world.TerrainDeepOcean,
+					world.TerrainDesert,
+					world.TerrainForest, world.TerrainTaiga, world.TerrainJungle:
 					t.Errorf("fertile on invalid terrain %q at %+v", tile.Terrain, p)
 				}
-			case game.DepositTimber:
+			case world.DepositTimber:
 				switch tile.Terrain {
-				case game.TerrainPlains, game.TerrainGrassland,
-					game.TerrainMeadow, game.TerrainSavanna,
-					game.TerrainDesert,
-					game.TerrainMountain, game.TerrainSnowyPeak,
-					game.TerrainOcean, game.TerrainDeepOcean:
+				case world.TerrainPlains, world.TerrainGrassland,
+					world.TerrainMeadow, world.TerrainSavanna,
+					world.TerrainDesert,
+					world.TerrainMountain, world.TerrainSnowyPeak,
+					world.TerrainOcean, world.TerrainDeepOcean:
 					t.Errorf("timber on invalid terrain %q at %+v", tile.Terrain, p)
 				}
-			case game.DepositGame:
+			case world.DepositGame:
 				switch tile.Terrain {
-				case game.TerrainDesert,
-					game.TerrainMountain, game.TerrainSnowyPeak,
-					game.TerrainOcean, game.TerrainDeepOcean,
-					game.TerrainPlains:
+				case world.TerrainDesert,
+					world.TerrainMountain, world.TerrainSnowyPeak,
+					world.TerrainOcean, world.TerrainDeepOcean,
+					world.TerrainPlains:
 					t.Errorf("game on invalid terrain %q at %+v", tile.Terrain, p)
 				}
 			}
@@ -139,20 +141,20 @@ func TestZonalDepositAt_Frequency(t *testing.T) {
 	seeds := []int64{1, 2, 3, 42}
 	const side = 400
 
-	wantFraction := map[game.DepositKind]float64{
-		game.DepositFertile: 0.35,
-		game.DepositTimber:  0.40,
-		game.DepositGame:    0.38,
+	wantFraction := map[world.DepositKind]float64{
+		world.DepositFertile: 0.35,
+		world.DepositTimber:  0.40,
+		world.DepositGame:    0.38,
 	}
 
 	type counters struct {
 		validBiome int
 		inZone     int
 	}
-	byKind := map[game.DepositKind]*counters{
-		game.DepositFertile: {},
-		game.DepositTimber:  {},
-		game.DepositGame:    {},
+	byKind := map[world.DepositKind]*counters{
+		world.DepositFertile: {},
+		world.DepositTimber:  {},
+		world.DepositGame:    {},
 	}
 
 	// Because zonalDepositAt picks the first passing kind in enum order
@@ -209,16 +211,16 @@ func TestZonalDepositAt_AtMostOneKind(t *testing.T) {
 	const seed int64 = 42
 	wg := NewWorldGenerator(seed)
 	noises := newZonalNoiseMap(seed)
-	valid := map[game.DepositKind]bool{
-		game.DepositFertile: true,
-		game.DepositTimber:  true,
-		game.DepositGame:    true,
+	valid := map[world.DepositKind]bool{
+		world.DepositFertile: true,
+		world.DepositTimber:  true,
+		world.DepositGame:    true,
 	}
 	checked := 0
 	for y := 0; y < 100 && checked < 1000; y++ {
 		for x := 0; x < 100 && checked < 1000; x++ {
 			t.Helper()
-			p := game.Position{X: x, Y: y}
+			p := geom.Position{X: x, Y: y}
 			tile := wg.TileAt(x, y)
 			dep, ok := zonalDepositAt(p, tile.Terrain, noises)
 			checked++

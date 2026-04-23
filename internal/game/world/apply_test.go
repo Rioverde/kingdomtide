@@ -1,17 +1,22 @@
-package game
+package world
 
 import (
 	"errors"
 	"testing"
+
+	"github.com/Rioverde/gongeons/internal/game/entity"
+	"github.com/Rioverde/gongeons/internal/game/event"
+	"github.com/Rioverde/gongeons/internal/game/geom"
+	"github.com/Rioverde/gongeons/internal/game/stats"
 )
 
 // testTiles is an ad-hoc TileSource used by the apply tests. It lets each
 // case paint a tiny handful of cells (walls, water, occupied tiles) and
 // treats every other coordinate as plains so movement is unconstrained.
-type testTiles map[Position]Tile
+type testTiles map[geom.Position]Tile
 
 func (s testTiles) TileAt(x, y int) Tile {
-	if t, ok := s[Position{X: x, Y: y}]; ok {
+	if t, ok := s[geom.Position{X: x, Y: y}]; ok {
 		return t
 	}
 	return Tile{Terrain: TerrainPlains}
@@ -38,9 +43,9 @@ func TestApplyJoinHappyPath(t *testing.T) {
 	if len(events) != 1 {
 		t.Fatalf("events = %d, want 1", len(events))
 	}
-	joined, ok := events[0].(PlayerJoinedEvent)
+	joined, ok := events[0].(event.PlayerJoinedEvent)
 	if !ok {
-		t.Fatalf("event = %T, want PlayerJoinedEvent", events[0])
+		t.Fatalf("event = %T, want event.PlayerJoinedEvent", events[0])
 	}
 	if joined.PlayerID != "p1" || joined.Name != "Alice" {
 		t.Fatalf("event fields: %+v", joined)
@@ -91,17 +96,17 @@ func TestApplyJoinTwice(t *testing.T) {
 	}
 }
 
-// reasonOf returns the IntentFailedEvent reason in a single-event
+// reasonOf returns the event.IntentFailedEvent reason in a single-event
 // failure slice. Fatals the test on any shape mismatch so the caller
 // can read the event layout off the helper's name alone.
-func reasonOf(t *testing.T, events []Event) string {
+func reasonOf(t *testing.T, events []event.Event) string {
 	t.Helper()
 	if len(events) != 1 {
-		t.Fatalf("events = %d, want 1 IntentFailedEvent", len(events))
+		t.Fatalf("events = %d, want 1 event.IntentFailedEvent", len(events))
 	}
-	fail, ok := events[0].(IntentFailedEvent)
+	fail, ok := events[0].(event.IntentFailedEvent)
 	if !ok {
-		t.Fatalf("event = %T, want IntentFailedEvent", events[0])
+		t.Fatalf("event = %T, want event.IntentFailedEvent", events[0])
 	}
 	return fail.Reason
 }
@@ -109,7 +114,7 @@ func reasonOf(t *testing.T, events []Event) string {
 func TestApplyMoveIntentHappyPath(t *testing.T) {
 	w := newTestWorld(testTiles{})
 	joinEvents, _ := w.ApplyCommand(JoinCmd{PlayerID: "p1", Name: "Alice"})
-	start := joinEvents[0].(PlayerJoinedEvent).Position
+	start := joinEvents[0].(event.PlayerJoinedEvent).Position
 
 	p, ok := w.PlayerByID("p1")
 	if !ok {
@@ -119,11 +124,11 @@ func TestApplyMoveIntentHappyPath(t *testing.T) {
 	if !moved {
 		t.Fatalf("move failed: events=%+v", events)
 	}
-	em, ok := events[0].(EntityMovedEvent)
+	em, ok := events[0].(event.EntityMovedEvent)
 	if !ok {
-		t.Fatalf("event = %T, want EntityMovedEvent", events[0])
+		t.Fatalf("event = %T, want event.EntityMovedEvent", events[0])
 	}
-	wantTo := Position{X: start.X + 1, Y: start.Y}
+	wantTo := geom.Position{X: start.X + 1, Y: start.Y}
 	if em.From != start || em.To != wantTo {
 		t.Fatalf("event = %+v, want From=%+v To=%+v", em, start, wantTo)
 	}
@@ -151,8 +156,8 @@ func TestApplyMoveIntentValidation(t *testing.T) {
 			if ok {
 				t.Fatalf("move succeeded, want failure: events=%+v", events)
 			}
-			if got := reasonOf(t, events); got != ReasonIntentMoveInvalid {
-				t.Fatalf("reason = %q, want %q", got, ReasonIntentMoveInvalid)
+			if got := reasonOf(t, events); got != event.ReasonIntentMoveInvalid {
+				t.Fatalf("reason = %q, want %q", got, event.ReasonIntentMoveInvalid)
 			}
 		})
 	}
@@ -161,7 +166,7 @@ func TestApplyMoveIntentValidation(t *testing.T) {
 func TestApplyMoveIntentIntoWall(t *testing.T) {
 	// Wall one tile east of the origin (where spawn will land).
 	src := testTiles{
-		Position{X: 1, Y: 0}: {Terrain: TerrainMountain},
+		geom.Position{X: 1, Y: 0}: {Terrain: TerrainMountain},
 	}
 	w := newTestWorld(src)
 	_, _ = w.ApplyCommand(JoinCmd{PlayerID: "p1", Name: "Alice"})
@@ -170,14 +175,14 @@ func TestApplyMoveIntentIntoWall(t *testing.T) {
 	if ok {
 		t.Fatalf("move into wall succeeded, want failure")
 	}
-	if got := reasonOf(t, events); got != ReasonIntentMoveBlocked {
-		t.Fatalf("reason = %q, want %q", got, ReasonIntentMoveBlocked)
+	if got := reasonOf(t, events); got != event.ReasonIntentMoveBlocked {
+		t.Fatalf("reason = %q, want %q", got, event.ReasonIntentMoveBlocked)
 	}
 }
 
 func TestApplyMoveIntentOntoWater(t *testing.T) {
 	src := testTiles{
-		Position{X: 1, Y: 0}: {Terrain: TerrainOcean},
+		geom.Position{X: 1, Y: 0}: {Terrain: TerrainOcean},
 	}
 	w := newTestWorld(src)
 	_, _ = w.ApplyCommand(JoinCmd{PlayerID: "p1", Name: "Alice"})
@@ -186,23 +191,23 @@ func TestApplyMoveIntentOntoWater(t *testing.T) {
 	if ok {
 		t.Fatalf("move onto water succeeded, want failure")
 	}
-	if got := reasonOf(t, events); got != ReasonIntentMoveBlocked {
-		t.Fatalf("reason = %q, want %q", got, ReasonIntentMoveBlocked)
+	if got := reasonOf(t, events); got != event.ReasonIntentMoveBlocked {
+		t.Fatalf("reason = %q, want %q", got, event.ReasonIntentMoveBlocked)
 	}
 }
 
 func TestApplyMoveIntentOntoAnotherPlayer(t *testing.T) {
 	// Manually place two players on adjacent tiles — the spawn spiral's
 	// natural next position is diagonal, which would hit
-	// ReasonIntentMoveInvalid before reaching the occupancy check.
+	// event.ReasonIntentMoveInvalid before reaching the occupancy check.
 	w := newTestWorld(testTiles{})
-	at := Position{X: 0, Y: 0}
-	next := Position{X: 1, Y: 0}
-	p1, err := NewPlayer("p1", "Alice", DefaultCoreStats(), at)
+	at := geom.Position{X: 0, Y: 0}
+	next := geom.Position{X: 1, Y: 0}
+	p1, err := entity.NewPlayer("p1", "Alice", stats.DefaultCoreStats(), at)
 	if err != nil {
 		t.Fatalf("new p1: %v", err)
 	}
-	p2, err := NewPlayer("p2", "Bob", DefaultCoreStats(), next)
+	p2, err := entity.NewPlayer("p2", "Bob", stats.DefaultCoreStats(), next)
 	if err != nil {
 		t.Fatalf("new p2: %v", err)
 	}
@@ -217,8 +222,8 @@ func TestApplyMoveIntentOntoAnotherPlayer(t *testing.T) {
 	if ok {
 		t.Fatalf("move onto occupied tile succeeded, want failure")
 	}
-	if got := reasonOf(t, events); got != ReasonIntentMoveBlocked {
-		t.Fatalf("reason = %q, want %q", got, ReasonIntentMoveBlocked)
+	if got := reasonOf(t, events); got != event.ReasonIntentMoveBlocked {
+		t.Fatalf("reason = %q, want %q", got, event.ReasonIntentMoveBlocked)
 	}
 }
 
@@ -229,8 +234,8 @@ func TestApplyLeaveHappyPath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("leave: %v", err)
 	}
-	if _, ok := events[0].(PlayerLeftEvent); !ok {
-		t.Fatalf("event = %T, want PlayerLeftEvent", events[0])
+	if _, ok := events[0].(event.PlayerLeftEvent); !ok {
+		t.Fatalf("event = %T, want event.PlayerLeftEvent", events[0])
 	}
 	if _, ok := w.PlayerByID("p1"); ok {
 		t.Fatalf("player p1 not removed")
@@ -259,7 +264,7 @@ func TestApplyNoSpawnAvailable(t *testing.T) {
 	src := testTiles{}
 	for y := -spawnSearchRadius; y <= spawnSearchRadius; y++ {
 		for x := -spawnSearchRadius; x <= spawnSearchRadius; x++ {
-			src[Position{X: x, Y: y}] = Tile{Terrain: TerrainMountain}
+			src[geom.Position{X: x, Y: y}] = Tile{Terrain: TerrainMountain}
 		}
 	}
 	w := newTestWorld(src)

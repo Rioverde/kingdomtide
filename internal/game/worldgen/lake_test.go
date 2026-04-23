@@ -3,7 +3,8 @@ package worldgen
 import (
 	"testing"
 
-	"github.com/Rioverde/gongeons/internal/game"
+	"github.com/Rioverde/gongeons/internal/game/world"
+	"github.com/Rioverde/gongeons/internal/game/worldgen/chunk"
 )
 
 // TestLakeOverlayAppearsOnRaisedCells scans a broad region of seeds/chunks
@@ -18,32 +19,32 @@ import (
 // diagnostic — the feature is real, but depression topology is seed-dependent,
 // and a noisy CI might happen to land on a lake-free seed cohort.
 func TestLakeOverlayAppearsOnRaisedCells(t *testing.T) {
-	landBiomes := map[game.Terrain]bool{
-		game.TerrainPlains:    true,
-		game.TerrainGrassland: true,
-		game.TerrainMeadow:    true,
-		game.TerrainForest:    true,
-		game.TerrainJungle:    true,
-		game.TerrainTaiga:     true,
-		game.TerrainTundra:    true,
-		game.TerrainSnow:      true,
-		game.TerrainBeach:     true,
-		game.TerrainDesert:    true,
-		game.TerrainSavanna:   true,
-		game.TerrainHills:     true,
-		game.TerrainMountain:  true,
-		game.TerrainSnowyPeak: true,
+	landBiomes := map[world.Terrain]bool{
+		world.TerrainPlains:    true,
+		world.TerrainGrassland: true,
+		world.TerrainMeadow:    true,
+		world.TerrainForest:    true,
+		world.TerrainJungle:    true,
+		world.TerrainTaiga:     true,
+		world.TerrainTundra:    true,
+		world.TerrainSnow:      true,
+		world.TerrainBeach:     true,
+		world.TerrainDesert:    true,
+		world.TerrainSavanna:   true,
+		world.TerrainHills:     true,
+		world.TerrainMountain:  true,
+		world.TerrainSnowyPeak: true,
 	}
 
 	for s := int64(1); s <= 20; s++ {
 		g := NewWorldGenerator(s)
 		for cx := -4; cx < 4; cx++ {
 			for cy := -4; cy < 4; cy++ {
-				chunk := g.Chunk(ChunkCoord{X: cx, Y: cy})
-				for dy := range ChunkSize {
-					for dx := range ChunkSize {
-						tile := chunk.Tiles[dy][dx]
-						if !tile.Overlays.Has(game.OverlayLake) {
+				c := g.Chunk(chunk.ChunkCoord{X: cx, Y: cy})
+				for dy := range chunk.ChunkSize {
+					for dx := range chunk.ChunkSize {
+						tile := c.Tiles[dy][dx]
+						if !tile.Overlays.Has(world.OverlayLake) {
 							continue
 						}
 						if !landBiomes[tile.Terrain] {
@@ -65,15 +66,15 @@ func TestLakeOverlayAppearsOnRaisedCells(t *testing.T) {
 // Same (seed, coord) → same overlay bits, with or without cache in front.
 func TestLakeOverlayPersistsThroughCache(t *testing.T) {
 	g := NewWorldGenerator(42)
-	cc := ChunkCoord{X: 1, Y: 2}
+	cc := chunk.ChunkCoord{X: 1, Y: 2}
 
 	first := g.Chunk(cc)
 	// Use the ChunkedSource (which owns the chunk cache) to exercise the
 	// cache round-trip. Compare overlay bits tile by tile.
-	source := &ChunkedSource{gen: g, cache: NewChunkCache(DefaultChunkCacheCapacity)}
+	source := &ChunkedSource{gen: g, cache: chunk.NewChunkCache(chunk.DefaultChunkCacheCapacity)}
 	minX, _, minY, _ := cc.Bounds()
-	for dy := range ChunkSize {
-		for dx := range ChunkSize {
+	for dy := range chunk.ChunkSize {
+		for dx := range chunk.ChunkSize {
 			got := source.TileAt(minX+dx, minY+dy)
 			want := first.Tiles[dy][dx]
 			if got.Overlays != want.Overlays {

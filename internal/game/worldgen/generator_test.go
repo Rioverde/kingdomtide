@@ -1,6 +1,10 @@
 package worldgen
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/Rioverde/gongeons/internal/game/worldgen/chunk"
+)
 
 func TestWorldGeneratorDeterministic(t *testing.T) {
 	a := NewWorldGenerator(42)
@@ -43,21 +47,21 @@ func TestWorldGeneratorDifferentSeedsDiffer(t *testing.T) {
 
 func TestGeneratorChunkMatchesTileAt(t *testing.T) {
 	g := NewWorldGenerator(123456)
-	cc := ChunkCoord{X: 4, Y: -7}
-	chunk := g.Chunk(cc)
+	cc := chunk.ChunkCoord{X: 4, Y: -7}
+	c := g.Chunk(cc)
 
-	if chunk.Coord != cc {
-		t.Fatalf("chunk.Coord = %+v, want %+v", chunk.Coord, cc)
+	if c.Coord != cc {
+		t.Fatalf("chunk.Coord = %+v, want %+v", c.Coord, cc)
 	}
 
 	minX, _, minY, _ := cc.Bounds()
-	for dy := range ChunkSize {
-		for dx := range ChunkSize {
+	for dy := range chunk.ChunkSize {
+		for dx := range chunk.ChunkSize {
 			x, y := minX+dx, minY+dy
 			// TileAt returns the raw biome tile without overlays. Chunk()
 			// adds river and lake overlays, so only the Terrain field must agree.
 			want := g.TileAt(x, y)
-			got := chunk.Tiles[dy][dx]
+			got := c.Tiles[dy][dx]
 			if got.Terrain != want.Terrain {
 				t.Fatalf("chunk.Tiles[%d][%d].Terrain = %q, TileAt(%d,%d).Terrain = %q",
 					dy, dx, got.Terrain, x, y, want.Terrain)
@@ -68,18 +72,18 @@ func TestGeneratorChunkMatchesTileAt(t *testing.T) {
 
 func TestGeneratorChunkAllTilesPopulated(t *testing.T) {
 	g := NewWorldGenerator(7)
-	chunk := g.Chunk(ChunkCoord{X: 0, Y: 0})
+	c := g.Chunk(chunk.ChunkCoord{X: 0, Y: 0})
 
 	count := 0
-	for dy := range ChunkSize {
-		for dx := range ChunkSize {
-			if chunk.Tiles[dy][dx].Terrain == "" {
+	for dy := range chunk.ChunkSize {
+		for dx := range chunk.ChunkSize {
+			if c.Tiles[dy][dx].Terrain == "" {
 				t.Fatalf("chunk tile at [%d][%d] has empty terrain", dy, dx)
 			}
 			count++
 		}
 	}
-	if want := ChunkSize * ChunkSize; count != want {
+	if want := chunk.ChunkSize * chunk.ChunkSize; count != want {
 		t.Fatalf("populated %d tiles, want %d", count, want)
 	}
 }

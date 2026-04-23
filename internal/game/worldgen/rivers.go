@@ -4,6 +4,27 @@ import (
 	"container/heap"
 
 	lru "github.com/hashicorp/golang-lru/v2"
+
+	"github.com/Rioverde/gongeons/internal/game/worldgen/chunk"
+)
+
+// floorDiv mirrors the chunk package's unexported helper — duplicated here to
+// keep the river placement math in the same package as the river-head loop
+// without widening the chunk package's exported surface.
+func floorDiv(a, b int) int {
+	q := a / b
+	if (a%b != 0) && ((a < 0) != (b < 0)) {
+		q--
+	}
+	return q
+}
+
+// Elevation thresholds mirrored from the biome package so the river gating
+// logic can run without importing biome just for two constants. These must
+// track biome/biome.go — any retune there requires an update here too.
+const (
+	elevationOcean    = 0.44
+	elevationMountain = 0.63
 )
 
 // riverHeadSpacing is the edge length in tiles of the fixed world-grid used to
@@ -123,7 +144,7 @@ type chunkRiverData struct {
 // outputs.
 type riverCache struct {
 	capacity int
-	c        *lru.Cache[ChunkCoord, *chunkRiverData]
+	c        *lru.Cache[chunk.ChunkCoord, *chunkRiverData]
 }
 
 // newRiverCache builds a riverCache with the requested capacity. Non-positive
@@ -132,7 +153,7 @@ func newRiverCache(capacity int) *riverCache {
 	if capacity <= 0 {
 		capacity = DefaultRiverCacheCapacity
 	}
-	c, err := lru.New[ChunkCoord, *chunkRiverData](capacity)
+	c, err := lru.New[chunk.ChunkCoord, *chunkRiverData](capacity)
 	if err != nil {
 		panic("worldgen: river cache init: " + err.Error())
 	}
@@ -145,17 +166,17 @@ func (c *riverCache) Capacity() int { return c.capacity }
 // Len returns the current number of cached chunk-river sets. Useful for tests.
 func (c *riverCache) Len() int { return c.c.Len() }
 
-func (c *riverCache) get(cc ChunkCoord) (*chunkRiverData, bool) {
+func (c *riverCache) get(cc chunk.ChunkCoord) (*chunkRiverData, bool) {
 	return c.c.Get(cc)
 }
 
-func (c *riverCache) put(cc ChunkCoord, d *chunkRiverData) {
+func (c *riverCache) put(cc chunk.ChunkCoord, d *chunkRiverData) {
 	c.c.Add(cc, d)
 }
 
 // riversFor returns the cached per-chunk river/lake sets for cc, computing
 // them on miss.
-func (g *WorldGenerator) riversFor(cc ChunkCoord) *chunkRiverData {
+func (g *WorldGenerator) riversFor(cc chunk.ChunkCoord) *chunkRiverData {
 	if cached, ok := g.rivers.get(cc); ok {
 		return cached
 	}
@@ -169,14 +190,14 @@ func (g *WorldGenerator) riversFor(cc ChunkCoord) *chunkRiverData {
 // a pure function of world coord, so two adjacent chunks always agree on
 // river membership at their shared boundary. The returned map is a read-only
 // view of cached state — callers must not mutate it.
-func (g *WorldGenerator) RiverTilesInChunk(cc ChunkCoord) map[tileCoord]struct{} {
+func (g *WorldGenerator) RiverTilesInChunk(cc chunk.ChunkCoord) map[tileCoord]struct{} {
 	return g.riversFor(cc).rivers
 }
 
 // LakeTilesInChunk returns the set of world-space grid coordinates inside cc
 // that are lake tiles (depression cells marked during a trace's local
 // flood-fill). Deterministic per (seed, cc).
-func (g *WorldGenerator) LakeTilesInChunk(cc ChunkCoord) map[tileCoord]struct{} {
+func (g *WorldGenerator) LakeTilesInChunk(cc chunk.ChunkCoord) map[tileCoord]struct{} {
 	return g.riversFor(cc).lakes
 }
 
@@ -186,7 +207,7 @@ func (g *WorldGenerator) LakeTilesInChunk(cc ChunkCoord) map[tileCoord]struct{} 
 // the returned chunkRiverData. Deterministic: no buffer, no macro, no shared
 // state between chunks — each chunk's classification is a pure function of
 // (seed, cc).
-func (g *WorldGenerator) computeChunkRivers(cc ChunkCoord) *chunkRiverData {
+func (g *WorldGenerator) computeChunkRivers(cc chunk.ChunkCoord) *chunkRiverData {
 	out := &chunkRiverData{
 		rivers: make(map[tileCoord]struct{}),
 		lakes:  make(map[tileCoord]struct{}),

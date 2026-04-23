@@ -7,9 +7,12 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/ssh"
 
-	"github.com/Rioverde/gongeons/internal/game"
-	"github.com/Rioverde/gongeons/internal/server"
+	"github.com/Rioverde/gongeons/internal/game/calendar"
+	"github.com/Rioverde/gongeons/internal/game/event"
+	"github.com/Rioverde/gongeons/internal/game/geom"
+	"github.com/Rioverde/gongeons/internal/game/stats"
 	pb "github.com/Rioverde/gongeons/internal/proto"
+	"github.com/Rioverde/gongeons/internal/server"
 )
 
 // sessionDriver is the small surface the Model needs from server.Service
@@ -19,7 +22,7 @@ import (
 // test fake) can stand in for it. Mirrors the gRPC outbox surface: one
 // call per client-originated command.
 type sessionDriver interface {
-	JoinSession(name string, dims viewportDims, stats game.CoreStats) (server.SessionJoinResult, error)
+	JoinSession(name string, dims viewportDims, stats stats.CoreStats) (server.SessionJoinResult, error)
 	Subscribe(ctx context.Context, playerID string) (<-chan server.SessionEvent, func())
 	EnqueueMoveSession(playerID string, dx, dy int) error
 	UpdateSessionViewport(playerID string, width, height int)
@@ -74,7 +77,7 @@ func NewSession(ctx context.Context, svc sessionDriver, sess ssh.Session) *Model
 // snapshot atomically. Errors are wrapped into a netErrorMsg so the
 // Model's existing disconnect handler fires without special-casing SSH
 // mode.
-func joinSessionCmd(svc sessionDriver, name string, dims viewportDims, stats game.CoreStats) tea.Cmd {
+func joinSessionCmd(svc sessionDriver, name string, dims viewportDims, stats stats.CoreStats) tea.Cmd {
 	return func() tea.Msg {
 		res, err := svc.JoinSession(name, dims, stats)
 		if err != nil {
@@ -159,7 +162,7 @@ func applySessionEvent(m *Model, evt server.SessionEvent) {
 	}
 }
 
-// domainEventToPB translates a domain game.Event into its pb.Event
+// domainEventToPB translates a domain event.Event into its pb.Event
 // wire representation so applyEvent (already tuned for pb payloads)
 // can handle it without a parallel dispatch. Returns nil for unknown
 // events so the caller can simply skip them.
@@ -169,9 +172,9 @@ func applySessionEvent(m *Model, evt server.SessionEvent) {
 // level framing we explicitly do not want for in-process sessions.
 // Keeping the per-event shape identical is what lets applyEvent stay
 // transport-agnostic.
-func domainEventToPB(e game.Event) *pb.Event {
+func domainEventToPB(e event.Event) *pb.Event {
 	switch v := e.(type) {
-	case game.PlayerJoinedEvent:
+	case event.PlayerJoinedEvent:
 		return &pb.Event{Payload: &pb.Event_PlayerJoined{PlayerJoined: &pb.PlayerJoined{
 			Entity: &pb.Entity{
 				Id:       v.PlayerID,
@@ -180,22 +183,22 @@ func domainEventToPB(e game.Event) *pb.Event {
 				Position: domainPositionToPB(v.Position),
 			},
 		}}}
-	case game.PlayerLeftEvent:
+	case event.PlayerLeftEvent:
 		return &pb.Event{Payload: &pb.Event_PlayerLeft{PlayerLeft: &pb.PlayerLeft{
 			PlayerId: v.PlayerID,
 		}}}
-	case game.EntityMovedEvent:
+	case event.EntityMovedEvent:
 		return &pb.Event{Payload: &pb.Event_EntityMoved{EntityMoved: &pb.EntityMoved{
 			EntityId: v.EntityID,
 			From:     domainPositionToPB(v.From),
 			To:       domainPositionToPB(v.To),
 		}}}
-	case game.IntentFailedEvent:
+	case event.IntentFailedEvent:
 		return &pb.Event{Payload: &pb.Event_IntentFailed{IntentFailed: &pb.IntentFailed{
 			EntityId: v.EntityID,
 			Reason:   v.Reason,
 		}}}
-	case game.TimeTickEvent:
+	case event.TimeTickEvent:
 		return &pb.Event{Payload: &pb.Event_TimeTick{TimeTick: &pb.TimeTick{
 			CurrentTick: v.CurrentTick,
 			GameTime:    domainGameTimeToPB(v.GameTime),
@@ -209,7 +212,7 @@ func domainEventToPB(e game.Event) *pb.Event {
 // dispatch without importing the server-internal helper (which returns
 // a full *pb.ServerMessage). Keeps domainEventToPB a self-contained
 // domain→wire translation.
-func domainGameTimeToPB(gt game.GameTime) *pb.GameTime {
+func domainGameTimeToPB(gt calendar.GameTime) *pb.GameTime {
 	return &pb.GameTime{
 		Year:       gt.Year,
 		Month:      domainMonthToPB(gt.Month),
@@ -223,26 +226,26 @@ func domainGameTimeToPB(gt game.GameTime) *pb.GameTime {
 // Month enum to its wire counterpart. Kept parallel to the server-side
 // monthPBMapping so any twelve-month assumption lives in exactly one
 // place per package.
-var domainMonthToPBMapping = map[game.Month]pb.CalendarMonth{
-	game.MonthJanuary:   pb.CalendarMonth_CALENDAR_MONTH_JANUARY,
-	game.MonthFebruary:  pb.CalendarMonth_CALENDAR_MONTH_FEBRUARY,
-	game.MonthMarch:     pb.CalendarMonth_CALENDAR_MONTH_MARCH,
-	game.MonthApril:     pb.CalendarMonth_CALENDAR_MONTH_APRIL,
-	game.MonthMay:       pb.CalendarMonth_CALENDAR_MONTH_MAY,
-	game.MonthJune:      pb.CalendarMonth_CALENDAR_MONTH_JUNE,
-	game.MonthJuly:      pb.CalendarMonth_CALENDAR_MONTH_JULY,
-	game.MonthAugust:    pb.CalendarMonth_CALENDAR_MONTH_AUGUST,
-	game.MonthSeptember: pb.CalendarMonth_CALENDAR_MONTH_SEPTEMBER,
-	game.MonthOctober:   pb.CalendarMonth_CALENDAR_MONTH_OCTOBER,
-	game.MonthNovember:  pb.CalendarMonth_CALENDAR_MONTH_NOVEMBER,
-	game.MonthDecember:  pb.CalendarMonth_CALENDAR_MONTH_DECEMBER,
+var domainMonthToPBMapping = map[calendar.Month]pb.CalendarMonth{
+	calendar.MonthJanuary:   pb.CalendarMonth_CALENDAR_MONTH_JANUARY,
+	calendar.MonthFebruary:  pb.CalendarMonth_CALENDAR_MONTH_FEBRUARY,
+	calendar.MonthMarch:     pb.CalendarMonth_CALENDAR_MONTH_MARCH,
+	calendar.MonthApril:     pb.CalendarMonth_CALENDAR_MONTH_APRIL,
+	calendar.MonthMay:       pb.CalendarMonth_CALENDAR_MONTH_MAY,
+	calendar.MonthJune:      pb.CalendarMonth_CALENDAR_MONTH_JUNE,
+	calendar.MonthJuly:      pb.CalendarMonth_CALENDAR_MONTH_JULY,
+	calendar.MonthAugust:    pb.CalendarMonth_CALENDAR_MONTH_AUGUST,
+	calendar.MonthSeptember: pb.CalendarMonth_CALENDAR_MONTH_SEPTEMBER,
+	calendar.MonthOctober:   pb.CalendarMonth_CALENDAR_MONTH_OCTOBER,
+	calendar.MonthNovember:  pb.CalendarMonth_CALENDAR_MONTH_NOVEMBER,
+	calendar.MonthDecember:  pb.CalendarMonth_CALENDAR_MONTH_DECEMBER,
 }
 
 // domainMonthToPB translates the domain Month enum to the wire
 // CalendarMonth. MonthZero and any out-of-range value fall back to
 // CALENDAR_MONTH_UNSPECIFIED so a zero-value GameTime round-trips
 // cleanly through the client's gameTimeFromPB guard.
-func domainMonthToPB(m game.Month) pb.CalendarMonth {
+func domainMonthToPB(m calendar.Month) pb.CalendarMonth {
 	if v, ok := domainMonthToPBMapping[m]; ok {
 		return v
 	}
@@ -252,17 +255,17 @@ func domainMonthToPB(m game.Month) pb.CalendarMonth {
 // domainSeasonToPBMapping is the 1:1 translation table from the domain
 // Season enum to its wire counterpart. Kept parallel to the server-side
 // seasonPBMapping so both packages agree on the axis.
-var domainSeasonToPBMapping = map[game.Season]pb.CalendarSeason{
-	game.SeasonWinter: pb.CalendarSeason_CALENDAR_SEASON_WINTER,
-	game.SeasonSpring: pb.CalendarSeason_CALENDAR_SEASON_SPRING,
-	game.SeasonSummer: pb.CalendarSeason_CALENDAR_SEASON_SUMMER,
-	game.SeasonAutumn: pb.CalendarSeason_CALENDAR_SEASON_AUTUMN,
+var domainSeasonToPBMapping = map[calendar.Season]pb.CalendarSeason{
+	calendar.SeasonWinter: pb.CalendarSeason_CALENDAR_SEASON_WINTER,
+	calendar.SeasonSpring: pb.CalendarSeason_CALENDAR_SEASON_SPRING,
+	calendar.SeasonSummer: pb.CalendarSeason_CALENDAR_SEASON_SUMMER,
+	calendar.SeasonAutumn: pb.CalendarSeason_CALENDAR_SEASON_AUTUMN,
 }
 
 // domainSeasonToPB translates the domain Season enum to the wire
 // CalendarSeason. Out-of-range values fall back to
 // CALENDAR_SEASON_UNSPECIFIED.
-func domainSeasonToPB(s game.Season) pb.CalendarSeason {
+func domainSeasonToPB(s calendar.Season) pb.CalendarSeason {
 	if v, ok := domainSeasonToPBMapping[s]; ok {
 		return v
 	}
@@ -271,6 +274,6 @@ func domainSeasonToPB(s game.Season) pb.CalendarSeason {
 
 // domainPositionToPB is the inverse of positionFromPB — Position → pb.Position.
 // Kept adjacent to domainEventToPB because the two only collaborate.
-func domainPositionToPB(p game.Position) *pb.Position {
+func domainPositionToPB(p geom.Position) *pb.Position {
 	return &pb.Position{X: int32(p.X), Y: int32(p.Y)}
 }
