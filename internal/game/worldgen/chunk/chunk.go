@@ -19,8 +19,8 @@ type ChunkCoord struct {
 // across two chunks.
 func WorldToChunk(x, y int) ChunkCoord {
 	return ChunkCoord{
-		X: floorDiv(x, ChunkSize),
-		Y: floorDiv(y, ChunkSize),
+		X: FloorDiv(x, ChunkSize),
+		Y: FloorDiv(y, ChunkSize),
 	}
 }
 
@@ -31,9 +31,11 @@ func (c ChunkCoord) Bounds() (minX, maxX, minY, maxY int) {
 	return minX, minX + ChunkSize, minY, minY + ChunkSize
 }
 
-// floorDiv returns the mathematical floor of a/b. Unlike Go's /, which truncates toward zero,
-// this rounds toward negative infinity so negative inputs map into the expected chunk.
-func floorDiv(a, b int) int {
+// FloorDiv returns the mathematical floor of a/b (Euclidean floor division).
+// Unlike Go's /, which truncates toward zero, this rounds toward negative
+// infinity so negative tile coordinates map into the expected chunk on the
+// negative axis.
+func FloorDiv(a, b int) int {
 	quot := a / b
 	if a%b != 0 && (a < 0) != (b < 0) {
 		quot--

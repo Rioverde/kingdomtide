@@ -15,14 +15,14 @@ func TestFloorDiv(t *testing.T) {
 		{15, 16, 0},
 		{16, 16, 1},
 		{17, 16, 1},
-		{-1, 16, -1}, // Go's /: 0. floorDiv: -1.
+		{-1, 16, -1}, // Go's /: 0. FloorDiv: -1.
 		{-16, 16, -1},
 		{-17, 16, -2},
 		{-32, 16, -2},
 	}
 	for _, tc := range cases {
-		if got := floorDiv(tc.a, tc.b); got != tc.want {
-			t.Errorf("floorDiv(%d, %d) = %d, want %d", tc.a, tc.b, got, tc.want)
+		if got := FloorDiv(tc.a, tc.b); got != tc.want {
+			t.Errorf("FloorDiv(%d, %d) = %d, want %d", tc.a, tc.b, got, tc.want)
 		}
 	}
 }

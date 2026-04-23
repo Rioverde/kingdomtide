@@ -4,7 +4,9 @@ import (
 	"github.com/Rioverde/gongeons/internal/game/world"
 	"github.com/Rioverde/gongeons/internal/game/worldgen/biome"
 	"github.com/Rioverde/gongeons/internal/game/worldgen/chunk"
+	"github.com/Rioverde/gongeons/internal/game/worldgen/internal/genprim"
 	"github.com/Rioverde/gongeons/internal/game/worldgen/noise"
+	"github.com/Rioverde/gongeons/internal/game/worldgen/rivers"
 )
 
 // Seed salts for per-layer noise decorrelation. Independent layers must see different
@@ -137,11 +139,12 @@ type WorldGenerator struct {
 	ridge            noise.OctaveNoise
 	ridgeScaleJitter float64
 
-	// rivers caches the per-chunk river + lake tile sets. The classification
-	// itself is a pure function of (seed, x, y) computed by rivers.go; the
-	// cache only memoises the enumeration + trace work. Thread-safety comes
-	// from hashicorp/golang-lru/v2.
-	rivers *riverCache
+	// riverSrc hosts the deterministic river + lake overlay pipeline.
+	// Placement and tracing are a pure function of (seed, world coord)
+	// computed inside the rivers sub-package; the source's internal LRU
+	// memoises per-chunk enumeration + trace work. Thread-safety comes
+	// from hashicorp/golang-lru/v2 inside the sub-package.
+	riverSrc *rivers.NoiseRiverSource
 }
 
 // NewWorldGenerator builds the five noise fields off the supplied base seed. The per-layer
@@ -155,7 +158,7 @@ func NewWorldGenerator(seed int64) *WorldGenerator {
 	jitteredRidgeOpts := ridgeOpts
 	jitteredRidgeOpts.Scale = ridgeBaseScale * jitter
 
-	return &WorldGenerator{
+	wg := &WorldGenerator{
 		seed:             seed,
 		elevation:        noise.NewOctaveNoise(seed, noise.DefaultOctaveOpts),
 		temperature:      noise.NewOctaveNoise(seed^seedSaltTemperature, temperatureOpts),
@@ -163,8 +166,12 @@ func NewWorldGenerator(seed int64) *WorldGenerator {
 		continent:        noise.NewOctaveNoise(seed^seedSaltContinent, continentOpts),
 		ridge:            noise.NewOctaveNoise(seed^seedSaltRidge, jitteredRidgeOpts),
 		ridgeScaleJitter: jitter,
-		rivers:           newRiverCache(DefaultRiverCacheCapacity),
 	}
+	// Wire the river source after wg exists so *WorldGenerator can serve
+	// as the rivers.TerrainSampler for composite-elevation + moisture
+	// sampling during head validation and steepest-descent tracing.
+	wg.riverSrc = rivers.NewNoiseRiverSource(seed, wg, rivers.DefaultRiverCacheCapacity)
+	return wg
 }
 
 // Seed returns the base seed used to construct the generator. Useful for
@@ -174,10 +181,16 @@ func (g *WorldGenerator) Seed() int64 {
 	return g.seed
 }
 
-// elevationAt returns the final elevation at (fx, fy) — continent-blended
+// ElevationAtFloat returns the final elevation at (fx, fy) — continent-blended
 // base elevation lifted inside the mountain band by ridge noise. Every
 // downstream consumer (biome lookup, river sources, river tracing) must
 // use this helper so the whole pipeline sees the same elevation field.
+//
+// Exposed on sub-tile float coordinates so river tracing (which samples
+// between integer tile corners during the steepest-descent walk) and the
+// rivers sub-package can use the same elevation field without duplicating
+// the continent-blend and ridge-lift maths. ElevationAt is the integer-
+// coord convenience wrapper.
 //
 // Stages:
 //  1. Continent blend: 0.6*elev + 0.4*cont — both inputs live in [0, 1] and the weights
@@ -186,7 +199,7 @@ func (g *WorldGenerator) Seed() int64 {
 //     ridge = (1 - |raw|)² times ridgeWeight. Ridges are added only in the mountain
 //     band so valleys stay smooth.
 //  3. Clamp to [0, 1] so the biome invariant holds even if the raw sum overshoots.
-func (g *WorldGenerator) elevationAt(fx, fy float64) float64 {
+func (g *WorldGenerator) ElevationAtFloat(fx, fy float64) float64 {
 	elev := g.elevation.Eval2Normalized(fx, fy)
 	cont := g.continent.Eval2Normalized(fx, fy)
 	blended := continentBlendElev*elev + continentBlendCont*cont
@@ -199,11 +212,19 @@ func (g *WorldGenerator) elevationAt(fx, fy float64) float64 {
 }
 
 // ElevationAt returns the normalised elevation at integer world coords.
-// Thin public wrapper over elevationAt for consumers that need the raw
-// elevation value without materialising a full Tile (landmark placement,
-// for instance).
+// Thin public wrapper over ElevationAtFloat for consumers that need the
+// raw elevation value without materialising a full Tile (landmark
+// placement, for instance).
 func (g *WorldGenerator) ElevationAt(x, y int) float64 {
-	return g.elevationAt(float64(x), float64(y))
+	return g.ElevationAtFloat(float64(x), float64(y))
+}
+
+// MoistureAt returns the normalised moisture at sub-tile float coords.
+// Exported so the rivers sub-package can gate head candidates via its
+// narrow TerrainSampler interface without importing the generator's
+// internal noise field directly.
+func (g *WorldGenerator) MoistureAt(fx, fy float64) float64 {
+	return g.moisture.Eval2Normalized(fx, fy)
 }
 
 // TileAt is the canonical per-coord lookup. It samples the noise fields at the given
@@ -211,7 +232,7 @@ func (g *WorldGenerator) ElevationAt(x, y int) float64 {
 // yields the same tile, with or without the chunk cache in front.
 func (g *WorldGenerator) TileAt(x, y int) world.Tile {
 	fx, fy := float64(x), float64(y)
-	elev := g.elevationAt(fx, fy)
+	elev := g.ElevationAtFloat(fx, fy)
 	temp := g.temperature.Eval2Normalized(fx, fy)
 	moist := g.moisture.Eval2Normalized(fx, fy)
 	return world.Tile{Terrain: biome.Biome(elev, temp, moist)}
@@ -241,23 +262,10 @@ func smoothstep(x, edge0, edge1 float64) float64 {
 // the standard construction for a uniform [0, 1) float from a 64-bit PRNG,
 // matching math/rand's Float64.
 func seedJitter01(seed int64, salt uint64) float64 {
-	saltLo := int(salt & 0xffffffff)
-	saltHi := int(salt >> 32)
-	u := splitMix64(uint64(saltLo), uint64(saltHi), uint64(seed))
+	saltLo := uint64(salt & 0xffffffff)
+	saltHi := uint64(salt >> 32)
+	u := genprim.SplitMix64(saltLo, saltHi, uint64(seed))
 	return float64(u>>11) / (1 << 53)
-}
-
-// splitMix64 mixes three 64-bit inputs into a single well-diffused 64-bit value
-// using large-prime multiplication and the SplitMix64 finalizer. Used for
-// deterministic seeded jittering; not a cryptographic hash.
-func splitMix64(a, b, c uint64) uint64 {
-	x := a*0x9e3779b97f4a7c15 ^ b*0x6c62272e07bb0142 ^ c*0xbf58476d1ce4e5b9
-	x ^= x >> 30
-	x *= 0xbf58476d1ce4e5b9
-	x ^= x >> 27
-	x *= 0x94d049bb133111eb
-	x ^= x >> 31
-	return x
 }
 
 // Chunk fills an entire Chunk worth of tiles in a single pass: for each coord
@@ -272,17 +280,18 @@ func (g *WorldGenerator) Chunk(cc chunk.ChunkCoord) chunk.Chunk {
 	out := chunk.Chunk{Coord: cc}
 	minX, _, minY, _ := cc.Bounds()
 
-	overlays := g.riversFor(cc)
+	riverTiles := g.riverSrc.RiverTilesInChunk(cc)
+	lakeTiles := g.riverSrc.LakeTilesInChunk(cc)
 
 	for dy := range chunk.ChunkSize {
 		for dx := range chunk.ChunkSize {
 			x, y := minX+dx, minY+dy
 			t := g.TileAt(x, y)
-			coord := tileCoord{x, y}
-			if _, ok := overlays.rivers[coord]; ok {
+			coord := rivers.TileCoord{x, y}
+			if _, ok := riverTiles[coord]; ok {
 				t.Overlays |= world.OverlayRiver
 			}
-			if _, ok := overlays.lakes[coord]; ok {
+			if _, ok := lakeTiles[coord]; ok {
 				t.Overlays |= world.OverlayLake
 			}
 			out.Tiles[dy][dx] = t
@@ -290,4 +299,17 @@ func (g *WorldGenerator) Chunk(cc chunk.ChunkCoord) chunk.Chunk {
 	}
 
 	return out
+}
+
+// RiverTilesInChunk returns the river-tile set for cc. Thin forwarder to
+// the rivers sub-package so external callers (ui, tests, server) keep a
+// stable WorldGenerator-based API while placement lives in rivers/.
+func (g *WorldGenerator) RiverTilesInChunk(cc chunk.ChunkCoord) map[rivers.TileCoord]struct{} {
+	return g.riverSrc.RiverTilesInChunk(cc)
+}
+
+// LakeTilesInChunk returns the lake-tile set for cc. Thin forwarder to
+// the rivers sub-package; see RiverTilesInChunk for rationale.
+func (g *WorldGenerator) LakeTilesInChunk(cc chunk.ChunkCoord) map[rivers.TileCoord]struct{} {
+	return g.riverSrc.LakeTilesInChunk(cc)
 }

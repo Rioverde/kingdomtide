@@ -26,7 +26,7 @@ func main() {
 	flag.Parse()
 
 	wg := worldgen.NewChunkedSource(*seed)
-	regionSrc := worldgen.NewNoiseRegionSource(*seed)
+	regionSrc := worldgen.NewNoiseRegionSource(*seed, wg.Generator())
 	lmSrc := worldgen.NewNoiseLandmarkSource(*seed, regionSrc, wg.Generator())
 	volSrc := worldgen.NewNoiseVolcanoSource(*seed, wg.Generator(), lmSrc)
 	depSrc := worldgen.NewNoiseDepositSource(*seed, wg.Generator(), lmSrc, volSrc)

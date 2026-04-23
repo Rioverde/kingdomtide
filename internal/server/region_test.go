@@ -28,10 +28,11 @@ const testRegionSeed int64 = 0x2f6f7a3d
 // integration harness (integration_test.go testWorld) deliberately avoids
 // region wiring to keep its assertions terse.
 func testRegionWorld() *world.World {
+	wg := worldgen.NewChunkedSource(testRegionSeed)
 	return world.NewWorld(
-		worldgen.NewChunkedSource(testRegionSeed),
+		wg,
 		world.WithSeed(testRegionSeed),
-		world.WithRegionSource(worldgen.NewNoiseRegionSource(testRegionSeed)),
+		world.WithRegionSource(worldgen.NewNoiseRegionSource(testRegionSeed, wg.Generator())),
 	)
 }
 
@@ -161,7 +162,7 @@ func (c *countingRegionSource) RegionAt(sc geom.SuperChunkCoord) world.Region {
 
 func TestRegionCacheHitRate(t *testing.T) {
 	counter := &countingRegionSource{
-		inner: worldgen.NewNoiseRegionSource(testRegionSeed),
+		inner: worldgen.NewNoiseRegionSource(testRegionSeed, worldgen.NewChunkedSource(testRegionSeed).Generator()),
 	}
 	cache := newRegionCache(counter, DefaultRegionCacheCapacity)
 
@@ -182,7 +183,7 @@ func TestRegionCacheHitRate(t *testing.T) {
 
 func TestRegionCacheDistinctCoords(t *testing.T) {
 	counter := &countingRegionSource{
-		inner: worldgen.NewNoiseRegionSource(testRegionSeed),
+		inner: worldgen.NewNoiseRegionSource(testRegionSeed, worldgen.NewChunkedSource(testRegionSeed).Generator()),
 	}
 	cache := newRegionCache(counter, DefaultRegionCacheCapacity)
 
@@ -210,7 +211,7 @@ func TestRegionCacheDistinctCoords(t *testing.T) {
 // is covered by the single-thread tests above.
 func TestRegionCacheRace(t *testing.T) {
 	counter := &countingRegionSource{
-		inner: worldgen.NewNoiseRegionSource(testRegionSeed),
+		inner: worldgen.NewNoiseRegionSource(testRegionSeed, worldgen.NewChunkedSource(testRegionSeed).Generator()),
 	}
 	cache := newRegionCache(counter, DefaultRegionCacheCapacity)
 
