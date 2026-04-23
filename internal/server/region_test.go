@@ -4,16 +4,15 @@ import (
 	"context"
 	"net"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 	"github.com/Rioverde/gongeons/internal/game/geom"
 	"github.com/Rioverde/gongeons/internal/game/world"
 	"github.com/Rioverde/gongeons/internal/game/worldgen"
 	pb "github.com/Rioverde/gongeons/internal/proto"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 // testRegionSeed is a fixed seed used by every region integration test so
@@ -151,12 +150,12 @@ func TestJoinAcceptedCarriesWorldSeed(t *testing.T) {
 // It is intentionally NOT safe for mutation after construction — tests
 // exercise read-only behaviour only.
 type countingRegionSource struct {
+	callCounter
 	inner world.RegionSource
-	calls atomic.Int64
 }
 
 func (c *countingRegionSource) RegionAt(sc geom.SuperChunkCoord) world.Region {
-	c.calls.Add(1)
+	c.hit()
 	return c.inner.RegionAt(sc)
 }
 
@@ -172,7 +171,7 @@ func TestRegionCacheHitRate(t *testing.T) {
 		_ = cache.At(sc)
 	}
 
-	if got := counter.calls.Load(); got != 1 {
+	if got := counter.count(); got != 1 {
 		t.Fatalf("source call count after %d lookups on one coord: want 1, got %d",
 			repeats, got)
 	}
@@ -199,7 +198,7 @@ func TestRegionCacheDistinctCoords(t *testing.T) {
 		_ = cache.At(sc)
 	}
 
-	if got := counter.calls.Load(); got != int64(len(coords)) {
+	if got := counter.count(); got != int64(len(coords)) {
 		t.Fatalf("source calls: want %d (one per unique coord), got %d",
 			len(coords), got)
 	}

@@ -10,8 +10,7 @@ import (
 	"github.com/Rioverde/gongeons/internal/game/world"
 	"github.com/Rioverde/gongeons/internal/game/worldgen"
 	"github.com/Rioverde/gongeons/internal/game/worldgen/internal/genprim"
-	"github.com/Rioverde/gongeons/internal/game/worldgen/landmark"
-	"github.com/Rioverde/gongeons/internal/game/worldgen/region"
+	"github.com/Rioverde/gongeons/internal/game/worldgen/internal/testsupport"
 	"github.com/Rioverde/gongeons/internal/game/worldgen/volcano"
 )
 
@@ -20,10 +19,8 @@ import (
 // landmark collisions exercise real data.
 func newVolcanoTestSource(tb testing.TB, seed int64) *volcano.NoiseVolcanoSource {
 	tb.Helper()
-	wg := worldgen.NewWorldGenerator(seed)
-	regions := region.NewNoiseRegionSource(seed, wg)
-	lm := landmark.NewNoiseLandmarkSource(seed, regions, wg)
-	return volcano.NewNoiseVolcanoSource(seed, wg, lm)
+	stack := testsupport.NewStack(tb, seed)
+	return volcano.NewNoiseVolcanoSource(seed, stack.Generator, stack.Landmarks)
 }
 
 // collectVolcanoes returns every volcano whose anchor sits inside the
@@ -160,10 +157,8 @@ func TestNoiseVolcanoSource_NoLandmarkCollision(t *testing.T) {
 		t.Skip("32x32 SC sweep")
 	}
 	const seed int64 = 42
-	wg := worldgen.NewWorldGenerator(seed)
-	regions := region.NewNoiseRegionSource(seed, wg)
-	lm := landmark.NewNoiseLandmarkSource(seed, regions, wg)
-	src := volcano.NewNoiseVolcanoSource(seed, wg, lm)
+	stack := testsupport.NewStack(t, seed)
+	src := volcano.NewNoiseVolcanoSource(seed, stack.Generator, stack.Landmarks)
 
 	all := collectVolcanoes(src, -16, -16, 16, 16)
 	if len(all) == 0 {
@@ -176,7 +171,7 @@ func TestNoiseVolcanoSource_NoLandmarkCollision(t *testing.T) {
 		for dy := -1; dy <= 1; dy++ {
 			for dx := -1; dx <= 1; dx++ {
 				sc := geom.SuperChunkCoord{X: home.X + dx, Y: home.Y + dy}
-				for _, l := range lm.LandmarksIn(sc) {
+				for _, l := range stack.Landmarks.LandmarksIn(sc) {
 					landmarkSet[l.Coord] = struct{}{}
 				}
 			}

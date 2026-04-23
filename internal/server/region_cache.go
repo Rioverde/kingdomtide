@@ -1,8 +1,6 @@
 package server
 
 import (
-	lru "github.com/hashicorp/golang-lru/v2"
-
 	"github.com/Rioverde/gongeons/internal/game/geom"
 	"github.com/Rioverde/gongeons/internal/game/world"
 )
@@ -15,28 +13,25 @@ const DefaultRegionCacheCapacity = 64
 
 // regionCache wraps a world.RegionSource with a fixed-size LRU keyed by the
 // anchor's SuperChunkCoord. Two distant tiles that share an anchor share a
-// cache entry. hashicorp/golang-lru/v2 is safe for concurrent use, so
+// cache entry. The shared lruCache helper is safe for concurrent use, so
 // regionCache has no additional synchronisation of its own.
 type regionCache struct {
 	source world.RegionSource
-	lru    *lru.Cache[geom.SuperChunkCoord, world.Region]
+	lru    *lruCache[geom.SuperChunkCoord, world.Region]
 }
 
 // newRegionCache builds a cache of the requested capacity around source.
 // A non-positive capacity is treated as DefaultRegionCacheCapacity so
 // callers cannot accidentally construct a zero-size cache that silently
-// forwards every call. Panics on lru.New failure because a failure there
-// is a programmer error — the only documented error is a non-positive
-// size, which we've already guarded against.
+// forwards every call.
 func newRegionCache(source world.RegionSource, capacity int) *regionCache {
 	if capacity <= 0 {
 		capacity = DefaultRegionCacheCapacity
 	}
-	cache, err := lru.New[geom.SuperChunkCoord, world.Region](capacity)
-	if err != nil {
-		panic("region cache: " + err.Error())
+	return &regionCache{
+		source: source,
+		lru:    newLRUCache[geom.SuperChunkCoord, world.Region]("region", capacity),
 	}
-	return &regionCache{source: source, lru: cache}
 }
 
 // At returns the Region for the given anchor's SuperChunkCoord,
@@ -46,12 +41,7 @@ func newRegionCache(source world.RegionSource, capacity int) *regionCache {
 // language-agnostic Parts records so the cache key is just sc — no
 // per-language sharding required.
 func (c *regionCache) At(sc geom.SuperChunkCoord) world.Region {
-	if r, ok := c.lru.Get(sc); ok {
-		return r
-	}
-	r := c.source.RegionAt(sc)
-	c.lru.Add(sc, r)
-	return r
+	return c.lru.getOrLoad(sc, c.source.RegionAt)
 }
 
 // Len returns the number of entries currently held by the LRU. Test-only.

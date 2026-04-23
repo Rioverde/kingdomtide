@@ -9,6 +9,7 @@ import (
 	"github.com/Rioverde/gongeons/internal/game/geom"
 	"github.com/Rioverde/gongeons/internal/game/world"
 	"github.com/Rioverde/gongeons/internal/game/worldgen"
+	"github.com/Rioverde/gongeons/internal/game/worldgen/internal/testsupport"
 	"github.com/Rioverde/gongeons/internal/game/worldgen/resource"
 )
 
@@ -17,8 +18,8 @@ import (
 // or fish placement paths.
 func newDepositTestSource(tb testing.TB, seed int64) *resource.NoiseDepositSource {
 	tb.Helper()
-	wg := worldgen.NewWorldGenerator(seed)
-	return resource.NewNoiseDepositSource(seed, wg, nil, nil)
+	stack := testsupport.NewStack(tb, seed)
+	return resource.NewNoiseDepositSource(seed, stack.Generator, nil, nil)
 }
 
 // collectDeposits yields every deposit whose position lies inside the

@@ -1,8 +1,6 @@
 package server
 
 import (
-	lru "github.com/hashicorp/golang-lru/v2"
-
 	"github.com/Rioverde/gongeons/internal/game/geom"
 	"github.com/Rioverde/gongeons/internal/game/world"
 )
@@ -17,27 +15,25 @@ const DefaultLandmarkCacheCapacity = 64
 // SuperChunkCoord. Landmark lookups are deterministic and cheap once cached;
 // even a small cache is highly effective under typical viewport drift because
 // players stay in the same cluster of super-chunks across many moves.
-// hashicorp/golang-lru/v2 is safe for concurrent use, so landmarkCache has
-// no additional synchronisation of its own.
+// The shared lruCache helper is safe for concurrent use, so landmarkCache
+// has no additional synchronisation of its own.
 type landmarkCache struct {
 	source world.LandmarkSource
-	lru    *lru.Cache[geom.SuperChunkCoord, []world.Landmark]
+	lru    *lruCache[geom.SuperChunkCoord, []world.Landmark]
 }
 
 // newLandmarkCache builds a cache of the requested capacity around source.
 // A non-positive capacity is treated as DefaultLandmarkCacheCapacity so
 // callers cannot accidentally construct a zero-size cache that silently
-// forwards every call. Panics on lru.New failure because that can only
-// happen with a non-positive size, which we guard against above.
+// forwards every call.
 func newLandmarkCache(source world.LandmarkSource, capacity int) *landmarkCache {
 	if capacity <= 0 {
 		capacity = DefaultLandmarkCacheCapacity
 	}
-	cache, err := lru.New[geom.SuperChunkCoord, []world.Landmark](capacity)
-	if err != nil {
-		panic("landmark cache: " + err.Error())
+	return &landmarkCache{
+		source: source,
+		lru:    newLRUCache[geom.SuperChunkCoord, []world.Landmark]("landmark", capacity),
 	}
-	return &landmarkCache{source: source, lru: cache}
 }
 
 // LandmarksIn returns the landmark slice for the given super-chunk,
@@ -47,12 +43,7 @@ func newLandmarkCache(source world.LandmarkSource, capacity int) *landmarkCache 
 // Parts records so the cache key is just sc — no per-language
 // sharding required.
 func (c *landmarkCache) LandmarksIn(sc geom.SuperChunkCoord) []world.Landmark {
-	if v, ok := c.lru.Get(sc); ok {
-		return v
-	}
-	v := c.source.LandmarksIn(sc)
-	c.lru.Add(sc, v)
-	return v
+	return c.lru.getOrLoad(sc, c.source.LandmarksIn)
 }
 
 // Len returns the number of entries currently held by the LRU. Test-only.

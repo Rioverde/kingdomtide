@@ -35,6 +35,6 @@ Thumbs.db
 CLAUDE.md
 .omc/*
 internal/.omc/*
-server
+/cmd/server/server
 .ssh/
 .claude/

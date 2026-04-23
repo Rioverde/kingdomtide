@@ -196,6 +196,8 @@ func (s *NoiseLandmarkSource) landmarkForSubCell(
 // isWaterTile reports whether a tile's terrain or overlay puts it
 // underwater. Landmarks must not spawn on these — a Tower or Shrine in
 // the middle of the ocean would read as a bug, not a landmark.
+// Intentionally diverges from genprim.IsWaterOrRiverTile: river tiles pass
+// here because a landmark on a riverbank is a valid, thematic placement.
 func isWaterTile(t world.Tile) bool {
 	switch t.Terrain {
 	case world.TerrainOcean, world.TerrainDeepOcean:

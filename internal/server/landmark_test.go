@@ -1,14 +1,13 @@
 package server
 
 import (
-	"sync"
-	"sync/atomic"
-	"testing"
-	"time"
 	"github.com/Rioverde/gongeons/internal/game/geom"
 	"github.com/Rioverde/gongeons/internal/game/world"
 	"github.com/Rioverde/gongeons/internal/game/worldgen"
 	pb "github.com/Rioverde/gongeons/internal/proto"
+	"sync"
+	"testing"
+	"time"
 )
 
 // testLandmarkSeed is the fixed seed used by landmark tests. Decoupled from
@@ -84,12 +83,12 @@ outer:
 // countingLandmarkSource wraps an inner LandmarkSource with an atomic call
 // counter. Constructed once and used read-only — safe for concurrent use.
 type countingLandmarkSource struct {
+	callCounter
 	inner world.LandmarkSource
-	calls atomic.Int64
 }
 
 func (c *countingLandmarkSource) LandmarksIn(sc geom.SuperChunkCoord) []world.Landmark {
-	c.calls.Add(1)
+	c.hit()
 	return c.inner.LandmarksIn(sc)
 }
 
@@ -110,7 +109,7 @@ func TestLandmarkCacheHitRate(t *testing.T) {
 		_ = cache.LandmarksIn(sc)
 	}
 
-	if got := counter.calls.Load(); got != 1 {
+	if got := counter.count(); got != 1 {
 		t.Fatalf("source call count after %d lookups on one coord: want 1, got %d",
 			repeats, got)
 	}
