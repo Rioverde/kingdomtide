@@ -22,10 +22,11 @@ import (
 // cmd/worldgen-explorer. The stub worldgen.go keeps producing the
 // all-ocean *world.World the server expects.
 type DemoWorld struct {
-	Size   WorldSize
-	Seed   int64
-	Width  int
-	Height int
+	Size       WorldSize
+	Continents ContinentPreset
+	Seed       int64
+	Width      int
+	Height     int
 
 	// Elevation is a multi-octave fractal Brownian noise field in [0, 1].
 	Elevation []float32
@@ -39,14 +40,15 @@ type DemoWorld struct {
 }
 
 // GenerateDemoWorld fills the three float32 grids in parallel row
-// bands. Salts are fixed so the same (seed, size) pair is deterministic
-// across runs and across goroutine counts.
-func GenerateDemoWorld(seed int64, size WorldSize) *DemoWorld {
+// bands. Salts are fixed so the same (seed, size, continents) tuple is
+// deterministic across runs and across goroutine counts.
+func GenerateDemoWorld(seed int64, size WorldSize, continents ContinentPreset) *DemoWorld {
 	w, h := size.Dimensions()
 	total := w * h
 
 	out := &DemoWorld{
 		Size:        size,
+		Continents:  continents,
 		Seed:        seed,
 		Width:       w,
 		Height:      h,
@@ -87,12 +89,20 @@ func GenerateDemoWorld(seed int64, size WorldSize) *DemoWorld {
 // fillDemoBand populates one horizontal band of the demo world. Factored
 // out so every worker goroutine sees the same loop body; the bands do
 // not overlap, so parallel writes to Elevation / Temperature / Moisture
-// are safe without locks.
+// are safe without locks. Continent preset drives elevation scale, sea
+// level shift, and edge bias so the five presets produce visibly
+// different layouts from the same seed.
 func fillDemoBand(w *DemoWorld, yLo, yHi int, elevNoise, moistNoise opensimplex.Noise) {
-	const (
-		elevScale  = 256.0
-		moistScale = 192.0
-	)
+	elevScale := w.Continents.NoiseScale()
+	const moistScale = 192.0
+	edgeBias := float64(w.Continents.EdgeBias())
+	// seaShift nudges the elevation field up for low-sea presets
+	// (Pangaea, more land) and down for high-sea presets (Archipelago,
+	// more water). Linear map: target 0.50 -> shift 0; target 0.30
+	// -> shift +0.10; target 0.60 -> shift -0.10.
+	seaShift := 0.5 - float64(w.Continents.SeaFraction())
+
+	halfW := float64(w.Width) / 2.0
 	halfH := float64(w.Height) / 2.0
 
 	for y := yLo; y < yHi; y++ {
@@ -108,6 +118,42 @@ func fillDemoBand(w *DemoWorld, yLo, yHi int, elevNoise, moistNoise opensimplex.
 
 			elev := fbm(elevNoise, fx/elevScale, fy/elevScale, 4, 0.5, 2.0)
 			elev = (elev + 1) * 0.5 // -> [0, 1]
+
+			// Edge bias: distance from centre, normalised to [0, 1]
+			// where 0 is the centre and 1 is the nearest corner. Close
+			// to the edge we drop elevation by up to edgeBias so land
+			// masses settle inside the bounds instead of being clipped.
+			dx := (fx - halfW) / halfW
+			dy := (fy - halfH) / halfH
+			if dx < 0 {
+				dx = -dx
+			}
+			if dy < 0 {
+				dy = -dy
+			}
+			edge := dx
+			if dy > edge {
+				edge = dy
+			}
+			// Falloff kicks in past edge=0.7 and saturates at edge=1.0.
+			falloff := 0.0
+			if edge > 0.7 {
+				t := (edge - 0.7) / 0.3
+				falloff = edgeBias * t * t * (3.0 - 2.0*t)
+			}
+			elev -= falloff
+
+			// Sea-level shift: nudges elevation up for low-sea presets,
+			// down for high-sea presets. Rough approximation until the
+			// real sealevel stage calibrates by histogram.
+			elev += seaShift * 0.4
+
+			if elev < 0 {
+				elev = 0
+			}
+			if elev > 1 {
+				elev = 1
+			}
 
 			moist := fbm(moistNoise, fx/moistScale, fy/moistScale, 3, 0.5, 2.0)
 			moist = (moist + 1) * 0.5

@@ -13,8 +13,7 @@ import (
 	"github.com/Rioverde/gongeons/internal/game/worldgen"
 )
 
-// Menu styling. Kept in one block so future palette tweaks flow from
-// one place rather than chasing constants through the handler.
+// Menu styling.
 var (
 	menuBoxStyle = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
@@ -24,57 +23,39 @@ var (
 			Foreground(lipgloss.Color("12")).
 			Bold(true)
 	menuSelectedStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("11")).
-			Bold(true)
+				Foreground(lipgloss.Color("11")).
+				Bold(true)
 	menuDimStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("243"))
 	menuStarStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("11"))
 	menuErrorStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("9"))
-	menuEditingStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("12")).
-			Bold(true)
+	menuActiveHeadingStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("12")).
+				Bold(true)
+	menuIdleHeadingStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("243"))
 )
 
-// updateMenu is the phaseMenu key handler. It routes keys to either the
-// size list or the seed textinput depending on whether the dev is
-// currently editing the seed field.
+// updateMenu routes the key message to the active field's handler.
 func (m Model) updateMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 	key, ok := msg.(tea.KeyMsg)
 	if !ok {
 		return m, nil
 	}
 
-	if m.editingSeed {
-		switch key.String() {
-		case "enter", "esc":
-			m.editingSeed = false
-			m.seedInput.Blur()
-			return m, nil
-		}
-		var cmd tea.Cmd
-		m.seedInput, cmd = m.seedInput.Update(msg)
-		return m, cmd
-	}
-
 	switch key.String() {
-	case "q", "esc":
+	case "q", "esc", "ctrl+c":
 		return m, tea.Quit
-	case "up", "k":
-		if m.sizeIdx > 0 {
-			m.sizeIdx--
-		}
-	case "down", "j":
-		if m.sizeIdx < len(m.sizes)-1 {
-			m.sizeIdx++
-		}
-	case "r":
-		m.seedInput.SetValue(formatSeed(int64(rand.Uint64())))
 	case "tab":
-		m.editingSeed = true
-		m.seedInput.Focus()
-		return m, textinput.Blink
+		m.activeField = m.activeField.next()
+		m.syncSeedFocus()
+		return m, nil
+	case "shift+tab":
+		m.activeField = m.activeField.prev()
+		m.syncSeedFocus()
+		return m, nil
 	case "enter":
 		seed, err := parseSeed(m.seedInput.Value())
 		if err != nil {
@@ -83,62 +64,105 @@ func (m Model) updateMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.menuErr = ""
 		m.pendingSize = m.sizes[m.sizeIdx]
+		m.pendingContinents = m.continents[m.continentIdx]
 		m.pendingSeed = seed
 		m.phase = phaseBuilding
-		return m, buildCmd(m.pendingSize, m.pendingSeed)
+		return m, buildCmd(m.pendingSize, m.pendingContinents, m.pendingSeed)
+	case "r":
+		if m.activeField != fieldSeed {
+			m.seedInput.SetValue(formatSeed(int64(rand.Uint64())))
+			return m, nil
+		}
+	}
+
+	switch m.activeField {
+	case fieldSize:
+		return m.updateSizeField(key)
+	case fieldContinent:
+		return m.updateContinentField(key)
+	case fieldSeed:
+		var cmd tea.Cmd
+		m.seedInput, cmd = m.seedInput.Update(msg)
+		return m, cmd
 	}
 	return m, nil
 }
 
-// viewMenu renders the size picker + seed input inside a rounded border
-// centred on the terminal. The layout mirrors character_creation.go from
-// the main client so the visual language stays consistent across tools.
+// updateSizeField handles arrow-key navigation while size is active.
+func (m Model) updateSizeField(key tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch key.String() {
+	case "up", "k":
+		if m.sizeIdx > 0 {
+			m.sizeIdx--
+		}
+	case "down", "j":
+		if m.sizeIdx < len(m.sizes)-1 {
+			m.sizeIdx++
+		}
+	}
+	return m, nil
+}
+
+// updateContinentField handles arrow-key navigation while continent is active.
+func (m Model) updateContinentField(key tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch key.String() {
+	case "up", "k":
+		if m.continentIdx > 0 {
+			m.continentIdx--
+		}
+	case "down", "j":
+		if m.continentIdx < len(m.continents)-1 {
+			m.continentIdx++
+		}
+	}
+	return m, nil
+}
+
+// syncSeedFocus mirrors activeField onto the textinput's focus state so
+// the blinking cursor is only visible when the seed field is active.
+func (m *Model) syncSeedFocus() {
+	if m.activeField == fieldSeed {
+		m.seedInput.Focus()
+	} else {
+		m.seedInput.Blur()
+	}
+}
+
+// viewMenu renders the full menu: title, size list, continent list,
+// seed input, hints, and inline error line. Each section's heading is
+// highlighted when its field is active so the dev always knows where
+// input will land.
 func (m Model) viewMenu() string {
 	var b strings.Builder
 
 	b.WriteString(menuTitleStyle.Render("Gongeons Worldgen Explorer"))
 	b.WriteString("\n\n")
-	b.WriteString("Select world size:")
-	b.WriteString("\n\n")
 
+	b.WriteString(headingFor("World size", m.activeField == fieldSize))
+	b.WriteString("\n")
 	for i, size := range m.sizes {
-		marker := "  "
-		label := size.Label()
-		w, h := size.Dimensions()
-		dims := fmt.Sprintf("%dx%d", w, h)
-		time := fmt.Sprintf("~%ds", size.EstimatedGenSeconds())
-		kings := fmt.Sprintf("%d kingdoms", size.ExpectedKingdoms())
-		star := "  "
-		if size == worldgen.WorldSizeStandard {
-			star = menuStarStyle.Render(" *")
-		}
-
-		row := fmt.Sprintf("%-10s %-10s %6s   %-13s%s", label, dims, time, kings, star)
-
-		if i == m.sizeIdx {
-			marker = menuSelectedStyle.Render("▶ ")
-			row = menuSelectedStyle.Render(row)
-		} else {
-			row = menuDimStyle.Render(row)
-		}
-		b.WriteString(marker)
-		b.WriteString(row)
+		b.WriteString(renderSizeRow(size, i == m.sizeIdx, m.activeField == fieldSize))
 		b.WriteString("\n")
 	}
-
 	b.WriteString("\n")
-	seedLabel := "Seed: "
-	if m.editingSeed {
-		seedLabel = menuEditingStyle.Render("Seed: ")
+
+	b.WriteString(headingFor("Continents", m.activeField == fieldContinent))
+	b.WriteString("\n")
+	for i, cp := range m.continents {
+		b.WriteString(renderContinentRow(cp, i == m.continentIdx, m.activeField == fieldContinent))
+		b.WriteString("\n")
 	}
-	b.WriteString(seedLabel)
+	b.WriteString("\n")
+
+	b.WriteString(headingFor("Seed", m.activeField == fieldSeed))
+	b.WriteString("  ")
 	b.WriteString(m.seedInput.View())
 	b.WriteString("\n\n")
 
 	hints := []string{
-		"up/down: size",
+		"tab: next field",
+		"up/down: select",
 		"r: random seed",
-		"tab: edit seed",
 		"enter: generate",
 		"q: quit",
 	}
@@ -153,14 +177,62 @@ func (m Model) viewMenu() string {
 	return lipgloss.Place(m.termW, m.termH, lipgloss.Center, lipgloss.Center, box)
 }
 
-// viewBuilding renders the short generating-progress screen. tea fires
-// buildDoneMsg when the goroutine finishes, so this view is visible
-// only for the duration of one world generation.
+// headingFor renders a section heading in active or idle colour.
+func headingFor(label string, active bool) string {
+	if active {
+		return menuActiveHeadingStyle.Render(label + ":")
+	}
+	return menuIdleHeadingStyle.Render(label + ":")
+}
+
+// renderSizeRow formats one row of the size list.
+func renderSizeRow(size worldgen.WorldSize, selected, active bool) string {
+	w, h := size.Dimensions()
+	dims := fmt.Sprintf("%dx%d", w, h)
+	timeStr := fmt.Sprintf("~%ds", size.EstimatedGenSeconds())
+	kings := fmt.Sprintf("%d kingdoms", size.ExpectedKingdoms())
+	star := "  "
+	if size == worldgen.WorldSizeStandard {
+		star = menuStarStyle.Render(" *")
+	}
+
+	row := fmt.Sprintf("  %-11s %-10s %6s   %-13s%s",
+		size.Label(), dims, timeStr, kings, star)
+	return styleMenuRow(row, selected, active)
+}
+
+// renderContinentRow formats one row of the continent preset list.
+func renderContinentRow(cp worldgen.ContinentPreset, selected, active bool) string {
+	star := "  "
+	if cp == worldgen.ContinentTrinity {
+		star = menuStarStyle.Render(" *")
+	}
+	row := fmt.Sprintf("  %-13s %-28s%s", cp.Label(), cp.Description(), star)
+	return styleMenuRow(row, selected, active)
+}
+
+// styleMenuRow applies the selected/active cursor + colouring to one
+// row. Active and selected highlights the row yellow and adds a caret;
+// selected but not active greys the row with a dim caret; neither just
+// greys.
+func styleMenuRow(row string, selected, active bool) string {
+	if selected && active {
+		return menuSelectedStyle.Render("▶") + row[1:]
+	}
+	if selected {
+		return menuDimStyle.Render("▷") + row[1:]
+	}
+	return menuDimStyle.Render(row)
+}
+
+// viewBuilding renders the short generating-progress screen.
 func (m Model) viewBuilding() string {
 	line1 := menuTitleStyle.Render("Generating world...")
 	w, h := m.pendingSize.Dimensions()
-	line2 := fmt.Sprintf("Size: %s (%dx%d) · Seed: %s",
-		m.pendingSize.Label(), w, h, formatSeed(m.pendingSeed))
+	line2 := fmt.Sprintf("Size: %s (%dx%d) · Continents: %s · Seed: %s",
+		m.pendingSize.Label(), w, h,
+		m.pendingContinents.Label(),
+		formatSeed(m.pendingSeed))
 	line3 := menuDimStyle.Render(fmt.Sprintf(
 		"Estimated: ~%d seconds on M1 Max", m.pendingSize.EstimatedGenSeconds()))
 
@@ -169,14 +241,10 @@ func (m Model) viewBuilding() string {
 	return lipgloss.Place(m.termW, m.termH, lipgloss.Center, lipgloss.Center, box)
 }
 
-// formatSeed renders a seed int64 as a plain decimal string. Used both
-// for placeholder generation in the textinput and for display in the
-// building screen.
+// formatSeed renders a seed int64 as a plain decimal string.
 func formatSeed(seed int64) string { return strconv.FormatInt(seed, 10) }
 
-// parseSeed accepts either a decimal int64 or a hex value prefixed with
-// 0x. Any parse failure surfaces to the menu as an inline error — the
-// textinput stays focused so the dev can fix it without losing state.
+// parseSeed accepts either a decimal int64 or a hex value prefixed with 0x.
 func parseSeed(s string) (int64, error) {
 	s = strings.TrimSpace(s)
 	if s == "" {
@@ -196,7 +264,4 @@ func parseSeed(s string) (int64, error) {
 	return v, nil
 }
 
-// textinput is imported lazily here to keep main.go focused on program
-// boot. Bubbletea's textinput.Blink Cmd is returned from the tab handler
-// so the cursor starts blinking as soon as the seed field takes focus.
-var _ = textinput.Blink // keep import live; blink is referenced above
+var _ = textinput.Blink // ensure import stays live; Blink is referenced via tea.Cmd indirectly

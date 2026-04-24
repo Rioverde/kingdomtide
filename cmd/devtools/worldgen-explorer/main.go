@@ -1,10 +1,10 @@
 // Command worldgen-explorer is a developer tool for iterating on the
 // Gongeons worldgen pipeline. It presents a bubbletea TUI with three
-// phases: a menu for picking world size and seed, a short building
-// screen while the demo world generates, and a scrollable viewer that
-// lets the dev navigate the baked grids with arrow keys, toggle
-// visualisation layers, and compare cases by regenerating with a new
-// seed without leaving the tool.
+// phases: a menu for picking world size, continent layout, and seed;
+// a short building screen while the demo world generates; and a
+// scrollable viewer that lets the dev navigate the baked grids with
+// arrow keys, toggle visualisation layers, and compare cases by
+// regenerating with a new seed without leaving the tool.
 //
 // The explorer is intentionally decoupled from the real game server
 // and client — it does not dial, does not open a TCP socket, does not
@@ -13,11 +13,11 @@
 //
 // Invoke without args for the interactive menu:
 //
-//	go run ./cmd/worldgen-explorer
+//	go run ./cmd/devtools/worldgen-explorer
 //
-// Or skip the menu by supplying both flags:
+// Or skip the menu by supplying the flags:
 //
-//	go run ./cmd/worldgen-explorer --size=standard --seed=42
+//	go run ./cmd/devtools/worldgen-explorer --size=standard --continents=trinity --seed=42
 package main
 
 import (
@@ -33,6 +33,7 @@ import (
 
 func main() {
 	sizeFlag := flag.String("size", "", "world size (tiny, small, standard, large, huge); empty opens menu")
+	continentsFlag := flag.String("continents", "", "continent preset (pangaea, two, trinity, quartet, archipelago); empty defaults to trinity when --size is set")
 	seedFlag := flag.Int64("seed", 0, "explicit seed; 0 with --size means random")
 	flag.Parse()
 
@@ -43,11 +44,16 @@ func main() {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(2)
 		}
+		cp, err := worldgen.ParseContinentPreset(*continentsFlag)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(2)
+		}
 		seed := *seedFlag
 		if seed == 0 {
 			seed = int64(rand.Uint64())
 		}
-		initial = modelStartingBuild(sz, seed)
+		initial = modelStartingBuild(sz, cp, seed)
 	}
 
 	p := tea.NewProgram(initial, tea.WithAltScreen(), tea.WithMouseCellMotion())
