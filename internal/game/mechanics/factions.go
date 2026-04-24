@@ -27,6 +27,17 @@ var factionOrderForDrift = []polity.Faction{
 	polity.FactionMages, polity.FactionCriminals,
 }
 
+// dieFaceToDrift maps D6 face (1..6, indexed 0..5) to signed faction drift delta.
+// Replaces per-call RNG+branch with pure lookup: 1-3 → -0.05, 4-6 → +0.05.
+var dieFaceToDrift = [6]float64{
+	-factionDriftMagnitude, // face 1
+	-factionDriftMagnitude, // face 2
+	-factionDriftMagnitude, // face 3
+	+factionDriftMagnitude, // face 4
+	+factionDriftMagnitude, // face 5
+	+factionDriftMagnitude, // face 6
+}
+
 // ApplyFactionDriftYear drifts each faction's influence by a
 // stochastic ±factionDriftMagnitude per year. Applied after events
 // because future event systems will bias specific factions; today
@@ -38,14 +49,7 @@ var factionOrderForDrift = []polity.Faction{
 // work.
 func ApplyFactionDriftYear(city *polity.City, stream *dice.Stream) {
 	for _, f := range factionOrderForDrift {
-		// D6 splits evenly at 3.5 — values 1-3 push down, 4-6 push
-		// up. Deterministic given the stream.
-		var delta float64
-		if stream.D6() <= 3 {
-			delta = -factionDriftMagnitude
-		} else {
-			delta = +factionDriftMagnitude
-		}
+		delta := dieFaceToDrift[stream.D6()-1]
 		if f == polity.FactionMilitary {
 			delta += factionMilitaryPeacetimeDrift
 		}

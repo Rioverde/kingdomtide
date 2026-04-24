@@ -100,7 +100,14 @@ var sulfurSubSalt = genprim.ToInt64(0x5d9b6c4a2e1f3d5b)
 // the fish salts — same seed and tile always produce the same result.
 func fishDepositAt(seed int64, t geom.Position, terrain TerrainSampler) (world.Deposit, bool) {
 	tile := terrain.TileAt(t.X, t.Y)
-	if tile.Terrain != world.TerrainBeach {
+	return fishDepositAtTerrain(seed, t, tile.Terrain, terrain)
+}
+
+// fishDepositAtTerrain is the inner hot-path variant used by generate
+// when the caller has already fetched the tile. Accepts the terrain
+// value directly so TileAt is not called a second time per tile.
+func fishDepositAtTerrain(seed int64, t geom.Position, ter world.Terrain, terrain TerrainSampler) (world.Deposit, bool) {
+	if ter != world.TerrainBeach {
 		return world.Deposit{}, false
 	}
 	if !beachFacesOpenOcean(t, terrain) {
