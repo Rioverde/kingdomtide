@@ -31,8 +31,12 @@ func (m Model) updateViewer(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case "n", "esc":
 		// Return to menu so the dev can pick a different size / seed.
+		// Re-randomise the seed field on the way back so pressing Enter
+		// again without touching anything produces a different world —
+		// otherwise the same seed would rebuild the same map.
 		m.phase = phaseMenu
 		m.world = nil
+		m.seedInput.SetValue(randomSeedString())
 		return m, nil
 
 	case "up":

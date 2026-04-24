@@ -28,7 +28,6 @@ type menuField int
 
 const (
 	fieldSize menuField = iota
-	fieldContinent
 	fieldSeed
 	fieldCount
 )
@@ -73,18 +72,15 @@ type Model struct {
 	phase phase
 
 	// Menu phase.
-	sizes          []worldgen.WorldSize
-	sizeIdx        int
-	continents     []worldgen.ContinentPreset
-	continentIdx   int
-	seedInput      textinput.Model
-	activeField    menuField
-	menuErr        string
+	sizes       []worldgen.WorldSize
+	sizeIdx     int
+	seedInput   textinput.Model
+	activeField menuField
+	menuErr     string
 
 	// Building phase.
-	pendingSize       worldgen.WorldSize
-	pendingContinents worldgen.ContinentPreset
-	pendingSeed       int64
+	pendingSize worldgen.WorldSize
+	pendingSeed int64
 
 	// Viewer phase.
 	world    *worldgen.DemoWorld
@@ -99,7 +95,7 @@ type Model struct {
 }
 
 // initialModel returns a Model parked in phaseMenu with the Standard
-// size + Trinity continents pre-selected and a random seed pre-filled.
+// size pre-selected and a random seed pre-filled.
 func initialModel() Model {
 	ti := textinput.New()
 	ti.Placeholder = "seed"
@@ -108,25 +104,22 @@ func initialModel() Model {
 	ti.SetValue(randomSeedString())
 
 	return Model{
-		phase:        phaseMenu,
-		sizes:        worldgen.AllSizes(),
-		sizeIdx:      int(worldgen.WorldSizeStandard),
-		continents:   worldgen.AllContinentPresets(),
-		continentIdx: int(worldgen.ContinentTrinity),
-		seedInput:    ti,
-		activeField:  fieldSize,
-		zoom:         1,
+		phase:       phaseMenu,
+		sizes:       worldgen.AllSizes(),
+		sizeIdx:     int(worldgen.WorldSizeStandard),
+		seedInput:   ti,
+		activeField: fieldSize,
+		zoom:        1,
 	}
 }
 
-// modelStartingBuild shortcuts the menu when --size, --continents, and
-// --seed were supplied on the CLI. The build goroutine fires from Init
-// so the user sees the progress screen immediately.
-func modelStartingBuild(size worldgen.WorldSize, continents worldgen.ContinentPreset, seed int64) Model {
+// modelStartingBuild shortcuts the menu when --size and --seed were
+// supplied on the CLI. The build goroutine fires from Init so the user
+// sees the progress screen immediately.
+func modelStartingBuild(size worldgen.WorldSize, seed int64) Model {
 	m := initialModel()
 	m.phase = phaseBuilding
 	m.pendingSize = size
-	m.pendingContinents = continents
 	m.pendingSeed = seed
 	return m
 }
@@ -135,7 +128,7 @@ func modelStartingBuild(size worldgen.WorldSize, continents worldgen.ContinentPr
 // menu is already interactive and nothing async needs to happen.
 func (m Model) Init() tea.Cmd {
 	if m.phase == phaseBuilding {
-		return buildCmd(m.pendingSize, m.pendingContinents, m.pendingSeed)
+		return buildCmd(m.pendingSize, m.pendingSeed)
 	}
 	return textinput.Blink
 }
@@ -190,9 +183,11 @@ func (m Model) View() string {
 // buildCmd returns a tea.Cmd that runs GenerateDemoWorld off the event
 // loop and emits a buildDoneMsg when it finishes. tea schedules the Cmd
 // on a worker goroutine so the UI stays responsive during generation.
-func buildCmd(size worldgen.WorldSize, continents worldgen.ContinentPreset, seed int64) tea.Cmd {
+// ContinentPreset is passed for API compatibility only; the current
+// demo pipeline ignores it (continents emerge from the weighted mesh).
+func buildCmd(size worldgen.WorldSize, seed int64) tea.Cmd {
 	return func() tea.Msg {
-		w := worldgen.GenerateDemoWorld(seed, size, continents)
+		w := worldgen.GenerateDemoWorld(seed, size, worldgen.ContinentTrinity)
 		return buildDoneMsg{world: w}
 	}
 }
