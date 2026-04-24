@@ -8,59 +8,43 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// viewerZoomLevels enumerates the zoom factors the dev can cycle
-// through with + / -. 1 means one terminal cell per tile (after the
-// 2-column-per-tile aspect correction); 2 means a 2x2 block of world
-// tiles folds into one rendered cell; and so on. 64 is enough to fit a
-// 4096x4096 world on an 80-col terminal as a thumbnail (4096/64 = 64
-// cells wide).
 var viewerZoomLevels = []int{1, 2, 4, 8, 16, 32, 64}
 
-// updateViewer is the phaseViewer key handler. Covers scrolling, layer
-// cycling, zoom, the info-panel toggle, and the escape hatches back to
-// the menu or out of the program.
 func (m Model) updateViewer(msg tea.Msg) (tea.Model, tea.Cmd) {
 	key, ok := msg.(tea.KeyMsg)
 	if !ok {
 		return m, nil
 	}
-
 	switch key.String() {
 	case "q", "ctrl+c":
 		return m, tea.Quit
-
 	case "n", "esc":
-		// Return to menu so the dev can pick a different size / seed.
-		// Re-randomise the seed field on the way back so pressing Enter
-		// again without touching anything produces a different world —
-		// otherwise the same seed would rebuild the same map.
 		m.phase = phaseMenu
 		m.world = nil
 		m.seedInput.SetValue(randomSeedString())
 		return m, nil
-
 	case "up":
-		m.vpY -= 1
+		m.vpY -= m.arrowStep()
 	case "down":
-		m.vpY += 1
+		m.vpY += m.arrowStep()
 	case "left":
-		m.vpX -= 1
+		m.vpX -= m.arrowStep()
 	case "right":
-		m.vpX += 1
+		m.vpX += m.arrowStep()
 	case "shift+up", "K":
-		m.vpY -= 10
+		m.vpY -= m.arrowStep() * 5
 	case "shift+down", "J":
-		m.vpY += 10
+		m.vpY += m.arrowStep() * 5
 	case "shift+left", "H":
-		m.vpX -= 10
+		m.vpX -= m.arrowStep() * 5
 	case "shift+right", "L":
-		m.vpX += 10
+		m.vpX += m.arrowStep() * 5
 	case "pgup":
 		_, visRows := m.viewportSize()
-		m.vpY -= visRows
+		m.vpY -= visRows * m.zoom
 	case "pgdown":
 		_, visRows := m.viewportSize()
-		m.vpY += visRows
+		m.vpY += visRows * m.zoom
 	case "home":
 		m.vpX = 0
 		m.vpY = 0
@@ -68,53 +52,56 @@ func (m Model) updateViewer(msg tea.Msg) (tea.Model, tea.Cmd) {
 		visCols, visRows := m.viewportSize()
 		m.vpX = m.world.Width - visCols*m.zoom
 		m.vpY = m.world.Height - visRows*m.zoom
-
 	case "l":
 		m.layer = m.layer.next()
 	case "+", "=":
 		m.zoom = prevZoom(m.zoom)
 	case "-", "_":
 		m.zoom = nextZoom(m.zoom)
-
 	case "i":
 		m.showInfo = !m.showInfo
-
 	case "1":
-		m.layer = layerElevation
+		m.layer = layerBiome
 	case "2":
-		m.layer = layerTemperature
+		m.layer = layerCells
 	case "3":
+		m.layer = layerLand
+	case "4":
+		m.layer = layerElevation
+	case "5":
 		m.layer = layerMoisture
+	case "6":
+		m.layer = layerCoast
 	}
-
 	m.clampViewport()
 	return m, nil
 }
 
-// viewViewer assembles the main scrollable screen: a grid of coloured
-// cells rendered from the current layer, a one-line status bar, and
-// optional info footer showing the sampled values at viewport centre.
+func (m Model) arrowStep() int {
+	s := m.zoom * 4
+	if s < 1 {
+		return 1
+	}
+	return s
+}
+
 func (m Model) viewViewer() string {
 	if m.world == nil {
 		return "no world generated"
 	}
 	visCols, visRows := m.viewportSize()
 	body := renderViewport(m.world, m.layer, m.zoom, m.vpX, m.vpY, visCols, visRows)
-	status := m.renderStatusBar(visCols)
+	status := m.renderStatusBar()
 	hints := m.renderHints()
-
 	if m.showInfo {
 		return body + "\n" + status + "\n" + m.renderInfo() + "\n" + hints
 	}
 	return body + "\n" + status + "\n" + hints
 }
 
-// viewportSize returns the (cols, rows) count in logical viewport cells.
-// Each cell is 2 terminal columns wide so world maps stay roughly 1:1
-// in aspect despite terminal cells being taller than they are wide.
 func (m Model) viewportSize() (int, int) {
 	cols := (m.termW - 2) / 2
-	rows := m.termH - 4 // status bar + hints + optional info
+	rows := m.termH - 4
 	if m.showInfo {
 		rows -= 1
 	}
@@ -127,9 +114,6 @@ func (m Model) viewportSize() (int, int) {
 	return cols, rows
 }
 
-// clampViewport keeps (vpX, vpY) inside a safe range for the current
-// zoom. Allows empty-band padding up to but not past the world edges so
-// the dev cannot scroll the map completely off-screen.
 func (m *Model) clampViewport() {
 	visCols, visRows := m.viewportSize()
 	if m.vpX < 0 {
@@ -154,25 +138,20 @@ func (m *Model) clampViewport() {
 	}
 }
 
-// renderStatusBar shows what the dev is looking at: layer name, zoom,
-// seed, size, viewport origin. Fits on one line at 80-col terminals.
-func (m Model) renderStatusBar(visCols int) string {
-	left := fmt.Sprintf(" %s  zoom %dx  seed %s  size %s (%dx%d)  vp %d,%d ",
+func (m Model) renderStatusBar() string {
+	left := fmt.Sprintf(" %s  zoom %dx  seed %s  size %s (%dx%d)  cells %d  vp %d,%d ",
 		strings.ToUpper(m.layer.String()), m.zoom, formatSeed(m.world.Seed),
 		m.world.Size.Label(), m.world.Width, m.world.Height,
+		len(m.world.Voronoi.Cells),
 		m.vpX, m.vpY)
 	return statusBarStyle.Render(left)
 }
 
-// renderHints renders the dim controls line at the bottom of the view.
 func (m Model) renderHints() string {
-	s := "arrows: scroll  ·  shift+arrows: fast  ·  l: layer  ·  1/2/3: direct  ·  +/-: zoom  ·  i: info  ·  n: new world  ·  q: quit"
+	s := "arrows: scroll  ·  shift+arrows: fast  ·  l: layer  ·  1-6: direct  ·  +/-: zoom  ·  i: info  ·  n: new  ·  q: quit"
 	return hintsStyle.Render(s)
 }
 
-// renderInfo dumps per-layer values at the centre of the viewport. Cheap
-// single-tile sample; the info panel is for spot-checking specific sites
-// rather than aggregate statistics.
 func (m Model) renderInfo() string {
 	visCols, visRows := m.viewportSize()
 	cx := m.vpX + (visCols*m.zoom)/2
@@ -180,16 +159,20 @@ func (m Model) renderInfo() string {
 	if cx < 0 || cy < 0 || cx >= m.world.Width || cy >= m.world.Height {
 		return hintsStyle.Render("(out of bounds)")
 	}
-	idx := cy*m.world.Width + cx
-	line := fmt.Sprintf(" @(%d,%d)  elev=%.3f  temp=%.3f  moist=%.3f ",
-		cx, cy,
-		m.world.Elevation[idx], m.world.Temperature[idx], m.world.Moisture[idx])
+	cellID := m.world.Voronoi.CellIDAt(cx, cy)
+	kind := "land"
+	if m.world.IsOcean(cellID) {
+		kind = "ocean"
+	} else if m.world.IsCoast(cellID) {
+		kind = "coast"
+	}
+	line := fmt.Sprintf(" @(%d,%d)  cell=%d(%s)  elev=%.2f  moist=%.2f  terrain=%s ",
+		cx, cy, cellID, kind,
+		m.world.Elevation[cellID], m.world.Moisture[cellID],
+		m.world.Terrain[cellID])
 	return infoStyle.Render(line)
 }
 
-// nextZoom and prevZoom walk the viewerZoomLevels table. nextZoom moves
-// toward bigger factors (less detail, more world visible); prevZoom
-// toward smaller (more detail, less world).
 func nextZoom(z int) int {
 	for i, v := range viewerZoomLevels {
 		if v == z && i+1 < len(viewerZoomLevels) {
@@ -207,9 +190,6 @@ func prevZoom(z int) int {
 	return z
 }
 
-// Status-bar / hints / info styling. Kept out of the top of the file so
-// the hot render path stays close to the dispatch logic. Lipgloss styles
-// are lightweight, constructing them at package init is cheap.
 var (
 	statusBarStyle = lipgloss.NewStyle().
 			Background(lipgloss.Color("236")).
