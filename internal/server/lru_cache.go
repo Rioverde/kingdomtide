@@ -28,6 +28,9 @@ func newLRUCache[K comparable, V any](name string, capacity int) *lruCache[K, V]
 // getOrLoad returns the value for key, consulting the LRU first and calling
 // load on a miss. The loaded value is stored and returned as-is; callers must
 // not mutate shared slices or maps returned from load.
+//
+// Concurrent misses on the same key invoke load independently; callers whose
+// load is expensive should wrap with singleflight.Group.
 func (c *lruCache[K, V]) getOrLoad(key K, load func(K) V) V {
 	if v, ok := c.inner.Get(key); ok {
 		return v

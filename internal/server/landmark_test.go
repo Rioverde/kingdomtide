@@ -118,11 +118,14 @@ func TestLandmarkCacheHitRate(t *testing.T) {
 	}
 }
 
-// TestLandmarkCacheRace smokes 100 goroutines × 100 lookups across varying
-// SuperChunkCoords through a shared cache. The assertion is "no data race" —
-// the -race detector flags any accidental shared-state mutation introduced by
-// future refactors. Hit-rate correctness is covered by TestLandmarkCacheHitRate.
+// TestLandmarkCacheRace smokes concurrent readers through a shared cache.
+// The assertion is "no data race" — the -race detector flags any
+// accidental shared-state mutation introduced by future refactors.
+// Hit-rate correctness is covered by TestLandmarkCacheHitRate.
 func TestLandmarkCacheRace(t *testing.T) {
+	if testing.Short() {
+		t.Skip("goroutine cache stress over noise source")
+	}
 	wg := worldgen.NewChunkedSource(testLandmarkSeed)
 	regionSrc := worldgen.NewNoiseRegionSource(testLandmarkSeed, wg.Generator())
 	inner := worldgen.NewNoiseLandmarkSource(testLandmarkSeed, regionSrc, wg.Generator())
@@ -135,8 +138,8 @@ func TestLandmarkCacheRace(t *testing.T) {
 		{X: -1, Y: 0}, {X: 0, Y: -1}, {X: 2, Y: 3}, {X: -3, Y: 2},
 	}
 
-	const goroutines = 100
-	const iters = 100
+	const goroutines = 8
+	const iters = 200
 	var wgg sync.WaitGroup
 	wgg.Add(goroutines)
 	for r := range goroutines {

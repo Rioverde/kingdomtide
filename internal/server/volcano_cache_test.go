@@ -2,7 +2,6 @@ package server
 
 import (
 	"sync"
-	"sync/atomic"
 	"testing"
 
 	"github.com/Rioverde/gongeons/internal/game/geom"
@@ -12,12 +11,12 @@ import (
 // fakeVolcanoSource is an in-memory world.VolcanoSource used by the
 // volcano-cache unit tests. volcanoCalls and overrideCalls record the
 // number of delegated lookups so tests can assert cache behaviour
-// without coupling to the production noise-based source. Both counters
-// use atomic.Int64 so the concurrent-race test can read them under
-// -race without its own mutex.
+// without coupling to the production noise-based source. Two named
+// callCounter fields (rather than embedding) because both counters
+// would otherwise promote hit/count ambiguously.
 type fakeVolcanoSource struct {
-	volcanoCalls  atomic.Int64
-	overrideCalls atomic.Int64
+	volcanoCalls  callCounter
+	overrideCalls callCounter
 	volcanoes     map[geom.SuperChunkCoord][]world.Volcano
 	overrides     map[geom.Position]world.Terrain
 }
@@ -26,14 +25,14 @@ type fakeVolcanoSource struct {
 // counter. A nil inner map (never populated) still yields nil, matching
 // the production VolcanoSource contract.
 func (f *fakeVolcanoSource) VolcanoAt(sc geom.SuperChunkCoord) []world.Volcano {
-	f.volcanoCalls.Add(1)
+	f.volcanoCalls.hit()
 	return f.volcanoes[sc]
 }
 
 // TerrainOverrideAt returns the canned override for p (or "", false
 // when absent) and increments the call counter.
 func (f *fakeVolcanoSource) TerrainOverrideAt(p geom.Position) (world.Terrain, bool) {
-	f.overrideCalls.Add(1)
+	f.overrideCalls.hit()
 	t, ok := f.overrides[p]
 	return t, ok
 }
@@ -55,7 +54,7 @@ func TestVolcanoCache_VolcanoAt_CachesHit(t *testing.T) {
 		_ = cache.VolcanoAt(sc)
 	}
 
-	if got := src.volcanoCalls.Load(); got != 1 {
+	if got := src.volcanoCalls.count(); got != 1 {
 		t.Fatalf("source call count after %d lookups on one coord: want 1, got %d",
 			repeats, got)
 	}
@@ -85,14 +84,14 @@ func TestVolcanoCache_VolcanoAt_LRUEviction(t *testing.T) {
 	if got := cache.Len(); got != 2 {
 		t.Fatalf("cache.Len after 3 inserts at cap=2: want 2, got %d", got)
 	}
-	if got := src.volcanoCalls.Load(); got != 3 {
+	if got := src.volcanoCalls.count(); got != 3 {
 		t.Fatalf("source call count after 3 distinct inserts: want 3, got %d", got)
 	}
 
 	// The least-recently-used coord ({0,0}) must have been evicted; a
 	// fresh lookup for it triggers another upstream call.
 	_ = cache.VolcanoAt(coords[0])
-	if got := src.volcanoCalls.Load(); got != 4 {
+	if got := src.volcanoCalls.count(); got != 4 {
 		t.Fatalf("source call count after evicted re-lookup: want 4, got %d", got)
 	}
 }
@@ -121,7 +120,7 @@ func TestVolcanoCache_TerrainOverrideAt_PassesThrough(t *testing.T) {
 				p, i, world.TerrainVolcanoCore, terrain)
 		}
 	}
-	if got := src.overrideCalls.Load(); got != 3 {
+	if got := src.overrideCalls.count(); got != 3 {
 		t.Fatalf("source override call count: want 3 (pass-through), got %d", got)
 	}
 
@@ -130,7 +129,7 @@ func TestVolcanoCache_TerrainOverrideAt_PassesThrough(t *testing.T) {
 	if ok {
 		t.Fatalf("miss override: want (\"\", false), got (%q, true)", terrain)
 	}
-	if got := src.overrideCalls.Load(); got != 4 {
+	if got := src.overrideCalls.count(); got != 4 {
 		t.Fatalf("source override call count after miss: want 4, got %d", got)
 	}
 }

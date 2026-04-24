@@ -474,6 +474,8 @@ func snapshotOf(w *world.World, center geom.Position, viewW, viewH int, region *
 	// pointer slice the wire needs aliases into it. Drops per-tile
 	// heap churn from O(viewW*viewH) to O(2) without changing what
 	// protobuf-go sees (it consumes messages through pointers).
+	// tiles[] holds interior pointers into slab, so slab must not be
+	// re-sliced or appended to — a regrow would invalidate every entry.
 	slab := make([]pb.Tile, n)
 	tiles := make([]*pb.Tile, n)
 	for dy := range viewH {
