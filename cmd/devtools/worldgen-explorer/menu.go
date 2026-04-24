@@ -64,10 +64,9 @@ func (m Model) updateMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.menuErr = ""
 		m.pendingSize = m.sizes[m.sizeIdx]
-		m.pendingContinents = m.continents[m.continentIdx]
 		m.pendingSeed = seed
 		m.phase = phaseBuilding
-		return m, buildCmd(m.pendingSize, m.pendingContinents, m.pendingSeed)
+		return m, buildCmd(m.pendingSize, m.pendingSeed)
 	case "r":
 		if m.activeField != fieldSeed {
 			m.seedInput.SetValue(formatSeed(int64(rand.Uint64())))
@@ -78,8 +77,6 @@ func (m Model) updateMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch m.activeField {
 	case fieldSize:
 		return m.updateSizeField(key)
-	case fieldContinent:
-		return m.updateContinentField(key)
 	case fieldSeed:
 		var cmd tea.Cmd
 		m.seedInput, cmd = m.seedInput.Update(msg)
@@ -103,21 +100,6 @@ func (m Model) updateSizeField(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// updateContinentField handles arrow-key navigation while continent is active.
-func (m Model) updateContinentField(key tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch key.String() {
-	case "up", "k":
-		if m.continentIdx > 0 {
-			m.continentIdx--
-		}
-	case "down", "j":
-		if m.continentIdx < len(m.continents)-1 {
-			m.continentIdx++
-		}
-	}
-	return m, nil
-}
-
 // syncSeedFocus mirrors activeField onto the textinput's focus state so
 // the blinking cursor is only visible when the seed field is active.
 func (m *Model) syncSeedFocus() {
@@ -128,10 +110,9 @@ func (m *Model) syncSeedFocus() {
 	}
 }
 
-// viewMenu renders the full menu: title, size list, continent list,
-// seed input, hints, and inline error line. Each section's heading is
-// highlighted when its field is active so the dev always knows where
-// input will land.
+// viewMenu renders the menu: title, size list, seed input, hints, and
+// inline error line. Each section's heading is highlighted when its
+// field is active so the dev always knows where input will land.
 func (m Model) viewMenu() string {
 	var b strings.Builder
 
@@ -142,14 +123,6 @@ func (m Model) viewMenu() string {
 	b.WriteString("\n")
 	for i, size := range m.sizes {
 		b.WriteString(renderSizeRow(size, i == m.sizeIdx, m.activeField == fieldSize))
-		b.WriteString("\n")
-	}
-	b.WriteString("\n")
-
-	b.WriteString(headingFor("Continents", m.activeField == fieldContinent))
-	b.WriteString("\n")
-	for i, cp := range m.continents {
-		b.WriteString(renderContinentRow(cp, i == m.continentIdx, m.activeField == fieldContinent))
 		b.WriteString("\n")
 	}
 	b.WriteString("\n")
@@ -201,16 +174,6 @@ func renderSizeRow(size worldgen.WorldSize, selected, active bool) string {
 	return styleMenuRow(row, selected, active)
 }
 
-// renderContinentRow formats one row of the continent preset list.
-func renderContinentRow(cp worldgen.ContinentPreset, selected, active bool) string {
-	star := "  "
-	if cp == worldgen.ContinentTrinity {
-		star = menuStarStyle.Render(" *")
-	}
-	row := fmt.Sprintf("  %-13s %-28s%s", cp.Label(), cp.Description(), star)
-	return styleMenuRow(row, selected, active)
-}
-
 // styleMenuRow applies the selected/active cursor + colouring to one
 // row. Active and selected highlights the row yellow and adds a caret;
 // selected but not active greys the row with a dim caret; neither just
@@ -229,10 +192,8 @@ func styleMenuRow(row string, selected, active bool) string {
 func (m Model) viewBuilding() string {
 	line1 := menuTitleStyle.Render("Generating world...")
 	w, h := m.pendingSize.Dimensions()
-	line2 := fmt.Sprintf("Size: %s (%dx%d) · Continents: %s · Seed: %s",
-		m.pendingSize.Label(), w, h,
-		m.pendingContinents.Label(),
-		formatSeed(m.pendingSeed))
+	line2 := fmt.Sprintf("Size: %s (%dx%d) · Seed: %s",
+		m.pendingSize.Label(), w, h, formatSeed(m.pendingSeed))
 	line3 := menuDimStyle.Render(fmt.Sprintf(
 		"Estimated: ~%d seconds on M1 Max", m.pendingSize.EstimatedGenSeconds()))
 
@@ -264,4 +225,4 @@ func parseSeed(s string) (int64, error) {
 	return v, nil
 }
 
-var _ = textinput.Blink // ensure import stays live; Blink is referenced via tea.Cmd indirectly
+var _ = textinput.Blink // keep import live; Blink is referenced via tea.Cmd indirectly
