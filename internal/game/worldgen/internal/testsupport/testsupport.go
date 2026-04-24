@@ -2,6 +2,12 @@
 // volcano and resource sub-package test suites. Lives under internal/ so
 // production code cannot depend on it and so it can reach into
 // worldgen-tier concrete types without polluting the public API.
+//
+// This file intentionally imports testing.TB from a non-_test.go source
+// because the helper is shared across multiple _test packages and Go
+// disallows cross-package imports of _test.go files. The production
+// binary never links testsupport — the internal/ boundary keeps it
+// confined to test builds of its sibling packages.
 package testsupport
 
 import (

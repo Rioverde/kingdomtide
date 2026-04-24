@@ -8,15 +8,10 @@ import (
 	"github.com/Rioverde/gongeons/internal/game/worldgen"
 )
 
-// benchSeed is the fixed seed used by every composite snapshot benchmark
-// so cold/warm runs share identical worldgen state and results are
-// reproducible across machines and commits.
-const benchSeed int64 = 0xA11CE
-
 // benchCenter is the viewport centre used by the composite benches. The
 // origin is a stable choice — no spawn lottery, and the surrounding
 // super-chunks carry a representative mix of biomes, landmarks, and
-// volcanoes under benchSeed.
+// volcanoes under snapshotTestSeed (see testhelpers_test.go).
 var benchCenter = geom.Position{X: 0, Y: 0}
 
 // buildBenchService mirrors cmd/server/main.go's buildWorld wiring
@@ -26,14 +21,14 @@ var benchCenter = geom.Position{X: 0, Y: 0}
 // directly when assembling snapshots.
 func buildBenchService(tb testing.TB) *Service {
 	tb.Helper()
-	wg := worldgen.NewChunkedSource(benchSeed)
-	regionSrc := worldgen.NewNoiseRegionSource(benchSeed, wg.Generator())
-	landmarkSrc := worldgen.NewNoiseLandmarkSource(benchSeed, regionSrc, wg.Generator())
-	volcanoSrc := worldgen.NewNoiseVolcanoSource(benchSeed, wg.Generator(), landmarkSrc)
-	depositSrc := worldgen.NewNoiseDepositSource(benchSeed, wg.Generator(), landmarkSrc, volcanoSrc)
+	wg := worldgen.NewChunkedSource(snapshotTestSeed)
+	regionSrc := worldgen.NewNoiseRegionSource(snapshotTestSeed, wg.Generator())
+	landmarkSrc := worldgen.NewNoiseLandmarkSource(snapshotTestSeed, regionSrc, wg.Generator())
+	volcanoSrc := worldgen.NewNoiseVolcanoSource(snapshotTestSeed, wg.Generator(), landmarkSrc)
+	depositSrc := worldgen.NewNoiseDepositSource(snapshotTestSeed, wg.Generator(), landmarkSrc, volcanoSrc)
 	w := world.NewWorld(
 		wg,
-		world.WithSeed(benchSeed),
+		world.WithSeed(snapshotTestSeed),
 		world.WithRegionSource(regionSrc),
 		world.WithLandmarkSource(landmarkSrc),
 		world.WithVolcanoSource(volcanoSrc),
