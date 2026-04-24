@@ -42,7 +42,7 @@ func ApplyReligionDiffusionYear(city *polity.City, stream *dice.Stream, currentY
 	if city.Faiths.IsZero() {
 		return
 	}
-	majority := city.Faiths.Majority()
+	p := computeMajorityAndSecondary(city)
 
 	// D20 [1, 20] → [religionDiffusionMin, religionDiffusionMax] with
 	// a uniform map so the pulse is deterministic per stream draw.
@@ -57,49 +57,58 @@ func ApplyReligionDiffusionYear(city *polity.City, stream *dice.Stream, currentY
 	// so sum stays at 1.0 after Normalize. The array is indexed by
 	// Faith ordinal, so iteration order is deterministic without the
 	// AllFaiths bounce.
-	minorityCount := len(polity.AllFaiths()) - 1
+	const minorityCount = polity.FaithCount - 1
 	for _, f := range polity.AllFaiths() {
-		if f == majority {
+		if f == p.majority {
 			city.Faiths[f] += pulse
 			continue
 		}
-		if minorityCount > 0 {
-			city.Faiths[f] = max(0, city.Faiths[f]-pulse/float64(minorityCount))
-		}
+		city.Faiths[f] = max(0, city.Faiths[f]-pulse/float64(minorityCount))
 	}
 	city.Faiths.Normalize()
 
-	checkSchism(city, currentYear)
+	checkSchismWith(city, currentYear, p)
 }
 
-// checkSchism verifies the four-gate schism model and, when all gates
-// open, rewrites the two contesting faiths to a 60/40 split so the
-// secondary gains ground and the majority cedes some. Other faiths
-// absorb the remainder proportionally via Normalize. A successful
-// schism appends a SchismEvent to city.FaithHistory for later UI /
-// analytics consumption.
-func checkSchism(city *polity.City, currentYear int) {
-	majority := city.Faiths.Majority()
-	var secondary polity.Faith
-	var secondaryShare float64
-	// Iterate via AllFaiths() for deterministic order — ties on
-	// secondaryShare break toward the lower Faith ordinal.
-	for _, f := range polity.AllFaiths() {
-		if f == majority {
-			continue
-		}
-		share := city.Faiths[f]
-		if share > secondaryShare {
-			secondary = f
-			secondaryShare = share
+// schismCheckParams carries pre-computed majority/secondary state so
+// ApplyReligionDiffusionYear and checkSchismWith share one scan.
+type schismCheckParams struct {
+	majority       polity.Faith
+	secondary      polity.Faith
+	majorityShare  float64
+	secondaryShare float64
+}
+
+// computeMajorityAndSecondary finds the top-2 faiths in a single
+// pass over the FaithDistribution array. Ties on share break toward
+// the lower Faith ordinal (same semantics as FaithDistribution.Majority).
+func computeMajorityAndSecondary(city *polity.City) schismCheckParams {
+	var top, sec polity.Faith
+	topShare, secShare := -1.0, -1.0
+	for f := polity.Faith(0); f < polity.FaithCount; f++ {
+		v := city.Faiths[f]
+		if v > topShare {
+			sec, secShare = top, topShare
+			top, topShare = f, v
+		} else if v > secShare {
+			sec, secShare = f, v
 		}
 	}
-	majorityShare := city.Faiths[majority]
+	return schismCheckParams{
+		majority: top, majorityShare: topShare,
+		secondary: sec, secondaryShare: secShare,
+	}
+}
 
-	if secondaryShare < schismSecondaryThreshold {
+// checkSchismWith verifies the four-gate schism model using
+// pre-computed majority/secondary so no extra scan is needed.
+// When all gates open it rewrites the two contesting faiths to a
+// 60/40 split and records a SchismEvent on city.FaithHistory.
+func checkSchismWith(city *polity.City, currentYear int, p schismCheckParams) {
+	if p.secondaryShare < schismSecondaryThreshold {
 		return
 	}
-	if majorityShare-secondaryShare > schismContestDeltaMax {
+	if p.majorityShare-p.secondaryShare > schismContestDeltaMax {
 		return
 	}
 	innovationGate := schismInnovationMin
@@ -113,13 +122,13 @@ func checkSchism(city *polity.City, currentYear int) {
 	// No Inquisition decree to check yet — when decrees land this
 	// becomes `if city.HasActiveDecree(DecreeInquisition) { return }`.
 
-	city.Faiths[majority] = schismSplitMajority
-	city.Faiths[secondary] = schismSplitMinority
+	city.Faiths[p.majority] = schismSplitMajority
+	city.Faiths[p.secondary] = schismSplitMinority
 	city.Faiths.Normalize()
 
 	city.FaithHistory = append(city.FaithHistory, polity.SchismEvent{
 		Year:             currentYear,
-		OriginalMajority: majority,
-		NewSecondary:     secondary,
+		OriginalMajority: p.majority,
+		NewSecondary:     p.secondary,
 	})
 }

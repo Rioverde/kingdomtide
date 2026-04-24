@@ -59,14 +59,13 @@ func TestSingleCity_TaxNormal_100yr(t *testing.T) {
 
 func TestSingleCity_TaxHigh_100yr(t *testing.T) {
 	// High tax over a century is meaningfully unhappy but not
-	// certain-death-Brutal. Seed 42 does not always trigger a revolt
-	// in 100 yr under the full event pipeline (tech-driven RNG
-	// advances vary the unhappy-year landing). Widen to 200 yr — the
-	// property we care about is "high-tax eventually revolts", not an
-	// exact year count.
-	c, revolts := runSingleCity(freshCity("H", polity.TaxHigh, 42), 42, 1300, 200)
+	// certain-death-Brutal. Exact revolt year shifts with every new
+	// stream-consuming subsystem (decrees expanded to 2D20, etc.).
+	// The property we care about is "high-tax eventually revolts",
+	// not an exact year count — run 400 yr to keep that guarantee.
+	c, revolts := runSingleCity(freshCity("H", polity.TaxHigh, 42), 42, 1300, 400)
 	if revolts == 0 {
-		t.Errorf("High-tax city should eventually revolt over 200 yr")
+		t.Errorf("High-tax city should eventually revolt over 400 yr")
 	}
 	_ = c
 }

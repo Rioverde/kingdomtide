@@ -22,6 +22,9 @@ const (
 	tradePopLogCap = 40000
 )
 
+// Hoisted to avoid recomputing on every popLogScore call.
+var tradePopLogDivisor = math.Log10(tradePopLogCap + 1)
+
 // ApplyTradeYear recomputes city.TradeScore. MVP version uses only
 // the population signal because the other four inputs (neighbors,
 // deposits, water, connectivity) require world context that the
@@ -72,5 +75,5 @@ func popLogScore(pop int) float64 {
 	if pop <= 0 {
 		return 0
 	}
-	return math.Min(1.0, math.Log10(float64(pop)+1)/math.Log10(tradePopLogCap+1))
+	return math.Min(1.0, math.Log10(float64(pop)+1)/tradePopLogDivisor)
 }

@@ -4,14 +4,14 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
-	"google.golang.org/protobuf/testing/protocmp"
 	"github.com/Rioverde/gongeons/internal/game/calendar"
 	"github.com/Rioverde/gongeons/internal/game/event"
 	"github.com/Rioverde/gongeons/internal/game/geom"
 	"github.com/Rioverde/gongeons/internal/game/world"
 	"github.com/Rioverde/gongeons/internal/game/worldgen"
 	pb "github.com/Rioverde/gongeons/internal/proto"
+	"github.com/google/go-cmp/cmp"
+	"google.golang.org/protobuf/testing/protocmp"
 )
 
 func TestClientMessageToCommandJoin(t *testing.T) {
@@ -335,21 +335,23 @@ func TestSnapshotOf_NilVolcanoCache_NoOverride(t *testing.T) {
 	}
 }
 
-// TestTileFromDomain_OverrideApplied verifies tileFromDomain swaps the
-// base terrain for the override when hasOverride is true, and leaves it
-// unchanged when hasOverride is false. Unit-level so a future refactor
-// cannot silently drop the override branch.
-func TestTileFromDomain_OverrideApplied(t *testing.T) {
+// TestFillTile_OverrideApplied verifies fillTile swaps the base terrain
+// for the override when hasOverride is true, and leaves it unchanged
+// when hasOverride is false. Unit-level so a future refactor cannot
+// silently drop the override branch.
+func TestFillTile_OverrideApplied(t *testing.T) {
 	base := world.Tile{Terrain: world.TerrainForest}
 	lm := world.Landmark{}
 
-	withOverride := tileFromDomain(base, lm, world.TerrainVolcanoCore, true)
+	var withOverride pb.Tile
+	fillTile(&withOverride, base, lm, world.TerrainVolcanoCore, true)
 	if got := withOverride.GetTerrain(); got != pb.Terrain_TERRAIN_VOLCANO_CORE {
 		t.Fatalf("override applied: want %v, got %v",
 			pb.Terrain_TERRAIN_VOLCANO_CORE, got)
 	}
 
-	withoutOverride := tileFromDomain(base, lm, world.TerrainVolcanoCore, false)
+	var withoutOverride pb.Tile
+	fillTile(&withoutOverride, base, lm, world.TerrainVolcanoCore, false)
 	if got := withoutOverride.GetTerrain(); got != pb.Terrain_TERRAIN_FOREST {
 		t.Fatalf("override ignored: want %v, got %v",
 			pb.Terrain_TERRAIN_FOREST, got)

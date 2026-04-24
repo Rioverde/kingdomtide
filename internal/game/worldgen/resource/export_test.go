@@ -36,9 +36,23 @@ func PointBiomeAcceptsForTest(kind world.DepositKind, ter world.Terrain) bool {
 
 // TileBlockedForTest exposes tileBlocked so the external test package
 // can assert water / landmark / volcano rejection without inlining the
-// entire gate.
+// entire gate. It builds a 3x3 SC landmark set around p to match the
+// coverage the production path provides via the full SR neighbourhood.
 func TileBlockedForTest(p geom.Position, terrain TerrainSampler, lm world.LandmarkSource, vs world.VolcanoSource) bool {
-	return tileBlocked(p, terrain, lm, vs)
+	var lmSet map[geom.Position]struct{}
+	if lm != nil {
+		lmSet = make(map[geom.Position]struct{})
+		home := geom.WorldToSuperChunk(p.X, p.Y)
+		for dy := -1; dy <= 1; dy++ {
+			for dx := -1; dx <= 1; dx++ {
+				sc := geom.SuperChunkCoord{X: home.X + dx, Y: home.Y + dy}
+				for _, l := range lm.LandmarksIn(sc) {
+					lmSet[l.Coord] = struct{}{}
+				}
+			}
+		}
+	}
+	return tileBlocked(p, terrain, lmSet, vs)
 }
 
 // FishDepositAtForTest wraps fishDepositAt for external tests.
@@ -87,13 +101,13 @@ func (s *NoiseDepositSource) EnsureRegionForTest(sr genprim.SuperRegion) {
 	s.ensureRegion(sr)
 }
 
-// ZonalNoiseMapForTest builds the per-kind noise map the same way
+// ZonalNoiseMapForTest builds the per-kind noise array the same way
 // NewNoiseDepositSource does. Used by zonal tests that exercise
 // ZonalDepositAtForTest without constructing a full source.
-func ZonalNoiseMapForTest(seed int64) map[world.DepositKind]noise.OctaveNoise {
-	out := make(map[world.DepositKind]noise.OctaveNoise, len(zonalKinds))
-	for _, k := range zonalKinds {
-		out[k] = noise.NewOctaveNoise(seed^zonalSubSalts[k], zonalNoiseOpts)
+func ZonalNoiseMapForTest(seed int64) [zonalKindCount]noise.OctaveNoise {
+	var out [zonalKindCount]noise.OctaveNoise
+	for i := range zonalSpecs {
+		out[i] = noise.NewOctaveNoise(seed^zonalSpecs[i].subSalt, zonalNoiseOpts)
 	}
 	return out
 }
@@ -102,9 +116,9 @@ func ZonalNoiseMapForTest(seed int64) map[world.DepositKind]noise.OctaveNoise {
 func ZonalDepositAtForTest(
 	t geom.Position,
 	ter world.Terrain,
-	noises map[world.DepositKind]noise.OctaveNoise,
+	noises [zonalKindCount]noise.OctaveNoise,
 ) (world.Deposit, bool) {
-	return zonalDepositAt(t, ter, noises)
+	return zonalDepositAt(t, ter, &noises)
 }
 
 // ZonalBiomeAcceptsForTest exposes zonalBiomeAccepts.
@@ -117,6 +131,22 @@ const ZonalPerlinScaleForTest = zonalPerlinScale
 
 // ZonalThresholdForTest looks up a per-kind threshold.
 func ZonalThresholdForTest(kind world.DepositKind) (float64, bool) {
-	v, ok := zonalThresholds[kind]
-	return v, ok
+	for i := range zonalSpecs {
+		if zonalSpecs[i].kind == kind {
+			return zonalSpecs[i].threshold, true
+		}
+	}
+	return 0, false
+}
+
+// ZonalNoiseSlotForTest reports the zonalSpecs slot for kind. Used by
+// external tests that want to probe a specific kind's noise field
+// without replicating the slot-lookup logic.
+func ZonalNoiseSlotForTest(kind world.DepositKind) (int, bool) {
+	for i := range zonalSpecs {
+		if zonalSpecs[i].kind == kind {
+			return i, true
+		}
+	}
+	return 0, false
 }

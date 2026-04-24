@@ -1,19 +1,17 @@
 package rivers
 
 import (
-	"container/heap"
 	"math"
 	"testing"
 
 	"github.com/Rioverde/gongeons/internal/game/worldgen/biome"
 )
 
-// TestPriorityQueueOrdering verifies container/heap pops cellPri in ascending
-// elev order. A mis-implemented Less would silently corrupt every
+// TestCellHeapOrdering verifies the typed cellHeap pops cellPri in ascending
+// elev order. A mis-implemented less/sift would silently corrupt every
 // localFloodFill spill-point search.
-func TestPriorityQueueOrdering(t *testing.T) {
-	pq := priorityQueue{}
-	heap.Init(&pq)
+func TestCellHeapOrdering(t *testing.T) {
+	var h cellHeap
 
 	in := []cellPri{
 		{1, 2, 0.8},
@@ -23,12 +21,12 @@ func TestPriorityQueueOrdering(t *testing.T) {
 		{9, 10, 0.3},
 	}
 	for _, c := range in {
-		heap.Push(&pq, c)
+		h.push(c)
 	}
 
 	prev := math.Inf(-1)
-	for pq.Len() > 0 {
-		c := heap.Pop(&pq).(cellPri)
+	for h.len() > 0 {
+		c := h.pop()
 		if c.elev < prev {
 			t.Fatalf("heap pop out of order: prev=%.3f got=%.3f", prev, c.elev)
 		}
@@ -166,7 +164,7 @@ func TestRiverSourcesAreMountains(t *testing.T) {
 		{12, 12}: biome.ElevationMountain + 0.02, // valid head
 	}
 	terrain := &fakeTerrainSampler{
-		elev:    fakeElev,
+		elev:     fakeElev,
 		default_: 0.5,
 	}
 

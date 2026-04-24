@@ -150,3 +150,27 @@ func BenchmarkExpressionExecute_Simple(b *testing.B) {
 		_ = d20Expr.Execute(s.rng).Total
 	}
 }
+
+// BenchmarkStat4D6DropLowest_FastPath measures the direct-roll fast path
+// after replacing statExpr.Execute with inline IntN(6) calls. The target
+// is zero allocs/op (previously ~8 allocs/op from Expression.Execute's
+// DieRoll/TermResult/CapWarning slice allocations).
+func BenchmarkStat4D6DropLowest_FastPath(b *testing.B) {
+	s := New(42, SaltKingdomYear)
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		_ = s.Stat4D6DropLowest()
+	}
+}
+
+// BenchmarkStat4D6DropLowest_Legacy is the "before" counterpart — routes
+// through statExpr.Execute so the alloc delta is visible side-by-side.
+func BenchmarkStat4D6DropLowest_Legacy(b *testing.B) {
+	s := New(42, SaltKingdomYear)
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		_ = statExpr.Execute(s.rng).Total
+	}
+}

@@ -24,10 +24,8 @@ const (
 	collapseThreshold = 0.1
 
 	// tributeVassalRate is the wealth share each vassal city transfers
-	// upstream each year. Set lower than the spec's 15 % in this MVP
-	// because we have no corruption-chain model yet; tuning will revisit
-	// once the full kingdom layer is in place.
-	tributeVassalRate = 0.10
+	// upstream each year. §8b specifies 15 %.
+	tributeVassalRate = 0.15
 
 	// capitalReserveRate caps how much of the collected tribute stays
 	// in the capital's treasury vs. flowing further up (where "up"

@@ -13,7 +13,7 @@
 package rivers
 
 import (
-	"container/heap"
+	"sync"
 
 	lru "github.com/hashicorp/golang-lru/v2"
 
@@ -110,33 +110,78 @@ type cellPri struct {
 	elev float64
 }
 
-// priorityQueue is a min-heap of cellPri ordered by elev ascending. Exactly
-// the shape container/heap expects; used by localFloodFill to pop rim cells
-// in ascending elevation order so the first neighbour below the current rim
-// is the true spill point.
-type priorityQueue []cellPri
+// cellHeap is a typed min-heap of cellPri ordered by elev ascending. It
+// replaces a container/heap-backed priorityQueue to avoid the any-box per
+// Push/Pop (~11 MB / 150 cold chunks in the diagnostic profile). The
+// sift-up / sift-down algorithms mirror container/heap's implementation
+// (parent = (i-1)/2, children = 2i+1/2i+2, and the right-child preference
+// rule when children are equal) so the pop order on equal-elev ties is
+// identical to the previous container/heap path — determinism is preserved
+// bit-for-bit against the existing rivers tests.
+type cellHeap struct {
+	data []cellPri
+}
 
-// Len reports the heap size.
-func (pq priorityQueue) Len() int { return len(pq) }
+// less orders by elev ascending — smallest elevation first. Matches the
+// comparator the old priorityQueue.Less used.
+func (h *cellHeap) less(i, j int) bool { return h.data[i].elev < h.data[j].elev }
 
-// Less orders by elev ascending — smallest elevation first.
-func (pq priorityQueue) Less(i, j int) bool { return pq[i].elev < pq[j].elev }
+// swap exchanges two heap entries.
+func (h *cellHeap) swap(i, j int) { h.data[i], h.data[j] = h.data[j], h.data[i] }
 
-// Swap exchanges two heap entries.
-func (pq priorityQueue) Swap(i, j int) { pq[i], pq[j] = pq[j], pq[i] }
+// push appends c and sifts it up to restore the heap invariant.
+func (h *cellHeap) push(c cellPri) {
+	h.data = append(h.data, c)
+	h.up(len(h.data) - 1)
+}
 
-// Push appends x (must be cellPri) to the heap storage. container/heap
-// invokes this from heap.Push; direct callers should use heap.Push.
-func (pq *priorityQueue) Push(x any) { *pq = append(*pq, x.(cellPri)) }
-
-// Pop removes and returns the last element. container/heap invokes this
-// after swapping the min to the end; direct callers should use heap.Pop.
-func (pq *priorityQueue) Pop() any {
-	old := *pq
-	n := len(old)
-	v := old[n-1]
-	*pq = old[:n-1]
+// pop removes and returns the minimum. The standard container/heap trick:
+// swap root with last, shrink, sift the new root down.
+func (h *cellHeap) pop() cellPri {
+	n := len(h.data) - 1
+	h.swap(0, n)
+	v := h.data[n]
+	h.data = h.data[:n]
+	h.down(0, n)
 	return v
+}
+
+// len reports the heap size.
+func (h *cellHeap) len() int { return len(h.data) }
+
+// up sifts the element at j toward the root.
+func (h *cellHeap) up(j int) {
+	for {
+		i := (j - 1) / 2 // parent
+		if i == j || !h.less(j, i) {
+			break
+		}
+		h.swap(i, j)
+		j = i
+	}
+}
+
+// down sifts the element at i0 toward the leaves over the first n entries.
+// Matches container/heap's tie-break: prefers the left child when it is
+// not greater than the right child.
+func (h *cellHeap) down(i0, n int) bool {
+	i := i0
+	for {
+		j1 := 2*i + 1
+		if j1 >= n || j1 < 0 { // j1 < 0 guards against int overflow.
+			break
+		}
+		j := j1 // left child
+		if j2 := j1 + 1; j2 < n && h.less(j2, j1) {
+			j = j2 // right child strictly smaller wins
+		}
+		if !h.less(j, i) {
+			break
+		}
+		h.swap(i, j)
+		i = j
+	}
+	return i > i0
 }
 
 // chunkRiverData is the precomputed per-chunk river/lake overlay sets.
@@ -316,6 +361,46 @@ func (r *NoiseRiverSource) isValidHead(hx, hy int) bool {
 	return true
 }
 
+// traceScratch groups trace-local maps pooled via sync.Pool to cut GC churn across hundreds of traces per super-region.
+type traceScratch struct {
+	visited map[TileCoord]struct{}
+	cache   map[TileCoord]float64
+}
+
+// traceScratchPool reuses visited + cache maps across traceRiver calls.
+// New() seeds the maps at the same capacities traceRiver used pre-pool
+// so the first-touch allocation shape is preserved.
+var traceScratchPool = sync.Pool{
+	New: func() any {
+		return &traceScratch{
+			visited: make(map[TileCoord]struct{}, 64),
+			cache:   make(map[TileCoord]float64, 64),
+		}
+	},
+}
+
+// floodScratch groups localFloodFill's heap + processed map for pooling.
+// Eliminates the fresh priorityQueue slice and processed map allocated on
+// every call (78.8% of alloc_objects in the cold-chunk profile).
+type floodScratch struct {
+	pq        cellHeap
+	processed map[TileCoord]struct{}
+}
+
+// floodScratchPool reuses heap + processed map across localFloodFill calls.
+// Sized to riverMaxBasinCells so the backing slice / map never resize in
+// a single call. localFloodFill is not recursive nor concurrent within a
+// trace: traceRiver owns one scratch from traceScratchPool and makes
+// serial localFloodFill calls, so pool reuse is safe.
+var floodScratchPool = sync.Pool{
+	New: func() any {
+		return &floodScratch{
+			pq:        cellHeap{data: make([]cellPri, 0, riverMaxBasinCells)},
+			processed: make(map[TileCoord]struct{}, riverMaxBasinCells),
+		}
+	},
+}
+
 // traceRiver walks D8 steepest-descent from (startX, startY) on the raw
 // (blended + ridge) elevation field, handling depressions via a local
 // priority-flood, and returns (path, lakes). Path is the sequence of land
@@ -327,8 +412,13 @@ func (r *NoiseRiverSource) isValidHead(hx, hy int) bool {
 func (r *NoiseRiverSource) traceRiver(startX, startY int) (path, lakes []TileCoord) {
 	path = make([]TileCoord, 0, 64)
 	lakes = make([]TileCoord, 0, 4)
-	visited := make(map[TileCoord]bool, 64)
-	cache := make(map[TileCoord]float64, 64)
+
+	scratch := traceScratchPool.Get().(*traceScratch)
+	visited := scratch.visited
+	cache := scratch.cache
+	clear(visited)
+	clear(cache)
+	defer traceScratchPool.Put(scratch)
 
 	elevOf := func(x, y int) float64 {
 		c := TileCoord{x, y}
@@ -346,10 +436,10 @@ func (r *NoiseRiverSource) traceRiver(startX, startY int) (path, lakes []TileCoo
 			return path, lakes
 		}
 		cur := TileCoord{x, y}
-		if visited[cur] {
+		if _, seen := visited[cur]; seen {
 			return path, lakes
 		}
-		visited[cur] = true
+		visited[cur] = struct{}{}
 		path = append(path, cur)
 
 		nx, ny, ok := steepestLowerNeighbor(x, y, elevOf)
@@ -409,34 +499,38 @@ func steepestLowerNeighbor(x, y int, elevOf func(int, int) float64) (int, int, b
 // depression is endorheic (no outflow within the budget) and found=false is
 // returned. Callers treat this as a terminal lake.
 func localFloodFill(sx, sy int, elevOf func(int, int) float64) (spillX, spillY int, basin []TileCoord, found bool) {
-	seedElev := elevOf(sx, sy)
-	pq := make(priorityQueue, 0, 16)
-	heap.Push(&pq, cellPri{x: sx, y: sy, elev: seedElev})
+	scratch := floodScratchPool.Get().(*floodScratch)
+	defer floodScratchPool.Put(scratch)
+	scratch.pq.data = scratch.pq.data[:0]
+	clear(scratch.processed)
+	pq := &scratch.pq
+	processed := scratch.processed
 
-	processed := make(map[TileCoord]bool, 32)
-	processed[TileCoord{sx, sy}] = true
+	seedElev := elevOf(sx, sy)
+	pq.push(cellPri{x: sx, y: sy, elev: seedElev})
+	processed[TileCoord{sx, sy}] = struct{}{}
 	basin = append(basin, TileCoord{sx, sy})
 
-	for pq.Len() > 0 {
+	for pq.len() > 0 {
 		if len(basin) > riverMaxBasinCells {
 			return 0, 0, basin, false
 		}
-		c := heap.Pop(&pq).(cellPri)
+		c := pq.pop()
 		for _, off := range squareNeighborOffsets {
 			nx := c.x + int(off.dx)
 			ny := c.y + int(off.dy)
 			nc := TileCoord{nx, ny}
-			if processed[nc] {
+			if _, ok := processed[nc]; ok {
 				continue
 			}
-			processed[nc] = true
+			processed[nc] = struct{}{}
 
 			ne := elevOf(nx, ny)
 			if ne < c.elev {
 				return nx, ny, basin, true
 			}
 			basin = append(basin, nc)
-			heap.Push(&pq, cellPri{x: nx, y: ny, elev: ne})
+			pq.push(cellPri{x: nx, y: ny, elev: ne})
 		}
 	}
 	return 0, 0, basin, false

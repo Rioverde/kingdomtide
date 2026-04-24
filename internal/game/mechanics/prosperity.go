@@ -25,6 +25,9 @@ const (
 	prosperityAgeCap       = 1500   // upper end of the city-age seed range
 )
 
+// Hoisted to package level to avoid recomputing on every ApplyProsperityYear tick.
+var prosperityAgeLogDivisor = math.Log10(prosperityAgeCap + 1)
+
 // ApplyProsperityYear recomputes city.Prosperity as the weighted sum
 // of its component signals. Must be called AFTER ApplyFoodYear,
 // ApplyHappinessYear, and ApplyEconomicYear — it reads the
@@ -53,7 +56,7 @@ func ApplyProsperityYear(city *polity.City, currentYear int) {
 	// prosperity output stays finite regardless of pathological
 	// timestamps.
 	age := math.Max(0, float64(city.Age(currentYear)))
-	ageNorm := clamp01(math.Log10(age+1) / math.Log10(prosperityAgeCap+1))
+	ageNorm := clamp01(math.Log10(age+1) / prosperityAgeLogDivisor)
 
 	city.Prosperity =
 		prosperityWeightWealth*wealthNorm +

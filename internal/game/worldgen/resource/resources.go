@@ -9,7 +9,8 @@
 package resource
 
 import (
-	"sort"
+	"cmp"
+	"slices"
 	"sync"
 
 	"github.com/Rioverde/gongeons/internal/game/geom"
@@ -38,33 +39,29 @@ type TerrainSampler interface {
 // deposits deterministically from a world seed. Generation batches at the
 // 4x4 SC super-region granularity so the cache aligns with the volcano
 // layer; each super-region is produced exactly once under sync.Once and
-// cached in a sync.Map keyed by super-region.
+// cached in a plain map guarded by cacheMu.
 //
 // The source is safe for concurrent read. Per-super-region generation
-// runs exactly once under sync.Once; subsequent readers observe the
-// populated record without further synchronisation.
+// runs exactly once under sync.Once; cacheMu is held only for the map
+// insert — once a *depositRegionData is visible, all subsequent reads
+// go through sync.Once without taking cacheMu.
 type NoiseDepositSource struct {
 	seed      int64
 	terrain   TerrainSampler
 	landmarks world.LandmarkSource
 	volcanoes world.VolcanoSource
 
-	// cache maps superRegion -> *depositRegionData. Lazy-filled via
-	// sync.Once per entry so concurrent readers collapse to one
-	// generation pass.
-	cache sync.Map
+	cacheMu sync.RWMutex
+	cache   map[genprim.SuperRegion]*depositRegionData
 
-	// zonalNoise holds one OctaveNoise per zonal kind, constructed once
-	// at wire time so per-tile sampling skips the noise-constructor
-	// overhead on the hot path. Map reads are safe for concurrent use
-	// because the map is never mutated after the constructor returns.
-	zonalNoise map[world.DepositKind]noise.OctaveNoise
+	// zonalNoise holds one OctaveNoise per zonal kind. Indexed by
+	// zonalSpecs slot (0, 1, 2) rather than by DepositKind — the fixed
+	// array removes per-tile map lookups on the zonal placement path.
+	zonalNoise [zonalKindCount]noise.OctaveNoise
 }
 
-// depositRegionData is the generated state for one super-region: the
-// flat deposit slice and a byTile lookup index. once guards the single
-// generation pass; subsequent readers observe the populated slice and
-// map without synchronisation.
+// depositRegionData is the generated state for one super-region.
+// Once-per-key generation; cacheMu protects only map insertion.
 type depositRegionData struct {
 	once     sync.Once
 	deposits []world.Deposit
@@ -90,10 +87,10 @@ func NewNoiseDepositSource(
 		terrain:   terrain,
 		landmarks: lm,
 		volcanoes: vs,
+		cache:     make(map[genprim.SuperRegion]*depositRegionData),
 	}
-	s.zonalNoise = make(map[world.DepositKind]noise.OctaveNoise, len(zonalKinds))
-	for _, k := range zonalKinds {
-		s.zonalNoise[k] = noise.NewOctaveNoise(seed^zonalSubSalts[k], zonalNoiseOpts)
+	for i := range zonalSpecs {
+		s.zonalNoise[i] = noise.NewOctaveNoise(seed^zonalSpecs[i].subSalt, zonalNoiseOpts)
 	}
 	return s
 }
@@ -150,16 +147,16 @@ func (s *NoiseDepositSource) DepositsNear(p geom.Position, radius int) []world.D
 			out = append(out, d)
 		}
 	}
-	sort.Slice(out, func(i, j int) bool {
-		di := chebyshev(out[i].Position, p)
-		dj := chebyshev(out[j].Position, p)
-		if di != dj {
-			return di < dj
+	slices.SortFunc(out, func(a, b world.Deposit) int {
+		da := chebyshev(a.Position, p)
+		db := chebyshev(b.Position, p)
+		if c := cmp.Compare(da, db); c != 0 {
+			return c
 		}
-		if out[i].Position.X != out[j].Position.X {
-			return out[i].Position.X < out[j].Position.X
+		if c := cmp.Compare(a.Position.X, b.Position.X); c != 0 {
+			return c
 		}
-		return out[i].Position.Y < out[j].Position.Y
+		return cmp.Compare(a.Position.Y, b.Position.Y)
 	})
 	return out
 }
@@ -169,14 +166,17 @@ func (s *NoiseDepositSource) DepositsNear(p geom.Position, radius int) []world.D
 // to a single generation pass; subsequent callers observe the
 // populated record immediately.
 func (s *NoiseDepositSource) ensureRegion(sr genprim.SuperRegion) *depositRegionData {
-	if v, ok := s.cache.Load(sr); ok {
-		data := v.(*depositRegionData)
-		data.once.Do(func() { data.generate(s, sr) })
-		return data
+	s.cacheMu.RLock()
+	data, ok := s.cache[sr]
+	s.cacheMu.RUnlock()
+	if !ok {
+		s.cacheMu.Lock()
+		if data, ok = s.cache[sr]; !ok {
+			data = &depositRegionData{}
+			s.cache[sr] = data
+		}
+		s.cacheMu.Unlock()
 	}
-	fresh := &depositRegionData{}
-	actual, _ := s.cache.LoadOrStore(sr, fresh)
-	data := actual.(*depositRegionData)
 	data.once.Do(func() { data.generate(s, sr) })
 	return data
 }
@@ -241,11 +241,11 @@ func (pl *placer) emit() []world.Deposit {
 	for _, dep := range pl.byTile {
 		out = append(out, dep)
 	}
-	sort.Slice(out, func(i, j int) bool {
-		if out[i].Position.X != out[j].Position.X {
-			return out[i].Position.X < out[j].Position.X
+	slices.SortFunc(out, func(a, b world.Deposit) int {
+		if c := cmp.Compare(a.Position.X, b.Position.X); c != 0 {
+			return c
 		}
-		return out[i].Position.Y < out[j].Position.Y
+		return cmp.Compare(a.Position.Y, b.Position.Y)
 	})
 	return out
 }
@@ -266,7 +266,7 @@ func (d *depositRegionData) generate(s *NoiseDepositSource, sr genprim.SuperRegi
 		for x := minX; x < minX+side; x++ {
 			t := geom.Position{X: x, Y: y}
 			tile := s.terrain.TileAt(x, y)
-			if dep, ok := zonalDepositAt(t, tile.Terrain, s.zonalNoise); ok {
+			if dep, ok := zonalDepositAt(t, tile.Terrain, &s.zonalNoise); ok {
 				pl.place(t, dep, priZonal)
 			}
 			if dep, ok := fishDepositAt(s.seed, t, s.terrain); ok {

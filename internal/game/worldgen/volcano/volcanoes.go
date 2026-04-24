@@ -26,18 +26,15 @@ type TerrainSampler interface {
 //
 // The source is safe for concurrent read. Per-super-region generation
 // runs exactly once under sync.Once; subsequent readers observe the
-// filled record without locking. sync.Map fits this access pattern
-// (many disjoint keys, mostly-read after first-write, expensive
-// per-key generation) better than a plain map + RWMutex.
+// filled record without locking. cacheMu guards cache; after the first
+// write per key all subsequent accesses are reads protected by RLock.
 type NoiseVolcanoSource struct {
 	seed      int64
 	terrain   TerrainSampler
 	landmarks world.LandmarkSource
 
-	// cache keys genprim.SuperRegion to *superRegionData. Lazy-filled
-	// via sync.Once per entry so concurrent readers collapse to one
-	// generation pass.
-	cache sync.Map
+	cacheMu sync.RWMutex
+	cache   map[genprim.SuperRegion]*superRegionData
 }
 
 // superRegionData is the generated state for one super-region: the list
@@ -69,6 +66,7 @@ func NewNoiseVolcanoSource(
 		seed:      seed,
 		terrain:   terrain,
 		landmarks: lm,
+		cache:     make(map[genprim.SuperRegion]*superRegionData),
 	}
 }
 
@@ -126,14 +124,17 @@ func (s *NoiseVolcanoSource) TerrainOverrideAt(t geom.Position) (world.Terrain, 
 // a single generation pass; subsequent callers observe the populated
 // record immediately.
 func (s *NoiseVolcanoSource) ensureSuperRegion(sr genprim.SuperRegion) *superRegionData {
-	if v, ok := s.cache.Load(sr); ok {
-		data := v.(*superRegionData)
-		data.once.Do(func() { data.generate(s, sr) })
-		return data
+	s.cacheMu.RLock()
+	data, ok := s.cache[sr]
+	s.cacheMu.RUnlock()
+	if !ok {
+		s.cacheMu.Lock()
+		if data, ok = s.cache[sr]; !ok {
+			data = &superRegionData{}
+			s.cache[sr] = data
+		}
+		s.cacheMu.Unlock()
 	}
-	fresh := &superRegionData{}
-	actual, _ := s.cache.LoadOrStore(sr, fresh)
-	data := actual.(*superRegionData)
 	data.once.Do(func() { data.generate(s, sr) })
 	return data
 }

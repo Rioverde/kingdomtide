@@ -58,43 +58,87 @@ const (
 	// Expel Faction — targets the faction whose influence is
 	// currently HIGHEST (most disruptive to the ruler's agenda).
 	expelFactionReduction = 0.4
+
+	// Debase Currency — ruler prints money. +short wealth bump, -long happiness hit.
+	debaseCurrencyWealthBump   = 500
+	debaseCurrencyHappinessHit = -6
+	debaseCurrencyDecayYears   = 15
+
+	// Grant Charter — merchants rejoice; trade score rises + bonus happiness.
+	grantCharterTradeBump      = 10
+	grantCharterHappinessBonus = 4
+	grantCharterDecayYears     = 15
+
+	// Patronize Faction — random faction gets lifted.
+	patronizeFactionBump = 0.2
+
+	// Call Crusade — religious militancy. Army burst + Military faction bump.
+	callCrusadeArmyBurst      = 80
+	callCrusadeMilitaryBump   = 0.15
+	callCrusadeHappinessBonus = 3
+	callCrusadeDecayYears     = 10
+
+	// Declare War — stub; sets a historical happiness mod the future war system reads.
+	declareWarHappinessHit = -3
+	declareWarDecayYears   = 10
+
+	// Form League Initiative — stub; public happiness boost as signal of alliance intent.
+	formLeagueInitiativeBonus = 3
+	formLeagueInitiativeDecay = 5
 )
 
 // decreeChoice picks which decree kind the ruler attempts this year.
-// Driven by a D20 bucket so the pick is deterministic but varied
-// across the eleven MVP decree kinds. Avoids RaiseTax when tax is
-// already Brutal (illegal) and LowerTax when it is already Low.
+// Uses a D20 primary roll for the original 11 kinds (1 slot each) plus
+// a secondary D6 roll when the primary lands on 20 to pick one of the
+// 6 new kinds. This preserves the uniform distribution of the original
+// 11 kinds while making all 17 reachable. Avoids RaiseTax when tax is
+// already Brutal and LowerTax when it is already Low.
 func decreeChoice(city *polity.City, s *dice.Stream) polity.DecreeKind {
 	roll := s.D20()
-	switch {
-	case roll <= 2:
+	switch roll {
+	case 1, 2:
 		if city.TaxRate != polity.TaxBrutal {
 			return polity.DecreeRaiseTax
 		}
 		return polity.DecreeBuildFortification
-	case roll <= 4:
+	case 3, 4:
 		if city.TaxRate != polity.TaxLow {
 			return polity.DecreeLowerTax
 		}
 		return polity.DecreeFundTradePost
-	case roll <= 6:
+	case 5, 6:
 		return polity.DecreeRaiseArmy
-	case roll <= 8:
+	case 7, 8:
 		return polity.DecreeBuildFortification
-	case roll <= 10:
+	case 9, 10:
 		return polity.DecreeFundTradePost
-	case roll <= 12:
+	case 11, 12:
 		return polity.DecreeCommissionMonument
-	case roll <= 14:
+	case 13, 14:
 		return polity.DecreeDeclareStateReligion
-	case roll <= 16:
+	case 15, 16:
 		return polity.DecreeInquisition
-	case roll <= 17:
+	case 17:
 		return polity.DecreeTolerationEdict
-	case roll <= 18:
+	case 18:
 		return polity.DecreeAppointSteward
-	default:
+	case 19:
 		return polity.DecreeExpelFaction
+	default: // 20 — secondary D6 picks one of the 6 new kinds
+		switch s.D6() {
+		case 1:
+			return polity.DecreeDebaseCurrency
+		case 2:
+			return polity.DecreeGrantCharter
+		case 3:
+			return polity.DecreePatronizeFaction
+		case 4:
+			return polity.DecreeCallCrusade
+		case 5:
+			return polity.DecreeDeclareWar
+		default:
+			return polity.DecreeFormLeagueInitiative
+		}
 	}
 }
 
@@ -122,7 +166,7 @@ func ApplyDecreeYear(city *polity.City, stream *dice.Stream, currentYear int) {
 		return
 	}
 
-	applyDecreeEffect(city, kind, currentYear)
+	applyDecreeEffect(city, kind, stream, currentYear)
 }
 
 // applyDecreeEffect dispatches to the per-kind mutation. Each branch
@@ -134,7 +178,9 @@ func ApplyDecreeYear(city *polity.City, stream *dice.Stream, currentYear int) {
 // on the queue. This keeps a successful-decree pump from overrunning
 // the tax-driven mood malus during long horizons — the civic benefit
 // of a monument is "one at a time" by design, not "stack forever".
-func applyDecreeEffect(city *polity.City, kind polity.DecreeKind, currentYear int) {
+//
+// stream provides randomness for faction patronage and similar kinds.
+func applyDecreeEffect(city *polity.City, kind polity.DecreeKind, stream *dice.Stream, currentYear int) {
 	switch kind {
 	case polity.DecreeRaiseTax:
 		city.TaxRate = raiseTaxTier(city.TaxRate)
@@ -172,6 +218,49 @@ func applyDecreeEffect(city *polity.City, kind polity.DecreeKind, currentYear in
 		appointSteward(city, currentYear)
 	case polity.DecreeExpelFaction:
 		expelDominantFaction(city, currentYear)
+	case polity.DecreeDebaseCurrency:
+		city.Wealth += debaseCurrencyWealthBump
+		city.HistoricalMods = append(city.HistoricalMods, polity.HistoricalMod{
+			Kind:        polity.HistoricalModHappiness,
+			Magnitude:   debaseCurrencyHappinessHit,
+			YearApplied: currentYear,
+			DecayYears:  debaseCurrencyDecayYears,
+		})
+	case polity.DecreeGrantCharter:
+		city.TradeScore = min(100, city.TradeScore+grantCharterTradeBump)
+		city.Factions.Add(polity.FactionMerchants, 0.1)
+		city.HistoricalMods = append(city.HistoricalMods, polity.HistoricalMod{
+			Kind:        polity.HistoricalModHappiness,
+			Magnitude:   grantCharterHappinessBonus,
+			YearApplied: currentYear,
+			DecayYears:  grantCharterDecayYears,
+		})
+	case polity.DecreePatronizeFaction:
+		target := polity.Faction((stream.D20() - 1) / 5) // maps 1–20 → 0–3
+		city.Factions.Add(target, patronizeFactionBump)
+	case polity.DecreeCallCrusade:
+		city.Army += callCrusadeArmyBurst
+		city.Factions.Add(polity.FactionMilitary, callCrusadeMilitaryBump)
+		city.HistoricalMods = append(city.HistoricalMods, polity.HistoricalMod{
+			Kind:        polity.HistoricalModHappiness,
+			Magnitude:   callCrusadeHappinessBonus,
+			YearApplied: currentYear,
+			DecayYears:  callCrusadeDecayYears,
+		})
+	case polity.DecreeDeclareWar:
+		city.HistoricalMods = append(city.HistoricalMods, polity.HistoricalMod{
+			Kind:        polity.HistoricalModHappiness,
+			Magnitude:   declareWarHappinessHit,
+			YearApplied: currentYear,
+			DecayYears:  declareWarDecayYears,
+		})
+	case polity.DecreeFormLeagueInitiative:
+		city.HistoricalMods = append(city.HistoricalMods, polity.HistoricalMod{
+			Kind:        polity.HistoricalModHappiness,
+			Magnitude:   formLeagueInitiativeBonus,
+			YearApplied: currentYear,
+			DecayYears:  formLeagueInitiativeDecay,
+		})
 	}
 }
 

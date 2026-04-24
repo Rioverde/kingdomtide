@@ -1,8 +1,9 @@
 package resource
 
 import (
+	"cmp"
 	"math/rand/v2"
-	"sort"
+	"slices"
 
 	"github.com/Rioverde/gongeons/internal/game/geom"
 	"github.com/Rioverde/gongeons/internal/game/world"
@@ -106,35 +107,25 @@ func pointBiomeAccepts(kind world.DepositKind, ter world.Terrain) bool {
 // regardless of kind. Rejection sources:
 //
 //   - Water / river / lake overlays (inherited from isWaterOrRiverTile).
-//   - Landmark tiles in the 3x3 SC neighbourhood — landmarks are one-tile
-//     features; collocating a mine would erase the landmark's visual.
+//   - Landmark positions in lmSet (pre-built by the caller for the whole
+//     super-region; nil means skip the landmark check).
 //   - Volcano footprint tiles (core/slope/ashland). Volcanic resources
 //     are placed structurally, not by Poisson-disk; keep the two
 //     strategies non-overlapping.
 //
 // vs may be nil in tests — volcano rejection is then skipped silently.
-// lm may be nil for the same reason. terrain must be non-nil.
+// terrain must be non-nil.
 //
 // The volcano check uses TerrainOverrideAt (O(1) per-SR tileIndex hit)
 // rather than iterating the 3x3 SC neighbourhood's volcano list and
 // scanning each volcano's CoreTiles/SlopeTiles/AshlandTiles — the source
 // already maintains that index internally and exposes the cheap path.
-func tileBlocked(p geom.Position, terrain TerrainSampler, lm world.LandmarkSource, vs world.VolcanoSource) bool {
+func tileBlocked(p geom.Position, terrain TerrainSampler, lmSet map[geom.Position]struct{}, vs world.VolcanoSource) bool {
 	if genprim.IsWaterOrRiverTile(terrain.TileAt(p.X, p.Y)) {
 		return true
 	}
-	if lm != nil {
-		home := geom.WorldToSuperChunk(p.X, p.Y)
-		for dy := -1; dy <= 1; dy++ {
-			for dx := -1; dx <= 1; dx++ {
-				sc := geom.SuperChunkCoord{X: home.X + dx, Y: home.Y + dy}
-				for _, l := range lm.LandmarksIn(sc) {
-					if l.Coord.Equal(p) {
-						return true
-					}
-				}
-			}
-		}
+	if _, blocked := lmSet[p]; blocked {
+		return true
 	}
 	if vs != nil {
 		if _, inFootprint := vs.TerrainOverrideAt(p); inFootprint {
@@ -142,6 +133,35 @@ func tileBlocked(p geom.Position, terrain TerrainSampler, lm world.LandmarkSourc
 		}
 	}
 	return false
+}
+
+// landmarkSet builds a position set from every landmark in the 6x6 SC
+// area covering the super-region plus its 1-SC border. Any tile inside
+// the super-region has its 3x3 SC landmark neighbourhood fully covered
+// by this area, so tileBlocked can do a single O(1) map lookup instead
+// of calling LandmarksIn nine times per candidate.
+// Returns nil when lm is nil.
+func landmarkSet(sr genprim.SuperRegion, lm world.LandmarkSource) map[geom.Position]struct{} {
+	if lm == nil {
+		return nil
+	}
+	// The SR spans SCs [minSC, minSC+SuperRegionSideSC). Expanding by 1
+	// on each side gives the full neighbourhood any tile inside could need.
+	minSC := geom.SuperChunkCoord{
+		X: sr.X*genprim.SuperRegionSideSC - 1,
+		Y: sr.Y*genprim.SuperRegionSideSC - 1,
+	}
+	extent := genprim.SuperRegionSideSC + 2 // 6 SCs per axis
+	set := make(map[geom.Position]struct{})
+	for dy := 0; dy < extent; dy++ {
+		for dx := 0; dx < extent; dx++ {
+			sc := geom.SuperChunkCoord{X: minSC.X + dx, Y: minSC.Y + dy}
+			for _, l := range lm.LandmarksIn(sc) {
+				set[l.Coord] = struct{}{}
+			}
+		}
+	}
+	return set
 }
 
 // pointDepositsInRegion returns every point-like deposit inside the
@@ -161,6 +181,7 @@ func pointDepositsInRegion(
 	side := genprim.SuperRegionSideTiles
 	minX := sr.X * side
 	minY := sr.Y * side
+	lmSet := landmarkSet(sr, lm)
 	out := make([]world.Deposit, 0, 64)
 	for _, kind := range pointKinds {
 		lo := uint64(seed ^ seedSaltDepositPoisson ^ pointSubSalts[kind])
@@ -171,7 +192,7 @@ func pointDepositsInRegion(
 			if !pointBiomeAccepts(kind, terrain.TileAt(p.X, p.Y).Terrain) {
 				continue
 			}
-			if tileBlocked(p, terrain, lm, vs) {
+			if tileBlocked(p, terrain, lmSet, vs) {
 				continue
 			}
 			out = append(out, world.Deposit{
@@ -193,13 +214,13 @@ func pointDepositsInRegion(
 // stays stable across calls and across independent sources with the
 // same seed.
 func sortPointDeposits(ds []world.Deposit) {
-	sort.Slice(ds, func(i, j int) bool {
-		if ds[i].Kind != ds[j].Kind {
-			return ds[i].Kind < ds[j].Kind
+	slices.SortFunc(ds, func(a, b world.Deposit) int {
+		if c := cmp.Compare(a.Kind, b.Kind); c != 0 {
+			return c
 		}
-		if ds[i].Position.X != ds[j].Position.X {
-			return ds[i].Position.X < ds[j].Position.X
+		if c := cmp.Compare(a.Position.X, b.Position.X); c != 0 {
+			return c
 		}
-		return ds[i].Position.Y < ds[j].Position.Y
+		return cmp.Compare(a.Position.Y, b.Position.Y)
 	})
 }
