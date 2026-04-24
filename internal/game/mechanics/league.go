@@ -1,6 +1,8 @@
 package mechanics
 
 import (
+	"strings"
+
 	"github.com/Rioverde/gongeons/internal/game/dice"
 	"github.com/Rioverde/gongeons/internal/game/polity"
 	"github.com/Rioverde/gongeons/internal/game/stats"
@@ -103,20 +105,19 @@ func trustKeyWithOrder(a, b string) string {
 }
 
 func pruneTrustKeys(l *polity.League) {
-	present := make(map[string]bool, len(l.MemberCityIDs))
-	for _, id := range l.MemberCityIDs {
-		present[id] = true
-	}
-	for k := range l.Trust {
-		var a, b string
-		for i, r := range k {
-			if r == '|' {
-				a = k[:i]
-				b = k[i+1:]
-				break
+	// Linear scan over ≤6 members is cheaper than allocating a map
+	// per call. strings.Cut splits on '|' without a manual rune loop.
+	isMember := func(id string) bool {
+		for _, m := range l.MemberCityIDs {
+			if m == id {
+				return true
 			}
 		}
-		if !present[a] || !present[b] {
+		return false
+	}
+	for k := range l.Trust {
+		a, b, ok := strings.Cut(k, "|")
+		if !ok || !isMember(a) || !isMember(b) {
 			delete(l.Trust, k)
 		}
 	}

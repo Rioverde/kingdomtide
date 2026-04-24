@@ -1,8 +1,9 @@
 package volcano
 
 import (
+	"cmp"
 	"math/rand/v2"
-	"sort"
+	"slices"
 
 	"github.com/Rioverde/gongeons/internal/game/geom"
 	"github.com/Rioverde/gongeons/internal/game/world"
@@ -248,11 +249,11 @@ func walkZone(
 // sortPositions sorts ps in (X, Y) lex order in-place. Used to make zone
 // slices iteration-stable across map-based intermediate data.
 func sortPositions(ps []geom.Position) {
-	sort.Slice(ps, func(i, j int) bool {
-		if ps[i].X != ps[j].X {
-			return ps[i].X < ps[j].X
+	slices.SortFunc(ps, func(a, b geom.Position) int {
+		if c := cmp.Compare(a.X, b.X); c != 0 {
+			return c
 		}
-		return ps[i].Y < ps[j].Y
+		return cmp.Compare(a.Y, b.Y)
 	})
 }
 

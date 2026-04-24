@@ -50,7 +50,8 @@ func ApplyEconomicYear(city *polity.City, currentYear int) {
 	income := int(float64(city.Population*perCapitaBaseIncome) * city.TaxRate.Fraction())
 	upkeep := city.Army * upkeepPerSoldier
 	trade := int(float64(city.TradeScore) * tradeIncomePerScore)
-	modSum := HistoricalModSum(city, polity.HistoricalModWealth, currentYear)
+	_, wealthMod, _, _ := HistoricalModSumByKind(city, currentYear)
+	modSum := wealthMod
 	city.Wealth += income - upkeep + trade + modSum
 
 	// Criminals siphon a fraction of a positive treasury each year.

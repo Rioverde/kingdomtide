@@ -36,7 +36,7 @@ func testLandmarkWorld() *world.World {
 // super-chunk grid nearest to origin, then calls snapshotOf centred exactly on
 // that coordinate — guaranteeing the landmark tile appears in the returned grid.
 // This also confirms the full wiring path: world → service → landmark cache →
-// snapshotOf → tileFromDomain → pb.Tile.Landmark.
+// snapshotOf → fillTile → pb.Tile.Landmark.
 func TestSnapshotTileLandmarksPopulated(t *testing.T) {
 	w := testLandmarkWorld()
 	svc := NewService(w, silentLog())

@@ -342,7 +342,8 @@ func decreeSeedTaxChange(t *testing.T, start polity.City, choice polity.DecreeKi
 	// Verified via applyDecreeEffect directly — that is the
 	// behavioural contract we assert here.
 	before := start
-	applyDecreeEffect(&before, choice, 1500)
+	stream := dice.New(42, dice.SaltKingdomYear)
+	applyDecreeEffect(&before, choice, stream, 1500)
 	switch choice {
 	case polity.DecreeRaiseTax:
 		if start.TaxRate == polity.TaxBrutal && before.TaxRate != polity.TaxBrutal {

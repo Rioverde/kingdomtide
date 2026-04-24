@@ -28,6 +28,13 @@ const (
 	DecreeTolerationEdict      // reverses Inquisition effect
 	DecreeAppointSteward       // reduces decree DC for a decade
 	DecreeExpelFaction         // drops a faction's influence to zero
+
+	DecreeDebaseCurrency
+	DecreeGrantCharter
+	DecreePatronizeFaction
+	DecreeCallCrusade
+	DecreeDeclareWar
+	DecreeFormLeagueInitiative
 )
 
 // String returns the dev-only English name of the decree kind.
@@ -56,6 +63,18 @@ func (k DecreeKind) String() string {
 		return "AppointSteward"
 	case DecreeExpelFaction:
 		return "ExpelFaction"
+	case DecreeDebaseCurrency:
+		return "DebaseCurrency"
+	case DecreeGrantCharter:
+		return "GrantCharter"
+	case DecreePatronizeFaction:
+		return "PatronizeFaction"
+	case DecreeCallCrusade:
+		return "CallCrusade"
+	case DecreeDeclareWar:
+		return "DeclareWar"
+	case DecreeFormLeagueInitiative:
+		return "FormLeagueInitiative"
 	default:
 		return "UnknownDecreeKind"
 	}

@@ -7,30 +7,45 @@ import (
 	"github.com/Rioverde/gongeons/internal/game/worldgen/noise"
 )
 
-// zonalKinds enumerates every deposit kind placed via the zonal Perlin
-// strategy. Declaration order defines the iteration order inside
-// zonalDepositAt — kinds that accept overlapping biomes (Timber and
-// Game both accept forest) resolve to the first kind whose threshold
-// the tile passes. Fertile, Timber, Game is the plan's canonical order
-// and matches the "one deposit per tile" tiebreak documented on
-// zonalDepositAt.
-var zonalKinds = []world.DepositKind{
-	world.DepositFertile,
-	world.DepositTimber,
-	world.DepositGame,
+// zonalKindCount is the number of zonal deposit kinds.
+const zonalKindCount = 3
+
+// zonalSpec is one entry in the flat per-kind table the hot zonal
+// sampler walks. Grouping kind / salt / threshold / amount into a
+// single struct lets zonalDepositAt iterate zonalSpecs with zero map
+// lookups on the per-tile path — previously each accepted biome cost
+// three map hits (noise, threshold, amount).
+type zonalSpec struct {
+	kind      world.DepositKind
+	subSalt   int64
+	threshold float64
+	maxAmount int32
 }
 
-// zonalSubSalts carries the per-kind 64-bit salt XOR-ed into the world
-// seed before building each zonal noise field. Values are distinct from
-// every salt already in use (superchunk, region_source, landmarks,
-// volcanoes_placement, seedSaltDepositPerlin from the plan) and routed
-// through regionToInt64 because the top bit is set — Go rejects signed
-// literals with the top bit set, so the conversion preserves the full
-// 64-bit pattern at runtime.
-var zonalSubSalts = map[world.DepositKind]int64{
-	world.DepositFertile: genprim.ToInt64(0x1a7f15c9e3779b0d),
-	world.DepositTimber:  genprim.ToInt64(0x2b3e8f27a6c14d5e),
-	world.DepositGame:    genprim.ToInt64(0x3c5d2f59e4a8b2af),
+// zonalSpecs is the flat per-kind table for every zonal deposit kind.
+// Iteration order defines the "one deposit per tile" tiebreak:
+// overlapping biomes (forest satisfies both Timber and Game) resolve
+// to the first kind whose threshold the tile passes. Fertile, Timber,
+// Game is the plan's canonical order.
+var zonalSpecs = [zonalKindCount]zonalSpec{
+	{
+		kind:      world.DepositFertile,
+		subSalt:   genprim.ToInt64(0x1a7f15c9e3779b0d),
+		threshold: 0.557,
+		maxAmount: 500,
+	},
+	{
+		kind:      world.DepositTimber,
+		subSalt:   genprim.ToInt64(0x2b3e8f27a6c14d5e),
+		threshold: 0.540,
+		maxAmount: 800,
+	},
+	{
+		kind:      world.DepositGame,
+		subSalt:   genprim.ToInt64(0x3c5d2f59e4a8b2af),
+		threshold: 0.547,
+		maxAmount: 300,
+	},
 }
 
 // zonalPerlinScale multiplies world-space coords before feeding into
@@ -51,36 +66,6 @@ var zonalNoiseOpts = noise.OctaveOpts{
 	Persistence: 0.5,
 	Lacunarity:  2.0,
 	Scale:       1,
-}
-
-// zonalThresholds gate each kind on the noise value in [0, 1]. Values
-// strictly above the threshold are "in zone" and produce a deposit;
-// values at or below are empty. OpenSimplex's Eval2Normalized output
-// clusters around 0.5 with a roughly bell-shaped distribution (median
-// ~0.507, tails at ~0.14 and ~0.86), so the thresholds sit close to
-// 0.5 rather than the naive "1 - desired fraction" that a uniform
-// distribution would suggest. Values were picked from an empirical
-// percentile probe (see TestZonalDepositAt_Frequency) so each kind's
-// observed in-zone fraction on its valid biomes lands within ±10% of
-// the target:
-//
-//	Fertile ~35% of plains/grassland family (threshold 0.557)
-//	Timber  ~40% of forest family          (threshold 0.540)
-//	Game    ~38% of forest + grassland     (threshold 0.547)
-var zonalThresholds = map[world.DepositKind]float64{
-	world.DepositFertile: 0.557,
-	world.DepositTimber:  0.540,
-	world.DepositGame:    0.547,
-}
-
-// zonalMaxAmount carries the starting yield for each zonal deposit.
-// Values mirror the plan's constants — tuned for the static-placement
-// milestone so future depletion work (M5+) does not require a domain
-// migration.
-var zonalMaxAmount = map[world.DepositKind]int32{
-	world.DepositFertile: 500,
-	world.DepositTimber:  800,
-	world.DepositGame:    300,
 }
 
 // zonalBiomeAccepts reports whether kind can spawn on ter. Fertile
@@ -123,32 +108,38 @@ func zonalBiomeAccepts(kind world.DepositKind, ter world.Terrain) bool {
 
 // zonalDepositAt returns the zonal deposit covering t when the tile
 // passes both the biome gate and the Perlin threshold for at least one
-// zonal kind, otherwise (Deposit{}, false). Iterates kinds in
+// zonal kind, otherwise (Deposit{}, false). Iterates zonalSpecs in
 // declaration order so overlapping biomes (forest satisfies both
 // Timber and Game) resolve as Timber — the "one deposit per tile"
 // tiebreak. Noise is sampled only when the biome gate passes, so
 // mountain / ocean / desert tiles pay nothing per-kind.
+//
+// noises is indexed by zonalSpecs slot (0, 1, 2) rather than by
+// DepositKind. The fixed-array shape removes three map lookups per
+// accepted biome on the per-tile hot path — at hundreds of thousands
+// of tiles per super-region the map overhead dominated the noise
+// evaluation itself.
 func zonalDepositAt(
 	t geom.Position,
 	ter world.Terrain,
-	noises map[world.DepositKind]noise.OctaveNoise,
+	noises *[zonalKindCount]noise.OctaveNoise,
 ) (world.Deposit, bool) {
 	fx := float64(t.X) * zonalPerlinScale
 	fy := float64(t.Y) * zonalPerlinScale
-	for _, kind := range zonalKinds {
-		if !zonalBiomeAccepts(kind, ter) {
+	for i := range zonalSpecs {
+		spec := &zonalSpecs[i]
+		if !zonalBiomeAccepts(spec.kind, ter) {
 			continue
 		}
-		n := noises[kind]
-		v := n.Eval2Normalized(fx, fy)
-		if v <= zonalThresholds[kind] {
+		v := noises[i].Eval2Normalized(fx, fy)
+		if v <= spec.threshold {
 			continue
 		}
 		return world.Deposit{
 			Position:      t,
-			Kind:          kind,
-			MaxAmount:     zonalMaxAmount[kind],
-			CurrentAmount: zonalMaxAmount[kind],
+			Kind:          spec.kind,
+			MaxAmount:     spec.maxAmount,
+			CurrentAmount: spec.maxAmount,
 		}, true
 	}
 	return world.Deposit{}, false

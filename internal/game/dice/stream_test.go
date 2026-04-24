@@ -1,6 +1,9 @@
 package dice
 
-import "testing"
+import (
+	"math/rand/v2"
+	"testing"
+)
 
 // TestStream_Determinism verifies that two Streams built with the same
 // (worldSeed, salt) produce bit-identical D20 sequences. This is the
@@ -120,6 +123,40 @@ func TestStream_Int63NonNegative(t *testing.T) {
 	for i := 0; i < 10000; i++ {
 		if v := s.Int63(); v < 0 {
 			t.Fatalf("Int63() = %d — negative value violates 63-bit contract", v)
+		}
+	}
+}
+
+// TestStat4D6DropLowest_PreservesPCGSequence is the guardrail for the
+// direct-roll fast path: replacing statExpr.Execute with inline rng.IntN
+// calls must consume the exact same number of rng draws in the exact same
+// order, or every downstream determinism test falls over. The two PCG
+// states must agree on every produced total across 100 rolls AND on the
+// next 5 D20 draws consumed after those rolls.
+func TestStat4D6DropLowest_PreservesPCGSequence(t *testing.T) {
+	const (
+		seed  int64 = 42
+		salt  Salt  = SaltCityAnchor
+		rolls       = 100
+		probe       = 5
+	)
+
+	legacy := rand.New(rand.NewPCG(uint64(seed), uint64(salt)))
+	newPath := New(seed, salt)
+
+	for i := 0; i < rolls; i++ {
+		want := statExpr.Execute(legacy).Total
+		got := newPath.Stat4D6DropLowest()
+		if got != want {
+			t.Fatalf("roll %d: legacy=%d new=%d — totals diverged", i, want, got)
+		}
+	}
+
+	for i := 0; i < probe; i++ {
+		want := legacy.IntN(20) + 1
+		got := newPath.D20()
+		if got != want {
+			t.Fatalf("post-roll probe %d: legacy=%d new=%d — PCG state diverged (new path consumed the wrong number of IntN calls)", i, want, got)
 		}
 	}
 }

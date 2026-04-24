@@ -70,7 +70,8 @@ func TestLowerTaxTier_ClampAtLow(t *testing.T) {
 // fortification decree adds army AND queues a happiness mod.
 func TestApplyDecreeEffect_FortificationAddsBoth(t *testing.T) {
 	c := polity.City{Army: 50}
-	applyDecreeEffect(&c, polity.DecreeBuildFortification, 1500)
+	stream := dice.New(42, dice.SaltKingdomYear)
+	applyDecreeEffect(&c, polity.DecreeBuildFortification, stream, 1500)
 	if c.Army != 50+fortificationArmyBoost {
 		t.Errorf("Army = %d, want %d", c.Army, 50+fortificationArmyBoost)
 	}
@@ -105,7 +106,8 @@ func TestApplyDecreeYear_Determinism(t *testing.T) {
 func TestDecree_DeclareStateReligion_PromotesRulerFaith(t *testing.T) {
 	c := polity.City{Faiths: polity.NewFaithDistribution()}
 	c.Ruler.Faith = polity.FaithSunCovenant
-	applyDecreeEffect(&c, polity.DecreeDeclareStateReligion, 1500)
+	stream := dice.New(42, dice.SaltKingdomYear)
+	applyDecreeEffect(&c, polity.DecreeDeclareStateReligion, stream, 1500)
 	if c.Faiths[polity.FaithSunCovenant] < stateReligionMajorityFloor {
 		t.Errorf("SunCovenant share = %v, want >= %v",
 			c.Faiths[polity.FaithSunCovenant], stateReligionMajorityFloor)
@@ -117,7 +119,8 @@ func TestDecree_DeclareStateReligion_PromotesRulerFaith(t *testing.T) {
 // magnitude.
 func TestDecree_Inquisition_AddsHappinessHit(t *testing.T) {
 	c := polity.City{}
-	applyDecreeEffect(&c, polity.DecreeInquisition, 1500)
+	stream := dice.New(42, dice.SaltKingdomYear)
+	applyDecreeEffect(&c, polity.DecreeInquisition, stream, 1500)
 	if len(c.HistoricalMods) != 1 {
 		t.Errorf("want 1 mod, got %d", len(c.HistoricalMods))
 	}
@@ -131,7 +134,8 @@ func TestDecree_Inquisition_AddsHappinessHit(t *testing.T) {
 // Toleration edict queues the canonical positive happiness mod.
 func TestDecree_TolerationEdict_AddsHappinessBonus(t *testing.T) {
 	c := polity.City{}
-	applyDecreeEffect(&c, polity.DecreeTolerationEdict, 1500)
+	stream := dice.New(42, dice.SaltKingdomYear)
+	applyDecreeEffect(&c, polity.DecreeTolerationEdict, stream, 1500)
 	if len(c.HistoricalMods) != 1 ||
 		c.HistoricalMods[0].Magnitude != tolerationHappinessBonus {
 		t.Errorf("toleration mod missing or wrong magnitude")
@@ -142,7 +146,8 @@ func TestDecree_TolerationEdict_AddsHappinessBonus(t *testing.T) {
 // a Wealth kind mod (MVP surrogate for admin efficiency).
 func TestDecree_AppointSteward_AddsWealthMod(t *testing.T) {
 	c := polity.City{}
-	applyDecreeEffect(&c, polity.DecreeAppointSteward, 1500)
+	stream := dice.New(42, dice.SaltKingdomYear)
+	applyDecreeEffect(&c, polity.DecreeAppointSteward, stream, 1500)
 	if c.HistoricalMods[0].Kind != polity.HistoricalModWealth {
 		t.Errorf("steward mod kind = %v, want Wealth", c.HistoricalMods[0].Kind)
 	}
@@ -155,24 +160,120 @@ func TestDecree_ExpelFaction_TargetsHighestInfluence(t *testing.T) {
 	c := polity.City{}
 	c.Factions.Set(polity.FactionMerchants, 0.8)
 	c.Factions.Set(polity.FactionMilitary, 0.2)
-	applyDecreeEffect(&c, polity.DecreeExpelFaction, 1500)
+	stream := dice.New(42, dice.SaltKingdomYear)
+	applyDecreeEffect(&c, polity.DecreeExpelFaction, stream, 1500)
 	// Merchants was highest, should be reduced by expelFactionReduction.
 	if got := c.Factions.Get(polity.FactionMerchants); got >= 0.8 {
 		t.Errorf("Merchants = %v, expected reduced from 0.8", got)
 	}
 }
 
-// TestDecreeChoice_AllKindsReachable sweeps 2000 draws to ensure the
-// D20 bucket rolls hit most of the eleven kinds — a regression check
-// against silent bucket dropout when kinds are added.
 func TestDecreeChoice_AllKindsReachable(t *testing.T) {
 	stream := dice.New(42, dice.SaltKingdomYear)
 	seen := map[polity.DecreeKind]bool{}
-	for i := 0; i < 2000; i++ {
+	for i := 0; i < 5000; i++ {
 		k := decreeChoice(&polity.City{TaxRate: polity.TaxNormal}, stream)
 		seen[k] = true
 	}
-	if len(seen) < 9 {
-		t.Errorf("only %d kinds reachable across 2000 rolls, want >= 9", len(seen))
+	if len(seen) < 17 {
+		t.Errorf("only %d kinds reachable across 5000 rolls, want >= 17", len(seen))
+	}
+}
+
+func TestDecree_DebaseCurrency_BumpsWealth_AddsHappinessHit(t *testing.T) {
+	c := polity.City{Wealth: 1000}
+	stream := dice.New(42, dice.SaltKingdomYear)
+	applyDecreeEffect(&c, polity.DecreeDebaseCurrency, stream, 1500)
+	if c.Wealth != 1000+debaseCurrencyWealthBump {
+		t.Errorf("Wealth = %d, want %d", c.Wealth, 1000+debaseCurrencyWealthBump)
+	}
+	if len(c.HistoricalMods) != 1 {
+		t.Errorf("want 1 mod, got %d", len(c.HistoricalMods))
+	}
+	if c.HistoricalMods[0].Magnitude != debaseCurrencyHappinessHit {
+		t.Errorf("happiness magnitude = %d, want %d",
+			c.HistoricalMods[0].Magnitude, debaseCurrencyHappinessHit)
+	}
+}
+
+func TestDecree_GrantCharter_BumpsTrade_AddsMerchants_AndHappy(t *testing.T) {
+	c := polity.City{TradeScore: 50}
+	stream := dice.New(42, dice.SaltKingdomYear)
+	beforeMerchants := c.Factions.Get(polity.FactionMerchants)
+	applyDecreeEffect(&c, polity.DecreeGrantCharter, stream, 1500)
+	if c.TradeScore != 50+grantCharterTradeBump {
+		t.Errorf("TradeScore = %d, want %d", c.TradeScore, 50+grantCharterTradeBump)
+	}
+	if c.Factions.Get(polity.FactionMerchants) <= beforeMerchants {
+		t.Errorf("Merchants influence should increase after GrantCharter")
+	}
+	if len(c.HistoricalMods) != 1 || c.HistoricalMods[0].Magnitude != grantCharterHappinessBonus {
+		t.Errorf("happiness mod missing or wrong magnitude")
+	}
+}
+
+func TestDecree_PatronizeFaction_RaisesSomeFaction(t *testing.T) {
+	c := polity.City{}
+	before := [4]float64{
+		c.Factions.Get(polity.FactionMerchants),
+		c.Factions.Get(polity.FactionMilitary),
+		c.Factions.Get(polity.FactionMages),
+		c.Factions.Get(polity.FactionCriminals),
+	}
+	stream := dice.New(42, dice.SaltKingdomYear)
+	applyDecreeEffect(&c, polity.DecreePatronizeFaction, stream, 1500)
+	raised := false
+	for i, f := range []polity.Faction{
+		polity.FactionMerchants, polity.FactionMilitary,
+		polity.FactionMages, polity.FactionCriminals,
+	} {
+		if c.Factions.Get(f) > before[i] {
+			raised = true
+		}
+	}
+	if !raised {
+		t.Error("PatronizeFaction: no faction influence increased")
+	}
+}
+
+func TestDecree_CallCrusade_RaisesArmy_AndMilitary(t *testing.T) {
+	c := polity.City{Army: 100}
+	beforeMilitary := c.Factions.Get(polity.FactionMilitary)
+	stream := dice.New(42, dice.SaltKingdomYear)
+	applyDecreeEffect(&c, polity.DecreeCallCrusade, stream, 1500)
+	if c.Army != 100+callCrusadeArmyBurst {
+		t.Errorf("Army = %d, want %d", c.Army, 100+callCrusadeArmyBurst)
+	}
+	if c.Factions.Get(polity.FactionMilitary) <= beforeMilitary {
+		t.Errorf("Military influence should increase after CallCrusade")
+	}
+	if len(c.HistoricalMods) != 1 || c.HistoricalMods[0].Magnitude != callCrusadeHappinessBonus {
+		t.Errorf("happiness mod missing or wrong magnitude")
+	}
+}
+
+func TestDecree_DeclareWar_AddsHappinessMod(t *testing.T) {
+	c := polity.City{}
+	stream := dice.New(42, dice.SaltKingdomYear)
+	applyDecreeEffect(&c, polity.DecreeDeclareWar, stream, 1500)
+	if len(c.HistoricalMods) != 1 {
+		t.Errorf("want 1 mod, got %d", len(c.HistoricalMods))
+	}
+	if c.HistoricalMods[0].Magnitude != declareWarHappinessHit {
+		t.Errorf("magnitude = %d, want %d",
+			c.HistoricalMods[0].Magnitude, declareWarHappinessHit)
+	}
+}
+
+func TestDecree_FormLeagueInitiative_AddsHappinessMod(t *testing.T) {
+	c := polity.City{}
+	stream := dice.New(42, dice.SaltKingdomYear)
+	applyDecreeEffect(&c, polity.DecreeFormLeagueInitiative, stream, 1500)
+	if len(c.HistoricalMods) != 1 {
+		t.Errorf("want 1 mod, got %d", len(c.HistoricalMods))
+	}
+	if c.HistoricalMods[0].Magnitude != formLeagueInitiativeBonus {
+		t.Errorf("magnitude = %d, want %d",
+			c.HistoricalMods[0].Magnitude, formLeagueInitiativeBonus)
 	}
 }

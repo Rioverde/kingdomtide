@@ -243,20 +243,20 @@ func sulfurDepositAt(seed int64, t geom.Position, vs world.VolcanoSource) (world
 
 // slopeAdjacentToCore reports whether t has at least one 4-neighbour
 // in v.CoreTiles. Used by sulfur placement to restrict deposits to the
-// inner rim of the slope ring rather than the whole slope. The core
-// set is built lazily per call; footprints are small (a few dozen
-// tiles) so the map build stays cheap.
+// inner rim of the slope ring rather than the whole slope. Uses a
+// linear scan rather than a set build: footprints are small (a few
+// dozen tiles) and every call previously allocated a fresh map — at
+// ~20 volcanoes × dozens of slope tiles per super-region the alloc
+// churn dominated the actual work. Mirrors the ZoneAt idiom on
+// world.Volcano next door.
 func slopeAdjacentToCore(t geom.Position, v world.Volcano) bool {
 	if len(v.CoreTiles) == 0 {
 		return false
 	}
-	coreSet := make(map[geom.Position]struct{}, len(v.CoreTiles))
 	for _, c := range v.CoreTiles {
-		coreSet[c] = struct{}{}
-	}
-	for _, off := range [4][2]int{{0, -1}, {1, 0}, {0, 1}, {-1, 0}} {
-		n := geom.Position{X: t.X + off[0], Y: t.Y + off[1]}
-		if _, ok := coreSet[n]; ok {
+		dx := c.X - t.X
+		dy := c.Y - t.Y
+		if (dx == 0 && (dy == 1 || dy == -1)) || (dy == 0 && (dx == 1 || dx == -1)) {
 			return true
 		}
 	}

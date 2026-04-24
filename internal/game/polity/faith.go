@@ -29,6 +29,11 @@ const (
 // keep FaithDistribution a fixed-length array.
 const faithCount = 5
 
+// FaithCount is the exported count of defined Faith enum values.
+// Mechanics packages use it as a compile-time constant so range
+// bounds and minority counts are computed without reflection or len().
+const FaithCount = faithCount
+
 // String returns the English name of the faith.
 // Dev-only — player-visible text via client i18n catalog.
 func (f Faith) String() string {

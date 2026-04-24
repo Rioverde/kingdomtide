@@ -394,38 +394,39 @@ func landmarkKindPB(k world.LandmarkKind) pb.LandmarkKind {
 	return lookupOr(landmarkKindPBMapping, k, pb.LandmarkKind_LANDMARK_KIND_NONE)
 }
 
-// tileFromDomain builds a wire Tile from a domain tile, applying any
-// volcano terrain override before mapping, overlaying the player
-// occupant when present, and stamping the landmark onto the tile. The
-// terrain / overlays / structure conversions all live in one spot.
-// overlays is carried through as an opaque bitmask — the domain and
-// the client agree on flag values. A zero-value Landmark (Kind ==
-// LandmarkNone) yields a nil wire landmark and is therefore omitted
-// from the encoding.
+// fillTile writes a wire Tile into dst from a domain tile, applying
+// any volcano terrain override before mapping, overlaying the player
+// occupant when present, and stamping the landmark onto the tile.
+// Writes into a caller-owned slot instead of returning a fresh pointer
+// so snapshotOf can back its pointer slice with a single contiguous
+// slab — one allocation per snapshot instead of one per tile.
+//
+// dst is zeroed on entry so repeated calls on a reused slot never
+// leak stale fields (Occupant, Landmark, EntityId) from an earlier
+// tile; current callers always pass a fresh slab entry, but the reset
+// documents intent and keeps the door open for session-level reuse.
 //
 // override is a per-tile terrain substitution from the volcano
 // pipeline — when hasOverride is false the base Terrain is used
 // unchanged. Passing the override in explicitly (rather than
-// re-querying the world from inside the mapper) keeps tileFromDomain
+// re-querying the world from inside the mapper) keeps fillTile
 // deterministic and unit-testable without a world.
-func tileFromDomain(t world.Tile, landmark world.Landmark, override world.Terrain, hasOverride bool) *pb.Tile {
+func fillTile(dst *pb.Tile, t world.Tile, landmark world.Landmark, override world.Terrain, hasOverride bool) {
+	*dst = pb.Tile{}
 	terrain := t.Terrain
 	if hasOverride {
 		terrain = override
 	}
-	out := &pb.Tile{
-		Terrain:   terrainToPB(terrain),
-		Overlays:  uint32(t.Overlays),
-		Structure: structureToPB(t.Structure),
-	}
+	dst.Terrain = terrainToPB(terrain)
+	dst.Overlays = uint32(t.Overlays)
+	dst.Structure = structureToPB(t.Structure)
 	if landmark.Kind != world.LandmarkNone {
-		out.Landmark = landmarkPB(landmark)
+		dst.Landmark = landmarkPB(landmark)
 	}
 	if p, ok := t.Occupant.(*entity.Player); ok && p != nil {
-		out.Occupant = pb.OccupantKind_OCCUPANT_PLAYER
-		out.EntityId = p.ID
+		dst.Occupant = pb.OccupantKind_OCCUPANT_PLAYER
+		dst.EntityId = p.ID
 	}
-	return out
 }
 
 // landmarkAtTile looks up the landmark at the given world coordinate
@@ -468,14 +469,22 @@ func snapshotOf(w *world.World, center geom.Position, viewW, viewH int, region *
 	halfH := viewH / 2
 	originX := center.X - halfW
 	originY := center.Y - halfH
-	tiles := make([]*pb.Tile, 0, viewW*viewH)
+	n := viewW * viewH
+	// Slab-allocate all tiles in one contiguous backing array; the
+	// pointer slice the wire needs aliases into it. Drops per-tile
+	// heap churn from O(viewW*viewH) to O(2) without changing what
+	// protobuf-go sees (it consumes messages through pointers).
+	slab := make([]pb.Tile, n)
+	tiles := make([]*pb.Tile, n)
 	for dy := range viewH {
 		for dx := range viewW {
+			idx := dy*viewW + dx
 			p := geom.Position{X: originX + dx, Y: originY + dy}
 			t, _ := w.TileAt(p)
 			lm := landmarkAtTile(lc, p.X, p.Y)
 			override, hasOverride := volcanoOverrideAtTile(vc, p)
-			tiles = append(tiles, tileFromDomain(t, lm, override, hasOverride))
+			fillTile(&slab[idx], t, lm, override, hasOverride)
+			tiles[idx] = &slab[idx]
 		}
 	}
 	return &pb.Snapshot{

@@ -93,7 +93,8 @@ func ApplyHappinessYear(city *polity.City, currentYear int) {
 	foodDelta := city.FoodBalance * happinessFoodWeight
 	foodDelta = min(max(foodDelta, -happinessFoodBound), happinessFoodBound)
 
-	modSum := HistoricalModSum(city, polity.HistoricalModHappiness, currentYear)
+	happinessMod, _, _, _ := HistoricalModSumByKind(city, currentYear)
+	modSum := happinessMod
 	modPositive := max(0, modSum)
 	if modPositive > happinessModPositiveBound {
 		modPositive = happinessModPositiveBound

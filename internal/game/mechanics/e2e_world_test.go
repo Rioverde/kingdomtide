@@ -95,9 +95,7 @@ func TestE2E_FullWorld_500yr(t *testing.T) {
 		ResolveVillageToCity(villages, cityMap)
 
 		// Cities tick.
-		for i, c := range allCities {
-			TickCityYear(c, cityStreams[i], year)
-		}
+		TickCitiesYear(allCities, cityStreams, year)
 
 		// Kingdoms tick.
 		TickKingdomYear(k1, cityMap, k1Stream, year)

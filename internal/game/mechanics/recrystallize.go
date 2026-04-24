@@ -13,6 +13,11 @@ func ApplyRecrystallizeYear(city *polity.City, currentYear int) {
 	if len(city.HistoricalMods) == 0 {
 		return
 	}
+	// kept shares the current backing array; the compaction loop keeps at most
+	// len(city.HistoricalMods) items, which never exceeds cap(kept), so no
+	// reallocation can fire here. Allocation pressure lives in the event
+	// subsystems that append new mods; historicalModsInitialCap in NewCity
+	// covers the steady-state count without a pre-grow here.
 	kept := city.HistoricalMods[:0]
 	for _, m := range city.HistoricalMods {
 		if m.Active(currentYear) {
@@ -22,15 +27,38 @@ func ApplyRecrystallizeYear(city *polity.City, currentYear int) {
 	city.HistoricalMods = kept
 }
 
-// HistoricalModSum totals the currently-active mods of a given kind
-// for one city. Called by happiness / wealth / army / food yearly
-// recomputes to fold past-event deltas into the current result.
-func HistoricalModSum(city *polity.City, kind polity.HistoricalModKind, currentYear int) int {
-	total := 0
+// HistoricalModSumByKind returns the currently-active mod totals for each kind in a single pass.
+func HistoricalModSumByKind(city *polity.City, currentYear int) (happiness, wealth, army, foodBalance int) {
 	for _, m := range city.HistoricalMods {
-		if m.Kind == kind && m.Active(currentYear) {
-			total += m.Magnitude
+		if !m.Active(currentYear) {
+			continue
+		}
+		switch m.Kind {
+		case polity.HistoricalModHappiness:
+			happiness += m.Magnitude
+		case polity.HistoricalModWealth:
+			wealth += m.Magnitude
+		case polity.HistoricalModArmy:
+			army += m.Magnitude
+		case polity.HistoricalModFoodBalance:
+			foodBalance += m.Magnitude
 		}
 	}
-	return total
+	return
+}
+
+// HistoricalModSum totals currently-active mods of one kind on a city.
+func HistoricalModSum(city *polity.City, kind polity.HistoricalModKind, currentYear int) int {
+	h, w, a, f := HistoricalModSumByKind(city, currentYear)
+	switch kind {
+	case polity.HistoricalModHappiness:
+		return h
+	case polity.HistoricalModWealth:
+		return w
+	case polity.HistoricalModArmy:
+		return a
+	case polity.HistoricalModFoodBalance:
+		return f
+	}
+	return 0
 }

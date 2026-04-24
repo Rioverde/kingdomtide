@@ -165,7 +165,8 @@ func TestZonalDepositAt_Frequency(t *testing.T) {
 					ctr.validBiome++
 					fx := float64(x) * resource.ZonalPerlinScaleForTest
 					fy := float64(y) * resource.ZonalPerlinScaleForTest
-					v := noises[kind].Eval2Normalized(fx, fy)
+					slot, _ := resource.ZonalNoiseSlotForTest(kind)
+					v := noises[slot].Eval2Normalized(fx, fy)
 					threshold, _ := resource.ZonalThresholdForTest(kind)
 					if v > threshold {
 						ctr.inZone++

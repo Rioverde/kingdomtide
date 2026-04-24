@@ -139,13 +139,12 @@ type City struct {
 // Pass-1 attribute derivation lives in the mechanics layer and seeds
 // those fields as the world-generation pipeline runs.
 // historicalModsInitialCap is the starting capacity for a fresh
-// city's HistoricalMod queue. Sized to cover a typical peak under
-// normal play — disasters, decrees, tech unlocks, and ruler events
-// each push a few active mods, and the recrystallize step keeps the
-// queue around this length before decay prunes expired entries.
-// Pre-sizing avoids 3-4 append-driven reallocations in the first
-// years of simulation.
-const historicalModsInitialCap = 16
+// city's HistoricalMod queue. Steady-state tracks 30-50 mods under
+// 50-year cities; 32 keeps the initial NewCity allocation within one
+// backing array — avoiding the 3-4 reallocs that the old cap of 16
+// triggered as tournament, council, scandal, and marriage events
+// collectively push the queue past 16 in the first active decades.
+const historicalModsInitialCap = 32
 
 func NewCity(name string, pos geom.Position, founded int, ruler Ruler) *City {
 	return &City{
