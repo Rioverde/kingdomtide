@@ -265,11 +265,13 @@ func (d *depositRegionData) generate(s *NoiseDepositSource, sr genprim.SuperRegi
 	for y := minY; y < minY+side; y++ {
 		for x := minX; x < minX+side; x++ {
 			t := geom.Position{X: x, Y: y}
+			// Fetch tile once; both zonal and fish consumers share it to
+			// avoid a second TileAt (five noise samples + biome lookup).
 			tile := s.terrain.TileAt(x, y)
 			if dep, ok := zonalDepositAt(t, tile.Terrain, &s.zonalNoise); ok {
 				pl.place(t, dep, priZonal)
 			}
-			if dep, ok := fishDepositAt(s.seed, t, s.terrain); ok {
+			if dep, ok := fishDepositAtTerrain(s.seed, t, tile.Terrain, s.terrain); ok {
 				pl.place(t, dep, priFish)
 			}
 		}
