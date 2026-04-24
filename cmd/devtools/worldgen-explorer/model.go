@@ -197,10 +197,10 @@ func pickInitialZoom(worldW, worldH, termW, termH int) int {
 	if visibleCols <= 0 || visibleRows <= 0 {
 		return 1
 	}
-	for _, z := range []int{1, 2, 4, 8, 16} {
+	for _, z := range viewerZoomLevels {
 		if worldW/z <= visibleCols && worldH/z <= visibleRows {
 			return z
 		}
 	}
-	return 16
+	return viewerZoomLevels[len(viewerZoomLevels)-1]
 }

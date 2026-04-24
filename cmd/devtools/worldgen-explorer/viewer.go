@@ -11,9 +11,10 @@ import (
 // viewerZoomLevels enumerates the zoom factors the dev can cycle
 // through with + / -. 1 means one terminal cell per tile (after the
 // 2-column-per-tile aspect correction); 2 means a 2x2 block of world
-// tiles folds into one rendered cell; and so on. 16 is enough to fit a
-// 4096x4096 world on a full-screen terminal.
-var viewerZoomLevels = []int{1, 2, 4, 8, 16}
+// tiles folds into one rendered cell; and so on. 64 is enough to fit a
+// 4096x4096 world on an 80-col terminal as a thumbnail (4096/64 = 64
+// cells wide).
+var viewerZoomLevels = []int{1, 2, 4, 8, 16, 32, 64}
 
 // updateViewer is the phaseViewer key handler. Covers scrolling, layer
 // cycling, zoom, the info-panel toggle, and the escape hatches back to
