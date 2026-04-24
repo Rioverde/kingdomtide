@@ -48,49 +48,9 @@ var structureRunes = map[pb.Structure]string{
 	pb.Structure_STRUCTURE_CASTLE:  "♜", // BMP U+265C BLACK CHESS ROOK
 }
 
-// terrainRunes maps every wire-level Terrain value to the rune shown for
-// that biome. Missing keys fall back to runeUnspecified in the renderer.
-var terrainRunes = map[pb.Terrain]string{
-	// Grass family: progressively denser vegetation.
-	pb.Terrain_TERRAIN_PLAINS:    "·", // middle dot
-	pb.Terrain_TERRAIN_GRASSLAND: "„", // low double comma
-	pb.Terrain_TERRAIN_MEADOW:    "❀", // flower
-
-	// Arid family: grainy textures, beach → dune.
-	pb.Terrain_TERRAIN_BEACH:   "░", // light shade
-	pb.Terrain_TERRAIN_SAVANNA: "⁖", // four-dot cluster
-	pb.Terrain_TERRAIN_DESERT:  "∙", // bullet operator
-
-	// Forest family: deciduous / tangled / conifer.
-	pb.Terrain_TERRAIN_FOREST: "♣", // club (canopy)
-	pb.Terrain_TERRAIN_JUNGLE: "♠", // spade (denser canopy)
-	pb.Terrain_TERRAIN_TAIGA:  "♤", // white spade (conifer)
-
-	// Cold flats.
-	pb.Terrain_TERRAIN_TUNDRA: "‥", // two-dot leader (sparse)
-	pb.Terrain_TERRAIN_SNOW:   "∗", // asterisk operator (non-emoji, narrow)
-
-	// Relief ladder: bump → peak → snow-capped peak.
-	pb.Terrain_TERRAIN_HILLS:      "∩", // inverted cup
-	pb.Terrain_TERRAIN_MOUNTAIN:   "▲", // solid up-triangle
-	pb.Terrain_TERRAIN_SNOWY_PEAK: "△", // hollow up-triangle
-
-	// Water: wave → heavy wave.
-	pb.Terrain_TERRAIN_OCEAN:      "≈", // approximately equal (wavelets)
-	pb.Terrain_TERRAIN_DEEP_OCEAN: "≋", // triple tilde (deeper)
-
-	// Volcanic family: active core → cold crater → crater lake → slope → ashland.
-	// Runes picked to stay visually distinct from the existing biome set —
-	// in particular crater lake uses ⊙ (not ≈) so it does not collide with
-	// river/ocean glyphs, and ashland uses ▒ (not ·) so it does not collide
-	// with plains. Colours in styles.go do the heavy lifting on state
-	// recognition, but the glyphs alone must already read as "volcano".
-	pb.Terrain_TERRAIN_VOLCANO_CORE:         "▼", // U+25BC, inverted filled triangle — crater seen top-down
-	pb.Terrain_TERRAIN_VOLCANO_CORE_DORMANT: "○", // U+25CB, empty circle — cold basin, no fire
-	pb.Terrain_TERRAIN_CRATER_LAKE:          "⊙", // U+2299, circled dot operator — filled centre reads as "pool of water" distinct from empty-circle dormant core
-	pb.Terrain_TERRAIN_VOLCANO_SLOPE:        "◭", // U+25ED, upper-left-half filled triangle — magma-streaked slope
-	pb.Terrain_TERRAIN_ASHLAND:              "▒", // U+2592, medium shade — burnt dust layer
-}
+// Terrain glyphs live in internal/ui/tilestyle (keyed by world.Terrain
+// so both this package and developer tools share one source of truth).
+// Look them up via tilestyle.GlyphForPB when you have a pb.Terrain.
 
 // UI chrome glyphs — visual separators and bullets that stay stable across
 // locales. User-facing strings (labels, hints, headers) now flow through

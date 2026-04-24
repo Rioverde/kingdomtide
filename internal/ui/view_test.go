@@ -13,6 +13,7 @@ import (
 	"github.com/Rioverde/gongeons/internal/game/stats"
 	"github.com/Rioverde/gongeons/internal/game/world"
 	pb "github.com/Rioverde/gongeons/internal/proto"
+	"github.com/Rioverde/gongeons/internal/ui/tilestyle"
 )
 
 // playingModel returns a Model wired up for phasePlaying with the given
@@ -63,7 +64,7 @@ func TestLayoutWide(t *testing.T) {
 	out := m.viewPlaying()
 
 	// Map must be visible — it renders the plains rune.
-	if !strings.Contains(out, terrainRunes[pb.Terrain_TERRAIN_PLAINS]) {
+	if !strings.Contains(out, tilestyle.GlyphForPB(pb.Terrain_TERRAIN_PLAINS)) {
 		t.Error("wide layout (120x40): map (plains rune) not found in output")
 	}
 
@@ -110,7 +111,7 @@ func TestLayoutClassic(t *testing.T) {
 	m := playingModel(80, 24)
 	out := m.viewPlaying()
 
-	if !strings.Contains(out, terrainRunes[pb.Terrain_TERRAIN_PLAINS]) {
+	if !strings.Contains(out, tilestyle.GlyphForPB(pb.Terrain_TERRAIN_PLAINS)) {
 		t.Error("classic layout (80x24): map (plains rune) not found in output")
 	}
 	if !strings.Contains(out, "баба moved") {
@@ -144,7 +145,7 @@ func TestLayoutWideNoRegion(t *testing.T) {
 	out := m.viewPlaying()
 
 	// Should still render map and stats.
-	if !strings.Contains(out, terrainRunes[pb.Terrain_TERRAIN_PLAINS]) {
+	if !strings.Contains(out, tilestyle.GlyphForPB(pb.Terrain_TERRAIN_PLAINS)) {
 		t.Error("wide layout no-region (120x40): map not found in output")
 	}
 	if !strings.Contains(out, "no stats") {
@@ -160,7 +161,7 @@ func TestLayoutWideNoRegion(t *testing.T) {
 func TestRenderCellLayerPrecedence(t *testing.T) {
 	t.Parallel()
 
-	plainsRune := terrainRunes[pb.Terrain_TERRAIN_PLAINS]
+	plainsRune := tilestyle.GlyphForPB(pb.Terrain_TERRAIN_PLAINS)
 	villageRune := structureRunes[pb.Structure_STRUCTURE_VILLAGE]
 
 	cases := []struct {

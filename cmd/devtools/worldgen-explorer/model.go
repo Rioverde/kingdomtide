@@ -9,9 +9,7 @@ import (
 	"github.com/Rioverde/gongeons/internal/game/worldgen"
 )
 
-// phase is the top-level state-machine slot the TUI lives in. Each phase
-// owns a disjoint subset of Model fields and a single dispatch path in
-// Update.
+// phase is the top-level state-machine slot the TUI lives in.
 type phase int
 
 const (
@@ -20,10 +18,7 @@ const (
 	phaseViewer
 )
 
-// menuField identifies which interactive element in the menu is taking
-// input. Tab cycles forward; Shift+Tab cycles backward. Up/down arrows
-// and text typing route to the active field only, so the dev never
-// edits the seed by accident while scrolling the size list.
+// menuField identifies which interactive element in the menu is taking input.
 type menuField int
 
 const (
@@ -35,39 +30,43 @@ const (
 func (f menuField) next() menuField { return (f + 1) % fieldCount }
 func (f menuField) prev() menuField { return (f + fieldCount - 1) % fieldCount }
 
-// layer picks which demo grid the viewer renders. Iteration order drives
-// the L / shift-L cycling.
+// layer picks which overlay the viewer renders.
 type layer int
 
 const (
-	layerElevation layer = iota
-	layerTemperature
+	layerBiome layer = iota
+	layerCells
+	layerLand
+	layerElevation
 	layerMoisture
+	layerCoast
 	layerCount
 )
 
 func (l layer) String() string {
 	switch l {
+	case layerBiome:
+		return "biome"
+	case layerCells:
+		return "cells"
+	case layerLand:
+		return "land/ocean"
 	case layerElevation:
 		return "elevation"
-	case layerTemperature:
-		return "temperature"
 	case layerMoisture:
 		return "moisture"
+	case layerCoast:
+		return "coast"
 	}
 	return "unknown"
 }
 
 func (l layer) next() layer { return (l + 1) % layerCount }
 
-// buildDoneMsg is emitted on the tea event loop when GenerateDemoWorld
-// returns. It carries the built world so the Update handler can flip
-// into phaseViewer without blocking Init.
-type buildDoneMsg struct{ world *worldgen.DemoWorld }
+// buildDoneMsg is emitted on the tea event loop when Generate returns.
+type buildDoneMsg struct{ world *worldgen.World }
 
-// Model is the entire explorer state. Fields are grouped by phase; only
-// the slice used by the active phase needs to be valid at any given
-// moment.
+// Model is the entire explorer state.
 type Model struct {
 	phase phase
 
@@ -83,26 +82,21 @@ type Model struct {
 	pendingSeed int64
 
 	// Viewer phase.
-	world    *worldgen.DemoWorld
+	world    *worldgen.World
 	layer    layer
 	zoom     int
 	vpX, vpY int
 	termW    int
 	termH    int
 	showInfo bool
-	cursorX  int
-	cursorY  int
 }
 
-// initialModel returns a Model parked in phaseMenu with the Standard
-// size pre-selected and a random seed pre-filled.
 func initialModel() Model {
 	ti := textinput.New()
 	ti.Placeholder = "seed"
 	ti.CharLimit = 19
 	ti.Width = 20
 	ti.SetValue(randomSeedString())
-
 	return Model{
 		phase:       phaseMenu,
 		sizes:       worldgen.AllSizes(),
@@ -113,9 +107,6 @@ func initialModel() Model {
 	}
 }
 
-// modelStartingBuild shortcuts the menu when --size and --seed were
-// supplied on the CLI. The build goroutine fires from Init so the user
-// sees the progress screen immediately.
 func modelStartingBuild(size worldgen.WorldSize, seed int64) Model {
 	m := initialModel()
 	m.phase = phaseBuilding
@@ -124,8 +115,6 @@ func modelStartingBuild(size worldgen.WorldSize, seed int64) Model {
 	return m
 }
 
-// Init kicks off the build if we started in phaseBuilding; otherwise the
-// menu is already interactive and nothing async needs to happen.
 func (m Model) Init() tea.Cmd {
 	if m.phase == phaseBuilding {
 		return buildCmd(m.pendingSize, m.pendingSeed)
@@ -133,9 +122,6 @@ func (m Model) Init() tea.Cmd {
 	return textinput.Blink
 }
 
-// Update dispatches the tea event to the handler for the current phase.
-// Global keys (Ctrl+C) live at the top because the dev expects them to
-// work regardless of which phase is on screen.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -149,12 +135,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case buildDoneMsg:
 		m.world = msg.world
 		m.phase = phaseViewer
-		m.layer = layerElevation
+		m.layer = layerBiome
 		m.zoom = pickInitialZoom(msg.world.Width, msg.world.Height, m.termW, m.termH)
 		m.vpX = 0
 		m.vpY = 0
-		m.cursorX = msg.world.Width / 2
-		m.cursorY = msg.world.Height / 2
 		return m, nil
 	}
 
@@ -167,7 +151,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// View picks the renderer for the active phase.
 func (m Model) View() string {
 	switch m.phase {
 	case phaseMenu:
@@ -180,27 +163,17 @@ func (m Model) View() string {
 	return ""
 }
 
-// buildCmd returns a tea.Cmd that runs GenerateDemoWorld off the event
-// loop and emits a buildDoneMsg when it finishes. tea schedules the Cmd
-// on a worker goroutine so the UI stays responsive during generation.
-// ContinentPreset is passed for API compatibility only; the current
-// demo pipeline ignores it (continents emerge from the weighted mesh).
 func buildCmd(size worldgen.WorldSize, seed int64) tea.Cmd {
 	return func() tea.Msg {
-		w := worldgen.GenerateDemoWorld(seed, size, worldgen.ContinentTrinity)
+		w := worldgen.Generate(seed, size)
 		return buildDoneMsg{world: w}
 	}
 }
 
-// randomSeedString returns a fresh random seed rendered as a decimal
-// string suitable for seeding the textinput field.
 func randomSeedString() string {
 	return formatSeed(int64(rand.Uint64()))
 }
 
-// pickInitialZoom chooses a zoom level that shows most of the world at
-// first glance. Terminal cell aspect is ~2:1 (tall), so every world
-// tile takes 2 terminal columns.
 func pickInitialZoom(worldW, worldH, termW, termH int) int {
 	if termW <= 0 || termH <= 0 {
 		return 1

@@ -8,6 +8,7 @@ import (
 	"github.com/Rioverde/gongeons/internal/game/geom"
 	"github.com/Rioverde/gongeons/internal/game/naming"
 	pb "github.com/Rioverde/gongeons/internal/proto"
+	"github.com/Rioverde/gongeons/internal/ui/tilestyle"
 )
 
 func TestPositionFromPB(t *testing.T) {
@@ -369,11 +370,12 @@ func TestTerrainRunesCoverAllWireValues(t *testing.T) {
 			continue
 		}
 		v := pb.Terrain(n)
-		if _, ok := terrainRunes[v]; !ok {
-			t.Errorf("terrainRunes missing entry for %s", name)
+		dom := tilestyle.FromPB(v)
+		if _, ok := tilestyle.TerrainRunes[dom]; !ok {
+			t.Errorf("tilestyle.TerrainRunes missing entry for %s", name)
 		}
-		if _, ok := terrainStyles[v]; !ok {
-			t.Errorf("terrainStyles missing entry for %s", name)
+		if _, ok := tilestyle.TerrainStyles[dom]; !ok {
+			t.Errorf("tilestyle.TerrainStyles missing entry for %s", name)
 		}
 	}
 }
@@ -410,9 +412,9 @@ func TestTerrainRunesVolcanicGlyphsDistinct(t *testing.T) {
 		}
 	}
 	for _, vb := range volcanic {
-		r := terrainRunes[vb]
+		r := tilestyle.GlyphForPB(vb)
 		for nv, name := range nonVolcanic {
-			if terrainRunes[nv] == r {
+			if tilestyle.GlyphForPB(nv) == r {
 				t.Errorf("volcanic terrain %s rune %q collides with %s",
 					pb.Terrain_name[int32(vb)], r, name)
 			}

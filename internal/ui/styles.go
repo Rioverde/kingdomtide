@@ -5,6 +5,7 @@ import (
 
 	"github.com/Rioverde/gongeons/internal/game/calendar"
 	pb "github.com/Rioverde/gongeons/internal/proto"
+	"github.com/Rioverde/gongeons/internal/ui/tilestyle"
 )
 
 // Styles are the lipgloss decorations (colour, bold, reverse…) applied to
@@ -108,52 +109,9 @@ var structureStyles = map[pb.Structure]lipgloss.Style{
 	pb.Structure_STRUCTURE_CASTLE:  lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Bold(true),
 }
 
-// terrainStyles pairs each biome with its foreground colour. Edit this
-// table alongside runes.go to re-skin the map.
-var terrainStyles = map[pb.Terrain]lipgloss.Style{
-	pb.Terrain_TERRAIN_PLAINS:     lipgloss.NewStyle().Foreground(lipgloss.Color("108")),
-	pb.Terrain_TERRAIN_GRASSLAND:  lipgloss.NewStyle().Foreground(lipgloss.Color("70")),
-	pb.Terrain_TERRAIN_MEADOW:     lipgloss.NewStyle().Foreground(lipgloss.Color("119")),
-	pb.Terrain_TERRAIN_BEACH:      lipgloss.NewStyle().Foreground(lipgloss.Color("221")),
-	pb.Terrain_TERRAIN_DESERT:     lipgloss.NewStyle().Foreground(lipgloss.Color("222")),
-	pb.Terrain_TERRAIN_SAVANNA:    lipgloss.NewStyle().Foreground(lipgloss.Color("143")),
-	pb.Terrain_TERRAIN_FOREST:     lipgloss.NewStyle().Foreground(lipgloss.Color("22")),
-	pb.Terrain_TERRAIN_JUNGLE:     lipgloss.NewStyle().Foreground(lipgloss.Color("28")),
-	pb.Terrain_TERRAIN_TAIGA:      lipgloss.NewStyle().Foreground(lipgloss.Color("30")),
-	pb.Terrain_TERRAIN_TUNDRA:     lipgloss.NewStyle().Foreground(lipgloss.Color("152")),
-	pb.Terrain_TERRAIN_SNOW:       lipgloss.NewStyle().Foreground(lipgloss.Color("255")),
-	pb.Terrain_TERRAIN_HILLS:      lipgloss.NewStyle().Foreground(lipgloss.Color("94")),
-	pb.Terrain_TERRAIN_MOUNTAIN:   lipgloss.NewStyle().Foreground(lipgloss.Color("244")).Bold(true),
-	pb.Terrain_TERRAIN_SNOWY_PEAK: lipgloss.NewStyle().Foreground(lipgloss.Color("231")).Bold(true),
-	pb.Terrain_TERRAIN_OCEAN:      lipgloss.NewStyle().Foreground(lipgloss.Color("33")),
-	pb.Terrain_TERRAIN_DEEP_OCEAN: lipgloss.NewStyle().Foreground(lipgloss.Color("18")),
-
-	// Volcanic palette — hex comments document the 256-color xterm codes so
-	// readers do not have to reverse-lookup the palette. Active core is a
-	// bright lava orange on a near-black rim, bold so the glyph stands out
-	// across the dim volcano slope ring. Dormant core drops to a cold grey
-	// over dark basalt — same rune as an empty cup, no glow. Crater lake
-	// reuses the still-water blue palette of ocean but adds a deeper basin
-	// backdrop to read as "contained water". Slope is burnt umber on dark
-	// rock; ashland is ash grey on charcoal, low contrast on purpose so
-	// the dead ring fades compared to the adjacent burning core.
-	pb.Terrain_TERRAIN_VOLCANO_CORE: lipgloss.NewStyle().
-		Foreground(lipgloss.Color("202")). // #ff3300 bright lava orange
-		Background(lipgloss.Color("52")).  // #1a0000 near-black rim
-		Bold(true),
-	pb.Terrain_TERRAIN_VOLCANO_CORE_DORMANT: lipgloss.NewStyle().
-		Foreground(lipgloss.Color("240")). // #585858 cold grey
-		Background(lipgloss.Color("235")), // #262626 dark basalt
-	pb.Terrain_TERRAIN_CRATER_LAKE: lipgloss.NewStyle().
-		Foreground(lipgloss.Color("39")). // #00afff clear blue
-		Background(lipgloss.Color("24")), // #005f87 deep water
-	pb.Terrain_TERRAIN_VOLCANO_SLOPE: lipgloss.NewStyle().
-		Foreground(lipgloss.Color("130")). // #af5f00 burnt umber
-		Background(lipgloss.Color("237")), // #3a3a3a dark slope
-	pb.Terrain_TERRAIN_ASHLAND: lipgloss.NewStyle().
-		Foreground(lipgloss.Color("245")). // #8a8a8a ash grey
-		Background(lipgloss.Color("234")), // #1c1c1c charcoal
-}
+// Terrain styles live in internal/ui/tilestyle (keyed by world.Terrain
+// so both this package and developer tools share one source of truth).
+// Look them up via tilestyle.StyleForPB when you have a pb.Terrain.
 
 // lookTile returns the rune + style for a wire tile's terrain. Overlay
 // handling (river, road, bridge, ...) lives in renderCell — lookTile is a
@@ -163,13 +121,10 @@ func lookTile(t *pb.Tile) (string, lipgloss.Style) {
 	if t == nil {
 		return runeUnspecified, styles.unknownTile
 	}
-	r, ok := terrainRunes[t.GetTerrain()]
-	if !ok {
+	r := tilestyle.GlyphForPB(t.GetTerrain())
+	if r == "" {
 		return runeUnspecified, styles.unknownTile
 	}
-	style, ok := terrainStyles[t.GetTerrain()]
-	if !ok {
-		return r, styles.unknownTile
-	}
+	style := tilestyle.StyleForPB(t.GetTerrain())
 	return r, style
 }
