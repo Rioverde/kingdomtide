@@ -156,6 +156,73 @@ func (k CapWarningKind) Key() string {
 	return k.String()
 }
 
+// Total rolls the expression and returns only the integer total.
+// Skips populating Result.Dice / Terms / CapWarnings, which saves
+// ~40-120 bytes and 1-3 slice allocations per call. Use this in
+// simulation hot paths that only need the sum; use Execute when the
+// full provenance is required (UI tooltips, replay tooling, tests
+// that inspect per-die results).
+//
+// For expressions with explode / reroll / keep-drop logic Total
+// produces the same arithmetic outcome as Execute(rng).Total against
+// the same rng state — the fast path rolls the same dice in the same
+// order, it just discards the provenance metadata. Expressions that
+// require keep/drop bookkeeping transparently fall back to Execute
+// so determinism and semantics stay in lockstep.
+func (e Expression) Total(rng *rand.Rand) int {
+	if e.root == nil {
+		panic("dice: Total called on zero Expression (did you skip the Parse error check?)")
+	}
+	if rng == nil {
+		panic("dice: Total called with nil *rand.Rand")
+	}
+	root, ok := e.root.(*exprNode)
+	if !ok {
+		return e.Execute(rng).Total
+	}
+	total := root.bareMod
+	for i, n := range root.terms {
+		t, ok := n.(*termNode)
+		if !ok || !termFastPath(t) {
+			return e.Execute(rng).Total
+		}
+		total += root.signs[i] * termRollFast(t, rng)
+	}
+	return total
+}
+
+// termFastPath reports whether a termNode is simple enough to roll
+// inline without allocating a DieRoll slice: no reroll, no explode,
+// no keep/drop. Plain "NdS[+mod]" and "NdF[+mod]" (fudge) qualify.
+func termFastPath(t *termNode) bool {
+	return t.reroll == nil && t.explode == nil && t.keep == keepAll
+}
+
+// termRollFast rolls a fast-path termNode and returns its contribution
+// (sum of face values plus the term's flat modifier). Must consume
+// exactly one rng.IntN call per die so callers can substitute this
+// for the Execute path without changing same-seed replay output.
+func termRollFast(t *termNode, rng *rand.Rand) int {
+	sum := 0
+	if t.fudge {
+		for i := 0; i < t.count; i++ {
+			switch rng.IntN(3) {
+			case 0:
+				sum--
+			case 1:
+				// zero face contributes nothing
+			default:
+				sum++
+			}
+		}
+	} else {
+		for i := 0; i < t.count; i++ {
+			sum += rng.IntN(t.sides) + 1
+		}
+	}
+	return sum + t.modifier
+}
+
 // Execute rolls the Expression once using rng. rng MUST be non-nil.
 // Execute is deterministic: a given Expression and rng state produce
 // an identical Result. Panics (with a clear message) if the receiver

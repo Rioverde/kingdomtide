@@ -21,6 +21,13 @@ const (
 	SaltKingdomYear      Salt = 0x7a293cfa1b5d87e6
 	SaltKingdomDominance Salt = 0x8b3a4d0b2c6e98f7
 	SaltRevolutions      Salt = 0x7f8a9b0c1d2e3f40
+	SaltMinerals         Salt = 0x5c3d1e2f7a8b4c9d
+	SaltTech             Salt = 0x1a2b3c4d5e6f7081
+	SaltGreatPeople      Salt = 0x9f8e7d6c5b4a3928
+	SaltFactions         Salt = 0x34567890abcdef12
+	SaltReligion         Salt = 0xfedcba0987654321
+	SaltLifeEvents       Salt = 0x2468ace013579bdf
+	SaltDisasters        Salt = 0xbeefcafe00112233
 )
 
 var (
@@ -30,6 +37,18 @@ var (
 	d100Expr = MustParse("1d100")
 	statExpr = MustParse("4d6dl1")
 )
+
+// Simple-die fast-path documentation.
+//
+// D4/D6/D20/D100 and Check bypass the Expression pipeline entirely
+// and call rng.IntN directly. For "1dN" with no reroll / explode /
+// keep-drop / modifier the Expression path ultimately calls
+// rng.IntN(N)+1 exactly once per die, so same-seed determinism is
+// preserved byte-for-byte against the old path. See
+// TestStream_SimpleRollSameAsExpression for the cross-check.
+//
+// Stat4D6DropLowest keeps the Expression path because the drop-lowest
+// logic is non-trivial and it is called rarely (once per ruler).
 
 // Stream is a per-subsystem deterministic dice source. A Stream owns one
 // *rand.Rand seeded from (worldSeed, salt). Callers MUST give each
@@ -52,15 +71,18 @@ func New(worldSeed int64, salt Salt) *Stream {
 	}
 }
 
-// D4, D6, D20, and D100 each roll one die of the named size and return the
-// total in [1, N]. Stat4D6DropLowest rolls four d6, drops the lowest, and
-// returns a value in [3, 18] — the classic D&D ability-score distribution.
-// All five share a pre-parsed Expression at package scope, so the parser
-// runs once at init and each call allocates nothing.
-func (s *Stream) D4() int                { return d4Expr.Execute(s.rng).Total }
-func (s *Stream) D6() int                { return d6Expr.Execute(s.rng).Total }
-func (s *Stream) D20() int               { return d20Expr.Execute(s.rng).Total }
-func (s *Stream) D100() int              { return d100Expr.Execute(s.rng).Total }
+// D4, D6, D20, and D100 each roll one die of the named size and return
+// the total in [1, N]. Zero-alloc fast path — calls rng.IntN directly,
+// bypassing the Expression pipeline. Determinism against the old path
+// holds because "1dN" consumes exactly one rng.IntN(N) call in both
+// paths. Stat4D6DropLowest rolls four d6, drops the lowest, and
+// returns a value in [3, 18] — the classic D&D ability-score
+// distribution; it stays on the Expression path because the
+// drop-lowest logic is non-trivial and it is called rarely.
+func (s *Stream) D4() int                { return s.rng.IntN(4) + 1 }
+func (s *Stream) D6() int                { return s.rng.IntN(6) + 1 }
+func (s *Stream) D20() int               { return s.rng.IntN(20) + 1 }
+func (s *Stream) D100() int              { return s.rng.IntN(100) + 1 }
 func (s *Stream) Stat4D6DropLowest() int { return statExpr.Execute(s.rng).Total }
 
 // Int63 returns a non-negative pseudo-random 63-bit integer.
@@ -72,8 +94,9 @@ func (s *Stream) Int63() int64 {
 
 // Check rolls a D20, adds bonus, and returns true when the total meets or
 // exceeds dc. No natural-20 autosuccess or natural-1 autofail — the caller
-// applies those rules if needed. Mirrors MECHANICS.md §4d decree-execution
-// semantics.
+// applies those rules if needed. Matches the decree-execution semantics
+// used by the ruler-action subsystem. Zero-alloc fast path — shares the
+// rng.IntN(20) call shape with D20 so determinism holds.
 func (s *Stream) Check(dc int, bonus int) bool {
-	return d20Expr.Execute(s.rng).Total+bonus >= dc
+	return s.rng.IntN(20)+1+bonus >= dc
 }

@@ -15,11 +15,19 @@ type Ruler struct {
 	BirthYear int
 	// 0 if still alive
 	DeathYear int
+
+	// Faith is the ruler's personal religion. Used by the revolution
+	// check's religion-mismatch bypass — when the ruler's faith
+	// diverges from the city's majority faith by a high grievance score,
+	// the happiness ceiling on revolt is lifted.
+	Faith Faith `json:"faith"`
 }
 
 // NewRuler rolls all six ability scores via Stat4D6DropLowest on the
 // provided stream and returns a freshly-crowned Ruler. All randomness
 // flows through the Stream — same (seed, salt) yields an identical Ruler.
+// The ruler defaults to FaithOldGods so legacy call-sites keep the
+// previous zero-value alignment with the default city majority.
 func NewRuler(s *dice.Stream, birthYear int) Ruler {
 	return Ruler{
 		Stats: stats.CoreStats{
@@ -31,15 +39,16 @@ func NewRuler(s *dice.Stream, birthYear int) Ruler {
 			Charisma:     s.Stat4D6DropLowest(),
 		},
 		BirthYear: birthYear,
+		Faith:     FaithOldGods,
 	}
 }
 
-// LifeExpectancy returns the Ruler's expected lifespan in years per
-// MECHANICS.md §4b: 30 + 10 × Modifier(CON). The Constitution modifier is
-// clamped to [-3, +5] (MECHANICS.md §4a house rule) before scaling, so a
-// weak ruler (CON 3, mod -3) is expected to die at year of coronation and
-// a strong ruler (CON 18+, mod +4) lives to 70+. Callers drive natural
-// death by comparing currentYear - BirthYear against this value.
+// LifeExpectancy returns the Ruler's expected lifespan in years:
+// 30 + 10 × Modifier(CON). The Constitution modifier is clamped to
+// [-3, +5] before scaling, so a weak ruler (CON 3, mod -3) is
+// expected to die at year of coronation and a strong ruler (CON
+// 18+, mod +4) lives to 70+. Callers drive natural death by
+// comparing currentYear - BirthYear against this value.
 func (r Ruler) LifeExpectancy() int {
 	mod := stats.Modifier(r.Stats.Constitution)
 	mod = min(max(mod, -3), 5)

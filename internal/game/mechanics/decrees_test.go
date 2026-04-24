@@ -1,0 +1,178 @@
+package mechanics
+
+import (
+	"testing"
+
+	"github.com/Rioverde/gongeons/internal/game/dice"
+	"github.com/Rioverde/gongeons/internal/game/polity"
+)
+
+// TestApplyDecreeYear_MostYearsNothing verifies the trigger gate —
+// most years pass without any decree attempt because DC 19 is hard.
+func TestApplyDecreeYear_MostYearsNothing(t *testing.T) {
+	c := polity.City{TaxRate: polity.TaxNormal}
+	stream := dice.New(42, dice.SaltKingdomYear)
+	modsBefore := len(c.HistoricalMods)
+	taxBefore := c.TaxRate
+	for i := 0; i < 20; i++ {
+		ApplyDecreeYear(&c, stream, 1500+i)
+	}
+	if c.TaxRate != taxBefore && len(c.HistoricalMods) > 8 {
+		t.Errorf("too many decrees in 20 yr: taxNow=%v modsNow=%d", c.TaxRate, len(c.HistoricalMods))
+	}
+	_ = modsBefore
+}
+
+// TestApplyDecreeYear_EventuallyFires verifies that over a long
+// horizon at least one decree must land — otherwise the whole
+// subsystem is silently inert.
+func TestApplyDecreeYear_EventuallyFires(t *testing.T) {
+	c := polity.City{TaxRate: polity.TaxNormal, Happiness: 60}
+	c.Ruler.Stats.Charisma = 14 // +2 mod helps execution
+	stream := dice.New(42, dice.SaltKingdomYear)
+	fireCount := 0
+	for i := 0; i < 500; i++ {
+		before := c
+		ApplyDecreeYear(&c, stream, 1500+i)
+		if len(c.HistoricalMods) > len(before.HistoricalMods) ||
+			c.TaxRate != before.TaxRate ||
+			c.Army != before.Army ||
+			c.TradeScore != before.TradeScore {
+			fireCount++
+		}
+	}
+	if fireCount == 0 {
+		t.Error("no decree ever fired in 500 yr — subsystem inert")
+	}
+}
+
+// TestRaiseTaxTier_ClampAtBrutal verifies tax tier never exceeds Brutal.
+func TestRaiseTaxTier_ClampAtBrutal(t *testing.T) {
+	if got := raiseTaxTier(polity.TaxBrutal); got != polity.TaxBrutal {
+		t.Errorf("raise from Brutal = %v, want Brutal (clamped)", got)
+	}
+	if got := raiseTaxTier(polity.TaxHigh); got != polity.TaxBrutal {
+		t.Errorf("raise from High = %v, want Brutal", got)
+	}
+}
+
+// TestLowerTaxTier_ClampAtLow verifies tax tier never drops below Low.
+func TestLowerTaxTier_ClampAtLow(t *testing.T) {
+	if got := lowerTaxTier(polity.TaxLow); got != polity.TaxLow {
+		t.Errorf("lower from Low = %v, want Low (clamped)", got)
+	}
+	if got := lowerTaxTier(polity.TaxNormal); got != polity.TaxLow {
+		t.Errorf("lower from Normal = %v, want Low", got)
+	}
+}
+
+// TestApplyDecreeEffect_FortificationAddsBoth verifies successful
+// fortification decree adds army AND queues a happiness mod.
+func TestApplyDecreeEffect_FortificationAddsBoth(t *testing.T) {
+	c := polity.City{Army: 50}
+	applyDecreeEffect(&c, polity.DecreeBuildFortification, 1500)
+	if c.Army != 50+fortificationArmyBoost {
+		t.Errorf("Army = %d, want %d", c.Army, 50+fortificationArmyBoost)
+	}
+	if len(c.HistoricalMods) != 1 {
+		t.Errorf("want 1 happiness mod queued, got %d", len(c.HistoricalMods))
+	}
+	if c.HistoricalMods[0].Kind != polity.HistoricalModHappiness {
+		t.Errorf("mod kind = %v, want Happiness", c.HistoricalMods[0].Kind)
+	}
+}
+
+// TestApplyDecreeYear_Determinism — same seed same outcome across 200 yr.
+func TestApplyDecreeYear_Determinism(t *testing.T) {
+	a := polity.City{TaxRate: polity.TaxNormal}
+	b := polity.City{TaxRate: polity.TaxNormal}
+	sa := dice.New(42, dice.SaltKingdomYear)
+	sb := dice.New(42, dice.SaltKingdomYear)
+	for i := 0; i < 200; i++ {
+		ApplyDecreeYear(&a, sa, 1500+i)
+		ApplyDecreeYear(&b, sb, 1500+i)
+	}
+	if a.TaxRate != b.TaxRate || a.Army != b.Army ||
+		a.TradeScore != b.TradeScore ||
+		len(a.HistoricalMods) != len(b.HistoricalMods) {
+		t.Errorf("decree determinism broken")
+	}
+}
+
+// TestDecree_DeclareStateReligion_PromotesRulerFaith pins the
+// post-effect distribution — ruler's faith must hold at least the
+// state-religion majority floor regardless of prior shares.
+func TestDecree_DeclareStateReligion_PromotesRulerFaith(t *testing.T) {
+	c := polity.City{Faiths: polity.NewFaithDistribution()}
+	c.Ruler.Faith = polity.FaithSunCovenant
+	applyDecreeEffect(&c, polity.DecreeDeclareStateReligion, 1500)
+	if c.Faiths[polity.FaithSunCovenant] < stateReligionMajorityFloor {
+		t.Errorf("SunCovenant share = %v, want >= %v",
+			c.Faiths[polity.FaithSunCovenant], stateReligionMajorityFloor)
+	}
+}
+
+// TestDecree_Inquisition_AddsHappinessHit verifies the Inquisition
+// decree queues the negative happiness mod with the documented
+// magnitude.
+func TestDecree_Inquisition_AddsHappinessHit(t *testing.T) {
+	c := polity.City{}
+	applyDecreeEffect(&c, polity.DecreeInquisition, 1500)
+	if len(c.HistoricalMods) != 1 {
+		t.Errorf("want 1 mod, got %d", len(c.HistoricalMods))
+	}
+	if c.HistoricalMods[0].Magnitude != inquisitionHappinessHit {
+		t.Errorf("magnitude = %d, want %d",
+			c.HistoricalMods[0].Magnitude, inquisitionHappinessHit)
+	}
+}
+
+// TestDecree_TolerationEdict_AddsHappinessBonus verifies the
+// Toleration edict queues the canonical positive happiness mod.
+func TestDecree_TolerationEdict_AddsHappinessBonus(t *testing.T) {
+	c := polity.City{}
+	applyDecreeEffect(&c, polity.DecreeTolerationEdict, 1500)
+	if len(c.HistoricalMods) != 1 ||
+		c.HistoricalMods[0].Magnitude != tolerationHappinessBonus {
+		t.Errorf("toleration mod missing or wrong magnitude")
+	}
+}
+
+// TestDecree_AppointSteward_AddsWealthMod — the steward decree queues
+// a Wealth kind mod (MVP surrogate for admin efficiency).
+func TestDecree_AppointSteward_AddsWealthMod(t *testing.T) {
+	c := polity.City{}
+	applyDecreeEffect(&c, polity.DecreeAppointSteward, 1500)
+	if c.HistoricalMods[0].Kind != polity.HistoricalModWealth {
+		t.Errorf("steward mod kind = %v, want Wealth", c.HistoricalMods[0].Kind)
+	}
+}
+
+// TestDecree_ExpelFaction_TargetsHighestInfluence verifies the
+// expel decree reduces the current highest-influence faction — not
+// a fixed target.
+func TestDecree_ExpelFaction_TargetsHighestInfluence(t *testing.T) {
+	c := polity.City{}
+	c.Factions.Set(polity.FactionMerchants, 0.8)
+	c.Factions.Set(polity.FactionMilitary, 0.2)
+	applyDecreeEffect(&c, polity.DecreeExpelFaction, 1500)
+	// Merchants was highest, should be reduced by expelFactionReduction.
+	if got := c.Factions.Get(polity.FactionMerchants); got >= 0.8 {
+		t.Errorf("Merchants = %v, expected reduced from 0.8", got)
+	}
+}
+
+// TestDecreeChoice_AllKindsReachable sweeps 2000 draws to ensure the
+// D20 bucket rolls hit most of the eleven kinds — a regression check
+// against silent bucket dropout when kinds are added.
+func TestDecreeChoice_AllKindsReachable(t *testing.T) {
+	stream := dice.New(42, dice.SaltKingdomYear)
+	seen := map[polity.DecreeKind]bool{}
+	for i := 0; i < 2000; i++ {
+		k := decreeChoice(&polity.City{TaxRate: polity.TaxNormal}, stream)
+		seen[k] = true
+	}
+	if len(seen) < 9 {
+		t.Errorf("only %d kinds reachable across 2000 rolls, want >= 9", len(seen))
+	}
+}

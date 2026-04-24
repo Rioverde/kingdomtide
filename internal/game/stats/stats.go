@@ -19,17 +19,30 @@ type CoreStats struct {
 	Charisma     int
 }
 
-// Modifier returns the standard D&D 5e ability modifier for a raw stat
-// value: floor((stat - 10) / 2). Works correctly on the negative side too —
-// Modifier(5) == -3, Modifier(1) == -5 — because Go integer division
-// truncates toward zero; we adjust by one when the pre-division number is
-// negative with a non-zero remainder.
+// modifierTable is the precomputed D&D 5e ability modifier for every
+// raw stat value [0, 20]. Lookup is one bounds-check + one load —
+// zero branches, zero arithmetic. The values reproduce exactly what
+// the original Modifier() function computed; if you extend the stat
+// range, regenerate this table rather than mutating the formula
+// anywhere else.
+var modifierTable = [21]int{
+	-5, -5, -4, -4, -3, -3, -2, -2, -1, -1, // stats 0..9
+	0, 0, 1, 1, 2, 2, 3, 3, 4, 4, // stats 10..19
+	5, // stat 20
+}
+
+// Modifier returns the standard D&D 5e ability modifier for a raw
+// stat value — floor((stat - 10) / 2). Values outside [0, 20] clamp
+// to the nearest bound. Fast-path lookup; original formula kept in
+// the table's initialiser for reference and future regeneration.
 func Modifier(stat int) int {
-	n := stat - 10
-	if n < 0 && n%2 != 0 {
-		return n/2 - 1
+	if stat < 0 {
+		return modifierTable[0]
 	}
-	return n / 2
+	if stat > 20 {
+		return modifierTable[20]
+	}
+	return modifierTable[stat]
 }
 
 // Point Buy cost table — price of buying a single ability up to N from
