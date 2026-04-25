@@ -11,11 +11,13 @@ import (
 type WorldSize uint8
 
 const (
-	WorldSizeTiny     WorldSize = iota // 640x256  — tests, quick iteration
-	WorldSizeSmall                     // 1280x512 — compact
-	WorldSizeStandard                  // 2560x1024 — recommended default
-	WorldSizeLarge                     // 3840x1536 — spacious
-	WorldSizeHuge                      // 5120x2048 — epic
+	WorldSizeTiny     WorldSize = iota // 640x256    — tests, quick iteration
+	WorldSizeSmall                     // 1280x512   — compact
+	WorldSizeStandard                  // 2560x1024  — recommended default
+	WorldSizeLarge                     // 3840x1536  — spacious
+	WorldSizeHuge                      // 5120x2048  — epic
+	WorldSizeColossal                  // 10240x4096 — ~42M tiles, multi-continent
+	WorldSizeGigantic                  // 20480x8192 — ~168M tiles, planetary
 )
 
 // sizePreset carries the configuration for one world size.
@@ -36,6 +38,8 @@ var sizePresets = [...]sizePreset{
 	WorldSizeStandard: {2560, 1024, 3, "Standard", 20, 25},
 	WorldSizeLarge:    {3840, 1536, 4, "Large", 30, 70},
 	WorldSizeHuge:     {5120, 2048, 5, "Huge", 40, 180},
+	WorldSizeColossal: {10240, 4096, 8, "Colossal", 80, 600},
+	WorldSizeGigantic: {20480, 8192, 12, "Gigantic", 150, 1800},
 }
 
 // Dimensions returns (width, height) in tiles for this size.
@@ -65,7 +69,9 @@ func (s WorldSize) String() string { return s.Label() }
 // AllSizes returns every world-size value in enum order.
 func AllSizes() []WorldSize {
 	return []WorldSize{
-		WorldSizeTiny, WorldSizeSmall, WorldSizeStandard, WorldSizeLarge, WorldSizeHuge,
+		WorldSizeTiny, WorldSizeSmall, WorldSizeStandard,
+		WorldSizeLarge, WorldSizeHuge, WorldSizeColossal,
+		WorldSizeGigantic,
 	}
 }
 
@@ -83,6 +89,10 @@ func ParseWorldSize(s string) (WorldSize, error) {
 		return WorldSizeLarge, nil
 	case "huge":
 		return WorldSizeHuge, nil
+	case "colossal":
+		return WorldSizeColossal, nil
+	case "gigantic":
+		return WorldSizeGigantic, nil
 	}
-	return 0, fmt.Errorf("unknown world size %q (tiny/small/standard/large/huge)", s)
+	return 0, fmt.Errorf("unknown world size %q (tiny/small/standard/large/huge/colossal/gigantic)", s)
 }

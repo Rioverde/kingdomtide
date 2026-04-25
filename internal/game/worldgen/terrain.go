@@ -28,7 +28,7 @@ func computeElevation(w *World, isOcean []bool) {
 	for i := range dist {
 		dist[i] = -1
 	}
-	queue := make([]uint16, 0, len(w.Voronoi.Cells))
+	queue := make([]uint32, 0, len(w.Voronoi.Cells))
 	// Seed BFS with coast cells (land with ocean neighbour) —
 	// computed inline so no separate isCoast slice is needed.
 	for id, cell := range w.Voronoi.Cells {
@@ -38,7 +38,7 @@ func computeElevation(w *World, isOcean []bool) {
 		for _, n := range cell.Neighbors {
 			if isOcean[n] {
 				dist[id] = 0
-				queue = append(queue, uint16(id))
+				queue = append(queue, uint32(id))
 				break
 			}
 		}
@@ -78,7 +78,7 @@ func computeElevation(w *World, isOcean []bool) {
 // whittakerTerrain and pickRiverHeads was tuned against.
 func redistributeElevation(w *World, isOcean []bool) {
 	type rank struct {
-		id   uint16
+		id   uint32
 		elev float32
 	}
 	land := make([]rank, 0, len(w.Voronoi.Cells))
@@ -86,7 +86,7 @@ func redistributeElevation(w *World, isOcean []bool) {
 		if isOcean[i] {
 			continue
 		}
-		land = append(land, rank{uint16(i), e})
+		land = append(land, rank{uint32(i), e})
 	}
 	if len(land) == 0 {
 		return
@@ -110,11 +110,11 @@ func computeMoisture(w *World, isWater []bool, seed int64) {
 	for i := range dist {
 		dist[i] = -1
 	}
-	queue := make([]uint16, 0, len(w.Voronoi.Cells))
+	queue := make([]uint32, 0, len(w.Voronoi.Cells))
 	for id := range isWater {
 		if isWater[id] {
 			dist[id] = 0
-			queue = append(queue, uint16(id))
+			queue = append(queue, uint32(id))
 		}
 	}
 	maxDist := 0
@@ -179,10 +179,10 @@ func computeMoisture(w *World, isWater []bool, seed int64) {
 		if isWater[i] {
 			continue
 		}
-		cur := uint16(i)
+		cur := uint32(i)
 		for hop := 0; hop < rainShadowHops; hop++ {
 			// Pick the neighbour most to the west (smallest CenterX).
-			best := uint16(0)
+			best := uint32(0)
 			bestX := math.MaxFloat64
 			found := false
 			for _, n := range w.Voronoi.Cells[cur].Neighbors {
@@ -243,6 +243,13 @@ func computeTemperature(w *World) {
 // moisture) to a world.Terrain value. Oceans split into deep vs
 // shallow based on whether they border any land; lakes collapse to
 // shallow ocean; everything else runs through the Whittaker table.
+//
+// Land cells with at least one ocean neighbour are forced to Beach
+// regardless of their post-perturbation elevation — without this,
+// fBm noise on the elevation field can lift coastal cells above the
+// beach threshold, leaving sparse / discontinuous coastlines. The
+// override skips peak-elevation cells so cliff-into-ocean still
+// reads as mountain.
 func assignTerrains(w *World, isOcean, isLake []bool) {
 	for i := range w.Voronoi.Cells {
 		switch {
@@ -263,9 +270,24 @@ func assignTerrains(w *World, isOcean, isLake []bool) {
 		case isLake[i]:
 			w.Terrain[i] = gworld.TerrainOcean
 		default:
-			w.Terrain[i] = whittakerTerrain(w.Elevation[i], w.Moisture[i], w.Temperature[i])
+			if cellTouchesOcean(w, i, isOcean) && w.Elevation[i] < biomePeakElev {
+				w.Terrain[i] = gworld.TerrainBeach
+			} else {
+				w.Terrain[i] = whittakerTerrain(w.Elevation[i], w.Moisture[i], w.Temperature[i])
+			}
 		}
 	}
+}
+
+// cellTouchesOcean reports whether cell i has at least one ocean
+// neighbour — coastline detection used to force the beach override.
+func cellTouchesOcean(w *World, i int, isOcean []bool) bool {
+	for _, n := range w.Voronoi.Cells[i].Neighbors {
+		if isOcean[n] {
+			return true
+		}
+	}
+	return false
 }
 
 // whittakerTerrain picks a game Terrain from (elevation, moisture,

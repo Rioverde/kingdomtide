@@ -17,6 +17,8 @@ func BenchmarkGenerate(b *testing.B) {
 		{"Standard", WorldSizeStandard},
 		{"Large", WorldSizeLarge},
 		{"Huge", WorldSizeHuge},
+		{"Colossal", WorldSizeColossal},
+		{"Gigantic", WorldSizeGigantic},
 	}
 	for _, c := range cases {
 		b.Run(c.name, func(b *testing.B) {

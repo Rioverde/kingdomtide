@@ -19,7 +19,7 @@ type corner struct {
 	elev       float32
 	downslope  int      // index into corners; -1 if local minimum
 	neighbors  []int    // adjacent corner indices
-	adjCells   []uint16 // unique cells touching this corner
+	adjCells   []uint32 // unique cells touching this corner
 	touchOcean bool     // true if any adjacent cell is ocean
 }
 
@@ -79,7 +79,7 @@ func buildCorners(w *World, isOcean []bool) []corner {
 			pos:       v,
 			downslope: -1,
 			neighbors: make([]int, 0, cornerArity),
-			adjCells:  make([]uint16, 0, cornerArity),
+			adjCells:  make([]uint32, 0, cornerArity),
 		}
 	}
 
@@ -88,10 +88,10 @@ func buildCorners(w *World, isOcean []bool) []corner {
 		b := int(e.Vb)
 		corners[a].neighbors = appendUnique(corners[a].neighbors, b)
 		corners[b].neighbors = appendUnique(corners[b].neighbors, a)
-		corners[a].adjCells = appendUniqueU16(corners[a].adjCells, e.CellL)
-		corners[a].adjCells = appendUniqueU16(corners[a].adjCells, e.CellR)
-		corners[b].adjCells = appendUniqueU16(corners[b].adjCells, e.CellL)
-		corners[b].adjCells = appendUniqueU16(corners[b].adjCells, e.CellR)
+		corners[a].adjCells = appendUniqueU32(corners[a].adjCells, e.CellL)
+		corners[a].adjCells = appendUniqueU32(corners[a].adjCells, e.CellR)
+		corners[b].adjCells = appendUniqueU32(corners[b].adjCells, e.CellL)
+		corners[b].adjCells = appendUniqueU32(corners[b].adjCells, e.CellR)
 	}
 
 	for i := range corners {
@@ -284,8 +284,8 @@ func appendUnique(s []int, v int) []int {
 	return append(s, v)
 }
 
-// appendUniqueU16 is the uint16 specialisation.
-func appendUniqueU16(s []uint16, v uint16) []uint16 {
+// appendUniqueU32 is the uint32 specialisation.
+func appendUniqueU32(s []uint32, v uint32) []uint32 {
 	for _, x := range s {
 		if x == v {
 			return s

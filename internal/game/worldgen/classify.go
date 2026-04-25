@@ -58,7 +58,7 @@ func classifyWater(w *World, seed int64) []bool {
 		go func(lo, hi int) {
 			defer wg.Done()
 			for i := lo; i < hi; i++ {
-				if w.Voronoi.TouchesEdge(uint16(i)) {
+				if w.Voronoi.TouchesEdge(uint32(i)) {
 					isWater[i] = true
 					continue
 				}
@@ -88,7 +88,10 @@ func classifyWater(w *World, seed int64) []bool {
 				}
 				v = (v/norm + 1) * 0.5
 
-				threshold := classifyBaseThreshold + classifySlopeThreshold*length*length
+				// Threshold rises with distance-from-centre via
+				// classifySlopePower; linear (1.0) seeds archipelago
+				// halos, quadratic (2.0) gives sharp coastlines.
+				threshold := classifyBaseThreshold + classifySlopeThreshold*math.Pow(length, classifySlopePower)
 				isWater[i] = v <= threshold
 			}
 		}(lo, hi)
@@ -130,11 +133,11 @@ func placeContinentCentres(rng *rand.Rand, width, height, count int, minSep floa
 func classifyOceanLake(w *World, isWater []bool) (isOcean, isLake []bool) {
 	isOcean = make([]bool, len(isWater))
 	isLake = make([]bool, len(isWater))
-	queue := make([]uint16, 0, len(isWater))
+	queue := make([]uint32, 0, len(isWater))
 	for id := range w.Voronoi.Cells {
-		if isWater[id] && w.Voronoi.TouchesEdge(uint16(id)) {
+		if isWater[id] && w.Voronoi.TouchesEdge(uint32(id)) {
 			isOcean[id] = true
-			queue = append(queue, uint16(id))
+			queue = append(queue, uint32(id))
 		}
 	}
 	for head := 0; head < len(queue); head++ {

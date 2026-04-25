@@ -1,6 +1,7 @@
 package worldgen
 
 import (
+	"math"
 	"runtime"
 	"sync"
 
@@ -46,12 +47,21 @@ func applyNoisyEdges(w *World, seed int64) {
 	ny := opensimplex.New(seed ^ saltNoisyEdgesY)
 
 	src := w.Voronoi.CellID
-	dst := make([]uint16, len(src))
+	dst := make([]uint32, len(src))
 	width := w.Width
 	height := w.Height
 	cf := noisyEdgesCoarseFactor
 	coarseOct := noisyEdgesCoarseOctaves
 	totalOct := noisyEdgesOctaves
+
+	// Dynamic amplitude and base frequency, both keyed off the
+	// average cell side. Amplitude controls how far cells intrude
+	// into neighbours; base frequency controls how long the lowest-
+	// octave wave is. Both scale with cellSide so visual quality
+	// stays consistent from Tiny to Gigantic.
+	avgCellSide := math.Sqrt(float64(width*height) / float64(len(w.Voronoi.Cells)))
+	amplitude := avgCellSide * noisyEdgesAmplitudeFactor
+	baseFreq := noisyEdgesFreqFactor / avgCellSide
 
 	// Total normalisation across all octaves so coarse + per-tile
 	// contributions sum to a unit-amplitude fBm.
@@ -102,9 +112,9 @@ func applyNoisyEdges(w *World, seed int64) {
 		go func(cyLo, cyHi int) {
 			defer wg.Done()
 			for cy := cyLo; cy < cyHi; cy++ {
-				fyBase := float64(cy*cf) * noisyEdgesFreq
+				fyBase := float64(cy*cf) * baseFreq
 				for cx := 0; cx < cw; cx++ {
-					fxBase := float64(cx*cf) * noisyEdgesFreq
+					fxBase := float64(cx*cf) * baseFreq
 
 					var sumDx, sumDy float64
 					amp := 1.0
@@ -146,7 +156,7 @@ func applyNoisyEdges(w *World, seed int64) {
 				ty1 := 1.0 - ty
 				row00 := gy * cw
 				row10 := (gy + 1) * cw
-				fyTile := float64(y) * noisyEdgesFreq
+				fyTile := float64(y) * baseFreq
 				for x := 0; x < width; x++ {
 					gx := x / cf
 					tx := float64(x%cf) / fcf
@@ -169,7 +179,7 @@ func applyNoisyEdges(w *World, seed int64) {
 					sumDy := coarseDy
 					amp := tileStartAmp
 					freq := tileStartFreq
-					fxTile := float64(x) * noisyEdgesFreq
+					fxTile := float64(x) * baseFreq
 					for oct := coarseOct; oct < totalOct; oct++ {
 						sumDx += amp * nx.Eval2(fxTile*freq, fyTile*freq)
 						sumDy += amp * ny.Eval2(fxTile*freq, fyTile*freq)
@@ -177,8 +187,8 @@ func applyNoisyEdges(w *World, seed int64) {
 						freq *= noisyEdgesLacunarity
 					}
 
-					dx := (sumDx / totalNorm) * noisyEdgesAmplitude
-					dy := (sumDy / totalNorm) * noisyEdgesAmplitude
+					dx := (sumDx / totalNorm) * amplitude
+					dy := (sumDy / totalNorm) * amplitude
 
 					sx := x + int(dx)
 					sy := y + int(dy)

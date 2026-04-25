@@ -172,14 +172,14 @@ func (w *World) IsRiver(x, y int) bool {
 }
 
 // IsOcean reports whether the cell's terrain is ocean-like.
-func (w *World) IsOcean(cellID uint16) bool {
+func (w *World) IsOcean(cellID uint32) bool {
 	t := w.Terrain[cellID]
 	return t == gworld.TerrainOcean || t == gworld.TerrainDeepOcean
 }
 
 // IsCoast reports whether the cell is land with at least one ocean
 // neighbour — derived from the Voronoi graph.
-func (w *World) IsCoast(cellID uint16) bool {
+func (w *World) IsCoast(cellID uint32) bool {
 	if w.IsOcean(cellID) {
 		return false
 	}

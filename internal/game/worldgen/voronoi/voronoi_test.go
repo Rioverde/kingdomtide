@@ -23,7 +23,7 @@ func TestGenerate_BasicShape(t *testing.T) {
 		t.Fatalf("cell count out of plausible range: got %d, target %d", len(d.Cells), count)
 	}
 	for i, c := range d.Cells {
-		if c.ID != uint16(i) {
+		if c.ID != uint32(i) {
 			t.Errorf("cell %d: ID mismatch (got %d)", i, c.ID)
 		}
 		if c.CenterX < 0 || c.CenterX > float64(w) || c.CenterY < 0 || c.CenterY > float64(h) {
@@ -53,14 +53,14 @@ func TestRasterizeNearest_Correctness(t *testing.T) {
 		for x := 0; x < w; x++ {
 			fx, fy := float64(x), float64(y)
 			best := math.MaxFloat64
-			want := uint16(0)
+			want := uint32(0)
 			for i, s := range sites {
 				dx := s.X - fx
 				dy := s.Y - fy
 				d := dx*dx + dy*dy
 				if d < best {
 					best = d
-					want = uint16(i)
+					want = uint32(i)
 				}
 			}
 			if got := cellID[y*w+x]; got != want {

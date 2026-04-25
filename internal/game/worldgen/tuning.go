@@ -36,6 +36,12 @@ const (
 	// classifySlopeThreshold pulls land away from continent edges —
 	// higher = sharper continent perimeter.
 	classifySlopeThreshold = 0.3
+	// classifySlopePower shapes how the threshold rises with distance
+	// from a continent centre. 2.0 (quadratic) gives sharp continent
+	// edges and zero archipelagos. 1.0 (linear) lets land probability
+	// fade gradually so noise pockets become small islands within
+	// ~2× continent radius — natural archipelago halos.
+	classifySlopePower = 1.0
 )
 
 // === Moisture (terrain.go) ===================================
@@ -182,19 +188,24 @@ const (
 const (
 	// noisyEdgesOctaves stacks octaves of displacement noise.
 	noisyEdgesOctaves = 4
-	// noisyEdgesFreq — base spatial frequency. ~25-tile period for
-	// the lowest octave; higher octaves multiply by lacunarity.
-	noisyEdgesFreq = 0.04
+	// noisyEdgesFreqFactor — base spatial frequency = factor /
+	// avgCellSide, so the lowest-octave period spans ~2× cell size
+	// regardless of world scale. Without this, Gigantic worlds (cell
+	// ~25 tiles) get one wave cycle per cell — not organic. With it,
+	// neighbouring cells share correlated wavy boundaries that read
+	// as continuous curves across the whole map.
+	noisyEdgesFreqFactor = 0.5
 	// noisyEdgesLacunarity — frequency multiplier per octave.
 	noisyEdgesLacunarity = 2.5
 	// noisyEdgesGain — amplitude multiplier per octave. 0.55 keeps
 	// high octaves contributing meaningful pixel-level jitter.
 	noisyEdgesGain = 0.55
-	// noisyEdgesAmplitude — overall ± per-axis tile displacement.
-	// 14 makes cells fully invade their neighbours at every fringe;
-	// combined with 3 per-tile high-freq octaves below, polygon
-	// outlines dissolve completely.
-	noisyEdgesAmplitude = 14.0
+	// noisyEdgesAmplitudeFactor scales the warp amplitude with the
+	// average cell side, so polygon-dissolution stays consistent
+	// across world sizes (Standard cells ~9 tiles, Gigantic ~25).
+	// 1.55× cell side = each cell can intrude into a full neighbour
+	// in either direction, dissolving the polygon outline.
+	noisyEdgesAmplitudeFactor = 1.55
 	// noisyEdgesCoarseOctaves splits the fBm: the LOW octaves (long
 	// wavelength, big curves) are baked onto a coarse grid and
 	// bilinearly interpolated — cheap and visually lossless. The

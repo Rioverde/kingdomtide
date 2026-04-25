@@ -49,10 +49,10 @@ type Vertex struct {
 // Lloyd's the site IS the raster centroid), and the list of cell
 // IDs whose regions it borders.
 type Cell struct {
-	ID        uint16
+	ID        uint32
 	CenterX   float64
 	CenterY   float64
-	Neighbors []uint16
+	Neighbors []uint32
 }
 
 // Edge separates two adjacent cells; its two endpoints are corner
@@ -60,15 +60,15 @@ type Cell struct {
 type Edge struct {
 	Va    uint32
 	Vb    uint32
-	CellL uint16
-	CellR uint16
+	CellL uint32
+	CellR uint32
 }
 
 // Diagram is the complete raster-based Voronoi layout.
 type Diagram struct {
 	W, H   int
 	Cells  []Cell
-	CellID []uint16 // W*H, per-tile cell assignment
+	CellID []uint32 // W*H, per-tile cell assignment
 
 	// Vertices are polygon corners — points where 3+ cells meet.
 	// Integer raster positions stored as float64 for math interop.
@@ -112,7 +112,7 @@ func Generate(seed int64, w, h, cellCount, lloydIterations int, _ float64) *Diag
 	cells := make([]Cell, len(sites))
 	for i, s := range sites {
 		cells[i] = Cell{
-			ID:      uint16(i),
+			ID:      uint32(i),
 			CenterX: s.X,
 			CenterY: s.Y,
 		}
@@ -141,7 +141,7 @@ func Generate(seed int64, w, h, cellCount, lloydIterations int, _ float64) *Diag
 // computeBorderCells walks the four outer rows/columns of the
 // rasterised CellID grid once and flags every cell ID seen. Replaces
 // the per-call O(W+H) TouchesEdge scan with an O(1) lookup.
-func computeBorderCells(cellID []uint16, w, h, cellCount int) []bool {
+func computeBorderCells(cellID []uint32, w, h, cellCount int) []bool {
 	out := make([]bool, cellCount)
 	for x := 0; x < w; x++ {
 		out[cellID[x]] = true
@@ -167,14 +167,14 @@ func (d *Diagram) CellAt(x, y int) *Cell {
 }
 
 // CellIDAt returns the cell ID at a tile.
-func (d *Diagram) CellIDAt(x, y int) uint16 {
+func (d *Diagram) CellIDAt(x, y int) uint32 {
 	return d.CellID[y*d.W+x]
 }
 
 // TouchesEdge reports whether any tile of the cell lies on the outer
 // border of the diagram. O(1) lookup against the precomputed border
 // cell set built in Generate.
-func (d *Diagram) TouchesEdge(cellID uint16) bool {
+func (d *Diagram) TouchesEdge(cellID uint32) bool {
 	if int(cellID) >= len(d.borderCells) {
 		return false
 	}
@@ -269,7 +269,7 @@ func placeSeeds(rng *rand.Rand, w, h, count int) []Vertex {
 //
 // Parallelised over row bands; per-worker accumulators are merged at
 // the end so the centroid math stays lock-free.
-func computeRasterCentroids(cellID []uint16, sites []Vertex, w, h int) []Vertex {
+func computeRasterCentroids(cellID []uint32, sites []Vertex, w, h int) []Vertex {
 	n := len(sites)
 	if n == 0 {
 		return sites
@@ -341,8 +341,8 @@ func computeRasterCentroids(cellID []uint16, sites []Vertex, w, h int) []Vertex 
 // (horizontal or vertical). Each unordered pair is added at most
 // once; cells receive a neighbour list of cell IDs in arbitrary
 // order. O(W·H) plus O(N·avg-neighbours) inserts.
-func buildAdjacency(cells []Cell, cellID []uint16, w, h int) {
-	seen := make(map[uint32]struct{}, len(cells)*6)
+func buildAdjacency(cells []Cell, cellID []uint32, w, h int) {
+	seen := make(map[uint64]struct{}, len(cells)*6)
 	for y := 0; y < h; y++ {
 		row := y * w
 		for x := 0; x < w; x++ {
@@ -363,11 +363,11 @@ func buildAdjacency(cells []Cell, cellID []uint16, w, h int) {
 	}
 }
 
-func addAdjacency(cells []Cell, seen map[uint32]struct{}, a, b uint16) {
+func addAdjacency(cells []Cell, seen map[uint64]struct{}, a, b uint32) {
 	if a > b {
 		a, b = b, a
 	}
-	key := uint32(a)<<16 | uint32(b)
+	key := uint64(a)<<32 | uint64(b)
 	if _, dup := seen[key]; dup {
 		return
 	}
@@ -382,7 +382,7 @@ func addAdjacency(cells []Cell, seen map[uint32]struct{}, a, b uint16) {
 // (x+0.5, y+0.5) — the centre of the 2×2 window. Returns the corner
 // vertices and, for each corner, the deduplicated list of cells
 // touching it (≤4, typically 3).
-func findCorners(cellID []uint16, w, h int) ([]Vertex, [][]uint16) {
+func findCorners(cellID []uint32, w, h int) ([]Vertex, [][]uint32) {
 	if w < 2 || h < 2 {
 		return nil, nil
 	}
@@ -390,7 +390,7 @@ func findCorners(cellID []uint16, w, h int) ([]Vertex, [][]uint16) {
 	// runs around 2× sites for a Voronoi diagram.
 	hint := (w * h) / 100
 	verts := make([]Vertex, 0, hint)
-	cellsPerVert := make([][]uint16, 0, hint)
+	cellsPerVert := make([][]uint32, 0, hint)
 
 	for y := 0; y < h-1; y++ {
 		row := y * w
@@ -405,7 +405,7 @@ func findCorners(cellID []uint16, w, h int) ([]Vertex, [][]uint16) {
 				continue
 			}
 			// Dedup the four IDs into a stack-allocated 4-slot array.
-			var arr [4]uint16
+			var arr [4]uint32
 			n := 1
 			arr[0] = a
 			if b != arr[0] {
@@ -439,7 +439,7 @@ func findCorners(cellID []uint16, w, h int) ([]Vertex, [][]uint16) {
 			}
 			// 3+ distinct cells around this 2×2 — corner.
 			verts = append(verts, Vertex{X: float64(x) + 0.5, Y: float64(y) + 0.5})
-			adj := make([]uint16, n)
+			adj := make([]uint32, n)
 			copy(adj, arr[:n])
 			cellsPerVert = append(cellsPerVert, adj)
 		}
@@ -463,9 +463,9 @@ func findCorners(cellID []uint16, w, h int) ([]Vertex, [][]uint16) {
 // Uses a flat sorted slice instead of a map to avoid per-key slice
 // allocations. Each vertex × cell-pair combo becomes one entry; sort
 // groups them; a single pass emits edges. Deterministic by sort key.
-func buildEdges(vertCells [][]uint16) []Edge {
+func buildEdges(vertCells [][]uint32) []Edge {
 	type entry struct {
-		key  uint32 // uint16(a)<<16 | uint16(b), a<=b
+		key  uint64 // uint32(a)<<32 | uint32(b), a<=b
 		vert uint32
 	}
 
@@ -478,7 +478,7 @@ func buildEdges(vertCells [][]uint16) []Edge {
 					a, b = b, a
 				}
 				entries = append(entries, entry{
-					key:  uint32(a)<<16 | uint32(b),
+					key:  uint64(a)<<32 | uint64(b),
 					vert: uint32(vi),
 				})
 			}
@@ -501,8 +501,8 @@ func buildEdges(vertCells [][]uint16) []Edge {
 		// run [i, j) shares a cell-pair; need ≥2 vertices for an edge.
 		if j-i >= 2 {
 			anchor := entries[i].vert
-			a := uint16(entries[i].key >> 16)
-			b := uint16(entries[i].key)
+			a := uint32(entries[i].key >> 32)
+			b := uint32(entries[i].key)
 			for k := i + 1; k < j; k++ {
 				edges = append(edges, Edge{
 					Va:    anchor,
@@ -551,12 +551,12 @@ func newSiteGrid(sites []Vertex, w, h int) siteGrid {
 // ring's minimum possible distance exceeds the current best — for a
 // Lloyd-relaxed layout this almost always terminates after the 3×3
 // home ring (9 buckets, ~9 sites checked).
-func (g *siteGrid) nearest(sites []Vertex, fx, fy float64) uint16 {
+func (g *siteGrid) nearest(sites []Vertex, fx, fy float64) uint32 {
 	cTile := clampInt(int(fx/g.bucketSize), 0, g.cols-1)
 	rTile := clampInt(int(fy/g.bucketSize), 0, g.rows-1)
 
 	bestDist := math.MaxFloat64
-	bestID := uint16(0)
+	bestID := uint32(0)
 	for ring := 0; ; ring++ {
 		bestDist, bestID = g.scanRing(sites, fx, fy, cTile, rTile, ring, bestDist, bestID)
 		if bestDist == math.MaxFloat64 {
@@ -581,7 +581,7 @@ func (g *siteGrid) nearest(sites []Vertex, fx, fy float64) uint16 {
 // scanRing visits every bucket at chebyshev distance == ring from
 // (cTile, rTile) and updates (bestDist, bestID) against the sites it
 // holds. Returns the new best.
-func (g *siteGrid) scanRing(sites []Vertex, fx, fy float64, cTile, rTile, ring int, bestDist float64, bestID uint16) (float64, uint16) {
+func (g *siteGrid) scanRing(sites []Vertex, fx, fy float64, cTile, rTile, ring int, bestDist float64, bestID uint32) (float64, uint32) {
 	rLo := rTile - ring
 	rHi := rTile + ring
 	cLo := cTile - ring
@@ -608,7 +608,7 @@ func (g *siteGrid) scanRing(sites []Vertex, fx, fy float64, cTile, rTile, ring i
 				d := dx*dx + dy*dy
 				if d < bestDist {
 					bestDist = d
-					bestID = uint16(i)
+					bestID = uint32(i)
 				}
 			}
 		}
@@ -628,8 +628,8 @@ func (g *siteGrid) hasMoreRings(cTile, rTile, ring int) bool {
 // uniform spatial grid. Per-tile cost is bounded — 25 buckets × ~1
 // site each — collapsing the naive O(W·H·N) work to O(W·H · const).
 // Parallelised over row bands; the grid is read-only after build.
-func rasterizeNearest(w, h int, sites []Vertex) []uint16 {
-	out := make([]uint16, w*h)
+func rasterizeNearest(w, h int, sites []Vertex) []uint32 {
+	out := make([]uint32, w*h)
 	if len(sites) == 0 {
 		return out
 	}
