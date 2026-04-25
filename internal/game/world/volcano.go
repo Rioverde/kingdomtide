@@ -78,8 +78,10 @@ type Volcano struct {
 // Returning nil or an empty slice is the correct way to signal "no
 // volcanoes in this super-chunk". TerrainOverrideAt returns ("", false)
 // when t is not covered by any volcano footprint. All returns every
-// placed volcano in a stable order; implementations that do not
-// enumerate volcanoes may return nil.
+// placed volcano in a stable order, with the outer slice and each
+// volcano's tile slices cloned so callers may mutate the result
+// freely; implementations that do not enumerate volcanoes may return
+// nil.
 type VolcanoSource interface {
 	VolcanoAt(sc geom.SuperChunkCoord) []Volcano
 	TerrainOverrideAt(t geom.Position) (Terrain, bool)

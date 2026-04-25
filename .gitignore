@@ -36,5 +36,7 @@ CLAUDE.md
 .omc/*
 internal/.omc/*
 /cmd/server/server
+/worldgen-explorer
+/cmd/devtools/*/worldgen-explorer
 .ssh/
 .claude/

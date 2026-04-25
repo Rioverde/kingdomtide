@@ -61,9 +61,10 @@ func (c *volcanoCache) TerrainOverrideAt(t geom.Position) (world.Terrain, bool) 
 	return c.source.TerrainOverrideAt(t)
 }
 
-// All delegates directly to the underlying source. The full volcano list
-// is already held in the production *worldgen.VolcanoSource; caching it
-// here would be redundant.
+// All delegates directly to the underlying source, which clones its
+// internal volcano list on every call. Caching the clone here would
+// hand the same slice to multiple callers and reintroduce the aliasing
+// the source clone is meant to prevent.
 func (c *volcanoCache) All() []world.Volcano { return c.source.All() }
 
 // Len returns the number of entries currently held by the LRU. Test-only.

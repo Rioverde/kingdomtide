@@ -2,6 +2,7 @@ package worldgen
 
 import (
 	"math/rand/v2"
+	"slices"
 	"sort"
 
 	"github.com/Rioverde/gongeons/internal/game/geom"
@@ -182,9 +183,20 @@ func (s *VolcanoSource) TerrainOverrideAt(t geom.Position) (world.Terrain, bool)
 	return "", false
 }
 
-// All returns every placed volcano, sorted by anchor coord. Test-only;
-// callers must not mutate the returned slice or its elements.
-func (s *VolcanoSource) All() []world.Volcano { return s.volcanoes }
+// All returns every placed volcano, sorted by anchor coord. Test-only:
+// each call clones the outer slice and every per-volcano tile slice so
+// callers can mutate the result without affecting the source's
+// precomputed lookups (which the cache layer also references).
+func (s *VolcanoSource) All() []world.Volcano {
+	out := make([]world.Volcano, len(s.volcanoes))
+	for i, v := range s.volcanoes {
+		v.CoreTiles = slices.Clone(v.CoreTiles)
+		v.SlopeTiles = slices.Clone(v.SlopeTiles)
+		v.AshlandTiles = slices.Clone(v.AshlandTiles)
+		out[i] = v
+	}
+	return out
+}
 
 // collectCandidates scans every cell once and returns the anchor
 // position of every cell that satisfies the eligibility filter.
