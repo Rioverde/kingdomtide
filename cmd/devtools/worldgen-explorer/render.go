@@ -167,6 +167,8 @@ func renderCell(m *Model, wx, wy, zoom int) string {
 		return renderLandmarkCell(m, wx, wy, zoom, cellID)
 	case layerDeposits:
 		return renderDepositCell(m, wx, wy, zoom, cellID)
+	case layerCamps:
+		return renderCampCell(m, wx, wy, zoom)
 	}
 	return "  "
 }
@@ -256,6 +258,21 @@ var (
 	depositKindCell [13]string
 	// depositDimStyle — dim style for the base tile shown beneath deposits.
 	depositDimStyle lipgloss.Style
+
+	// campAnchorCell[regionIdx] — styled "c " cell for a camp anchor tile,
+	// foreground tinted by region (7 entries matching regionTintBg palette).
+	campAnchorCell [7]string
+	// campFootCell[regionIdx] — styled "o " cell for a non-anchor footprint tile.
+	campFootCell [7]string
+	// campFaithBg — background colour per Faith for the optional faith overlay.
+	// Index matches polity.Faith iota order (0=OldGods … 4=StormPact).
+	campFaithBg [5]lipgloss.Color
+	// campFaithBgCell[regionIdx][faithIdx][anchorBit] — pre-rendered cell for the
+	// faith-background overlay path. anchorBit: 0=footprint tile, 1=anchor tile.
+	// 7 regions × 5 faiths × 2 anchor states = 70 strings, built once at init().
+	campFaithBgCell [7][5][2]string
+	// campDimCell — fallback dim cell for tiles with no camp on this layer.
+	campDimCell string
 )
 
 const scalarBuckets = 32
@@ -419,6 +436,53 @@ func init() {
 		depositKindCell[i] = e.style.Render(e.glyph)
 	}
 	depositDimStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("236"))
+
+	// Camp layer: faith background palette.
+	// Index matches polity.Faith iota: 0=OldGods, 1=SunCovenant, 2=GreenSage,
+	// 3=OneOath, 4=StormPact.
+	campFaithBg = [5]lipgloss.Color{
+		"#4a4a4a", // FaithOldGods     — dark grey (ancient, neutral)
+		"#b8860b", // FaithSunCovenant — dark gold (solar)
+		"#2e7d32", // FaithGreenSage   — forest green (nature)
+		"#8b0000", // FaithOneOath     — dark crimson (martial)
+		"#4682b4", // FaithStormPact   — steel blue (sea/storm)
+	}
+
+	// Camp layer: region-tinted foreground for anchor ("c") and foot ("o") glyphs.
+	// regionFgColors mirrors the thematic palette used by regionTintBg but as
+	// foreground hues so they read against any background.
+	regionFgColors := [7]lipgloss.Color{
+		"250", // RegionNormal   — light grey
+		"245", // RegionBlighted — medium grey
+		"135", // RegionFey      — purple
+		"130", // RegionAncient  — brown
+		"160", // RegionSavage   — red
+		"231", // RegionHoly     — white
+		"34",  // RegionWild     — green
+	}
+	for i, fg := range regionFgColors {
+		anchorStyle := lipgloss.NewStyle().Foreground(fg).Bold(true)
+		footStyle := lipgloss.NewStyle().Foreground(fg)
+		campAnchorCell[i] = anchorStyle.Render("c ")
+		campFootCell[i] = footStyle.Render("o ")
+	}
+
+	// Pre-render the faith-background overlay table: 7 regions × 5 faiths × 2
+	// anchor states. Eliminates per-frame style construction when showCampFaithBg
+	// is true.
+	for regionIdx, fg := range regionFgColors {
+		for faithIdx, bg := range campFaithBg {
+			footStyle := lipgloss.NewStyle().Foreground(fg).Background(bg)
+			anchorStyle := lipgloss.NewStyle().Foreground(fg).Background(bg).Bold(true)
+			campFaithBgCell[regionIdx][faithIdx][0] = footStyle.Render("o ")
+			campFaithBgCell[regionIdx][faithIdx][1] = anchorStyle.Render("c ")
+		}
+	}
+
+	campDimCell = lipgloss.NewStyle().
+		Foreground(lipgloss.Color("239")).
+		Background(lipgloss.Color("233")).
+		Render("  ")
 }
 
 func scalarBucket(v float32) int {
@@ -579,6 +643,65 @@ func renderDepositCell(m *Model, wx, wy, zoom int, cellID uint32) string {
 		}
 	}
 	return base
+}
+
+// renderCampCell returns a styled cell for the camps layer. Anchor tiles
+// render as "c", other footprint tiles as "o"; both are tinted by the
+// camp's RegionCharacter. When showCampFaithBg is true the background is
+// coloured by the camp's Faith. Non-camp tiles render as campDimCell.
+func renderCampCell(m *Model, wx, wy, zoom int) string {
+	if m.campIndex == nil {
+		return campDimCell
+	}
+
+	// At zoom=1 use the exact-tile fast path; at zoom>1 scan the block.
+	var found bool
+	var camp gworld.Camp
+	if zoom == 1 {
+		key := geom.PackPos(geom.Position{X: wx, Y: wy})
+		camp, found = m.campIndex[key]
+	} else {
+		for dy := 0; dy < zoom && !found; dy++ {
+			for dx := 0; dx < zoom && !found; dx++ {
+				key := geom.PackPos(geom.Position{X: wx + dx, Y: wy + dy})
+				if c, ok := m.campIndex[key]; ok {
+					camp = c
+					found = true
+				}
+			}
+		}
+	}
+	if !found {
+		return campDimCell
+	}
+
+	regionIdx := int(camp.Region)
+	if regionIdx < 0 || regionIdx >= len(campAnchorCell) {
+		regionIdx = 0
+	}
+
+	isAnchor := (zoom == 1 && geom.PackPos(geom.Position{X: wx, Y: wy}) == geom.PackPos(camp.Anchor)) ||
+		(zoom > 1 && wx <= camp.Anchor.X && camp.Anchor.X < wx+zoom &&
+			wy <= camp.Anchor.Y && camp.Anchor.Y < wy+zoom)
+
+	if !m.showCampFaithBg {
+		if isAnchor {
+			return campAnchorCell[regionIdx]
+		}
+		return campFootCell[regionIdx]
+	}
+
+	// Faith background overlay: look up the pre-rendered cell (built once at
+	// init) to avoid per-frame style construction.
+	faithIdx := int(camp.Faith)
+	if faithIdx < 0 || faithIdx >= len(campFaithBg) {
+		faithIdx = 0
+	}
+	anchorBit := 0
+	if isAnchor {
+		anchorBit = 1
+	}
+	return campFaithBgCell[regionIdx][faithIdx][anchorBit]
 }
 
 func lerpRGB(r0, g0, b0, r1, g1, b1 int, t float64) (int, int, int) {

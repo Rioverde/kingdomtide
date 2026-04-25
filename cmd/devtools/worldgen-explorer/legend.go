@@ -17,6 +17,7 @@ var (
 	legendDeposits  string
 	legendVolcanic  string
 	legendRegions   string
+	legendCamps     string
 )
 
 // legendLabelStyle renders the category label that prefixes each legend row.
@@ -30,6 +31,7 @@ func init() {
 	legendDeposits = buildDepositLegend()
 	legendVolcanic = buildVolcanicLegend()
 	legendRegions = buildRegionLegend()
+	legendCamps = buildCampLegend()
 }
 
 // terrainLegendOrder is the display sequence for the biome legend row.
@@ -187,6 +189,56 @@ func buildRegionLegend() string {
 	return sb.String()
 }
 
+// campLegendGlyphEntries lists the two camp glyph types with their styles.
+var campLegendGlyphEntries = []struct {
+	glyph string
+	style lipgloss.Style
+	name  string
+}{
+	{"c", lipgloss.NewStyle().Foreground(lipgloss.Color("250")).Bold(true), "anchor"},
+	{"o", lipgloss.NewStyle().Foreground(lipgloss.Color("250")), "footprint"},
+}
+
+// campFaithLegendEntries lists every faith with its background colour.
+var campFaithLegendEntries = []struct {
+	name string
+	bg   lipgloss.Color
+}{
+	{"OldGods", "#4a4a4a"},
+	{"SunCovenant", "#b8860b"},
+	{"GreenSage", "#2e7d32"},
+	{"OneOath", "#8b0000"},
+	{"StormPact", "#4682b4"},
+}
+
+func buildCampLegend() string {
+	var sb strings.Builder
+	sb.WriteString(legendLabelStyle.Render("CAMPS: "))
+	for _, e := range campLegendGlyphEntries {
+		sb.WriteString(e.style.Render(e.glyph))
+		sb.WriteByte(' ')
+		sb.WriteString(e.name)
+		sb.WriteString("  ")
+	}
+	sb.WriteString(legendLabelStyle.Render(" fg=Region "))
+	for i, e := range regionLegendEntries {
+		sb.WriteString(tilestyle.StyleFor(e.t).Reverse(true).Render(" "))
+		sb.WriteByte(' ')
+		sb.WriteString(e.name)
+		if i < len(regionLegendEntries)-1 {
+			sb.WriteString("  ")
+		}
+	}
+	sb.WriteString(legendLabelStyle.Render("  bg=Faith(c to toggle): "))
+	for _, e := range campFaithLegendEntries {
+		sb.WriteString(lipgloss.NewStyle().Background(e.bg).Render("  "))
+		sb.WriteByte(' ')
+		sb.WriteString(e.name)
+		sb.WriteString("  ")
+	}
+	return sb.String()
+}
+
 // renderLegend assembles the context-aware legend for the current layer.
 // Always shows the biome row; appends layer-specific rows below it.
 func (m Model) renderLegend() string {
@@ -211,6 +263,9 @@ func (m Model) renderLegend() string {
 	case layerRegions:
 		sb.WriteString(legendRegions)
 		sb.WriteByte('\n')
+	case layerCamps:
+		sb.WriteString(legendCamps)
+		sb.WriteByte('\n')
 	}
 
 	return sb.String()
@@ -226,7 +281,7 @@ func legendLineCount(l layer) int {
 	case layerLandmarks:
 		// biomes + landmarks
 		return 2
-	case layerDeposits, layerVolcanoes, layerRegions:
+	case layerDeposits, layerVolcanoes, layerRegions, layerCamps:
 		// biomes + one layer row
 		return 2
 	default:
