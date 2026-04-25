@@ -222,3 +222,122 @@ const (
 	// at this scale (lowest-octave period is ~25 tiles >> 8).
 	noisyEdgesCoarseFactor = 8
 )
+
+// === Camps (camp_source.go) ==================================
+//
+// Camps are the pre-historic settler clusters that seed the
+// 200-year fold-forward simulation (KINGDOMS.md §2.6 footprint
+// shape; placement is its own algorithm). A camp is a 2-3 tile
+// settlement scattered across the world via Bridson Poisson-disk
+// sampling, weighted by a per-cell habitability score. Survivors
+// of the simulation become Cities or Villages; non-survivors die.
+const (
+	// campMinSpacing is the minimum tile distance between any two
+	// camp anchors (Bridson radius). 8 tiles → ~30-40 candidates
+	// per 64×64 super-chunk; balanced between organic density
+	// (medieval Europe ~ village every 2-5 km) and per-year
+	// simulation cost.
+	campMinSpacing = 8
+	// campPoissonK is the Bridson rejection-sampling parameter.
+	// Standard 30; higher values waste time without changing
+	// resulting density meaningfully.
+	campPoissonK = 30
+	// campZipfMin is the smallest viable initial population.
+	// 10 = a single extended family. Below this a 'camp' is
+	// indistinguishable from a transient hunting party.
+	campZipfMin = 10.0
+	// campZipfAlpha shapes the Pareto distribution of initial
+	// population. 1.5 is steeper than the city Pareto (1.0): most
+	// camps stay tiny, a few rare ones approach campMaxPop.
+	campZipfAlpha = 1.5
+	// campMaxPop caps the initial population at founding. After 200
+	// years of simulation, surviving camps can grow far beyond this —
+	// the cap only constrains the seed value.
+	campMaxPop = 50.0
+	// campFootprintSmallPopThreshold splits the 2-tile and 3-tile
+	// footprint budget. Camps with Pop ≤ this get 2 tiles; above
+	// it, 3 tiles. Mirrors KINGDOMS.md §2.6 villageTileCount.
+	campFootprintSmallPopThreshold int32 = 25
+	// campHabitabilityFloor is the minimum cell habitability score for a
+	// candidate to be eligible. 0.15 keeps empty regions empty —
+	// desert/tundra-only zones may have zero camps, which is correct.
+	// Raise the floor to restrict camps to only the best terrain;
+	// lower it to allow marginal terrain candidates.
+	campHabitabilityFloor = 0.15
+	// campRegionAffinityMin and campRegionAffinityMax bracket
+	// the per-super-chunk "settlement willingness" roll. Each
+	// region rolls a uniform value in [min, max] once at
+	// worldgen time; the result multiplies every candidate's
+	// habitability score inside that region. Some regions
+	// become densely populated, others stay sparse — organic
+	// variance independent of biome quality. Range [0.5, 1.5]
+	// gives up to 3× density spread between adjacent regions
+	// while keeping the lower bound above zero so no region is
+	// guaranteed empty just by RNG.
+	campRegionAffinityMin = 0.5
+	campRegionAffinityMax = 1.5
+	// campRarityMultiplier scales the final Gate-6 acceptance roll by
+	// a flat multiplier so density becomes a single predictable dial.
+	// 0.25 means: even on perfect terrain (Plains, h=0.95, affinity=1.5)
+	// each Bridson candidate has only ~25% chance of becoming a camp.
+	// Tune up for denser worlds, down for sparser. Per-camp Pop and
+	// Faith distributions are unaffected because this multiplier is
+	// uniform across terrain quality.
+	campRarityMultiplier = 0.25
+)
+
+// === Habitability bonuses (habitability.go) ==================
+//
+// Per-bonus knobs for habitabilityAt. Tuned so a Plains tile next to a
+// river with one food deposit nearby lands above 1.0 (clamped), while a
+// Tundra tile with no water and no deposits stays well below
+// campHabitabilityFloor.
+const (
+	// campCoastBonus is added when w.IsCoast(cellID) is true. Coastal
+	// trade and fishing make even mediocre biomes attractive.
+	campCoastBonus = 0.10
+	// campRiverBonus is added when w.IsRiver(p.X, p.Y) is true. Rivers
+	// supply fresh water and transport — historically the single most
+	// important settlement factor.
+	campRiverBonus = 0.15
+	// campFoodDepositBonus is added per Fertile/Fish/Game deposit within
+	// campDepositSearchRadius. Multiple deposits stack but the score is
+	// clamped at 1.0.
+	campFoodDepositBonus = 0.08
+	// campGenericDepositBonus is added per non-food deposit (Iron, Stone,
+	// Timber, Salt, Gold, Silver, Gems, Obsidian, Sulfur) within
+	// campDepositSearchRadius. Lower than food because raw materials do
+	// not directly feed people.
+	campGenericDepositBonus = 0.04
+	// campDepositSearchRadius is the Chebyshev radius queried by
+	// habitabilityAt for nearby deposits. 5 tiles ≈ a half-day's walk in
+	// medieval terms.
+	campDepositSearchRadius = 5
+	// campVolcanoPenaltyRadius is the Chebyshev radius beyond a volcano's
+	// footprint that triggers the proximity penalty. Hard-rejected tiles
+	// (inside the footprint) are filtered by the gate chain, not here.
+	campVolcanoPenaltyRadius = 8
+	// campVolcanoPenaltyMult halves the habitability score for tiles
+	// within campVolcanoPenaltyRadius of a volcano. Visible volcanic
+	// hazard suppresses but does not eliminate settlement (Pompeii,
+	// Catania).
+	campVolcanoPenaltyMult = 0.4
+)
+
+// === Camp seed salts (camp_source.go) ========================
+//
+// One PCG stream per camp subsystem. Each salt is the fractional
+// hex of √(distinct prime) so streams are decorrelated. No
+// subsystem reads from another's stream.
+const (
+	seedSaltCamp               int64 = 0x6e8c4d7a9b2f51c3
+	seedSaltCampFaith          int64 = 0x3a5e7b9f2c4d1068
+	seedSaltCampPop            int64 = 0x5b9e3f7c2a8d4061
+	seedSaltCampFootprint      int64 = 0x7c1b5f3a9e2d8064
+	seedSaltCampRegionAffinity int64 = 0x2f8a4c1e7b5d9063
+	// seedSaltCampAccept drives the per-candidate weighted acceptance roll
+	// (Gate 6). Kept distinct from seedSaltCamp (Bridson stream) so the
+	// two PCG streams are decorrelated — identical seed+SC combos hit
+	// different PRNG states. Value: fractional hex of √83.
+	seedSaltCampAccept int64 = 0x1d4a8c3e9f2b5071
+)
