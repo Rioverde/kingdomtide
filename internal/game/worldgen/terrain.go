@@ -9,11 +9,14 @@ import (
 	gworld "github.com/Rioverde/gongeons/internal/game/world"
 )
 
-// saltMoistNoise / saltTempNoise are the fixed salts for the
-// moisture-perturbation and temperature-jitter noise fields.
+// saltMoistNoise / saltTempNoise / saltElevNoise / saltBiomeSmooth
+// are fixed salts that prevent correlated noise fields across pipeline
+// stages when they share the same world seed.
 const (
-	saltMoistNoise int64 = 0x082efa98ec4eec6a
-	saltTempNoise  int64 = 0x38d8c2c4e0a4f7a3
+	saltMoistNoise  int64 = 0x082efa98ec4eec6a
+	saltTempNoise   int64 = 0x38d8c2c4e0a4f7a3
+	saltElevNoise   int64 = 0x5d3a8f7b2c4e9a1f
+	saltBiomeSmooth int64 = 0x7e2b9f4a6d8c3e51
 )
 
 // computeElevation walks outward from coast cells (land with at
@@ -98,9 +101,10 @@ func redistributeElevation(w *World, isOcean []bool) {
 }
 
 // computeMoisture — multi-source BFS from every water cell. Distance
-// in hops = dryness; inverted and normalised to [0, 1]. A final
-// noise perturbation breaks the uniform BFS gradient so adjacent
-// cells land in different biome bands.
+// in hops = dryness; inverted and normalised to [0, 1]. A multi-octave
+// fBm perturbation breaks the uniform BFS gradient so adjacent cells
+// land in different Whittaker bands. A rain-shadow pass then penalises
+// cells sheltered behind high terrain to the west.
 func computeMoisture(w *World, isWater []bool, seed int64) {
 	dist := make([]int, len(w.Voronoi.Cells))
 	for i := range dist {
@@ -128,20 +132,34 @@ func computeMoisture(w *World, isWater []bool, seed int64) {
 		}
 	}
 
-	// Noise perturbation — shifts each cell by up to ±moistureJitter
-	// so the BFS distribution spreads across the Whittaker bands
-	// instead of bunching all cells at similar moisture.
+	// Multi-octave fBm perturbation — 4 octaves spread moisture across
+	// the Whittaker bands much more effectively than a single-octave
+	// jitter. Each octave doubles frequency and halves amplitude; the
+	// sum is normalised before scaling by moistureJitter.
 	noise := opensimplex.New(seed ^ saltMoistNoise)
 	halfH := float64(w.Height) / 2
+	halfW := float64(w.Width) / 2
 	for i, d := range dist {
 		var v float32
 		if d >= 0 && maxDist > 0 {
 			v = 1 - float32(d)/float32(maxDist)
 		}
 		cell := w.Voronoi.Cells[i]
-		nx := (cell.CenterX - float64(w.Width)/2) / halfH
+		nx := (cell.CenterX - halfW) / halfH
 		ny := (cell.CenterY - halfH) / halfH
-		jitter := float32(noise.Eval2(nx*moistureNoiseFreq, ny*moistureNoiseFreq)) * moistureJitter
+
+		fbm := 0.0
+		amp := 1.0
+		freq := moistureNoiseFreq
+		norm := 0.0
+		for oct := 0; oct < moistureOctaves; oct++ {
+			fbm += amp * noise.Eval2(nx*freq, ny*freq)
+			norm += amp
+			amp *= moistureGain
+			freq *= moistureLacunarity
+		}
+		jitter := float32(fbm/norm) * moistureJitter
+
 		v += jitter
 		if v < 0 {
 			v = 0
@@ -150,6 +168,44 @@ func computeMoisture(w *World, isWater []bool, seed int64) {
 			v = 1
 		}
 		w.Moisture[i] = v
+	}
+
+	// Rain shadow pass — for each land cell, walk up to rainShadowHops
+	// westward via the neighbour with the smallest CenterX. If any
+	// visited cell has elevation above the threshold (i.e. a mountain
+	// blocking the prevailing westerlies), penalise this cell's moisture.
+	// Walking the cell graph is O(N·hops) and avoids a spatial hash.
+	for i, cell := range w.Voronoi.Cells {
+		if isWater[i] {
+			continue
+		}
+		cur := uint16(i)
+		for hop := 0; hop < rainShadowHops; hop++ {
+			// Pick the neighbour most to the west (smallest CenterX).
+			best := uint16(0)
+			bestX := math.MaxFloat64
+			found := false
+			for _, n := range w.Voronoi.Cells[cur].Neighbors {
+				nx := w.Voronoi.Cells[n].CenterX
+				// Only walk west — stop if no neighbour is further west.
+				if nx < cell.CenterX && nx < bestX {
+					bestX = nx
+					best = n
+					found = true
+				}
+			}
+			if !found {
+				break
+			}
+			cur = best
+			if w.Elevation[cur] > rainShadowElevThreshold {
+				w.Moisture[i] *= rainShadowPenalty
+				if w.Moisture[i] < 0 {
+					w.Moisture[i] = 0
+				}
+				break
+			}
+		}
 	}
 }
 
@@ -287,5 +343,103 @@ func whittakerTerrain(elev, moist, temp float32) gworld.Terrain {
 		return gworld.TerrainPlains
 	default:
 		return gworld.TerrainDesert
+	}
+}
+
+// perturbElevation adds multi-octave fBm noise to land-cell elevations
+// BEFORE redistribution. The BFS distance field is monotonically smooth
+// (every cell is just "hops from coast"), which means mountains have no
+// valleys and plains have no hills. The perturbation re-orders cells in
+// the elevation ranking so redistribution produces a more varied result.
+// Ocean cells are left at zero — they do not participate in redistribution.
+func perturbElevation(w *World, isOcean []bool, seed int64) {
+	if w == nil || len(w.Voronoi.Cells) == 0 {
+		return
+	}
+	noise := opensimplex.New(seed ^ saltElevNoise)
+	halfH := float64(w.Height) / 2
+	halfW := float64(w.Width) / 2
+	for i, cell := range w.Voronoi.Cells {
+		if isOcean[i] {
+			continue
+		}
+		nx := (cell.CenterX - halfW) / halfH
+		ny := (cell.CenterY - halfH) / halfH
+
+		fbm := 0.0
+		amp := 1.0
+		freq := elevationNoiseFreq
+		norm := 0.0
+		for oct := 0; oct < elevationOctaves; oct++ {
+			fbm += amp * noise.Eval2(nx*freq, ny*freq)
+			norm += amp
+			amp *= 0.5
+			freq *= 2.0
+		}
+		delta := float32(fbm/norm) * elevationNoiseAmplitude
+		v := w.Elevation[i] + delta
+		if v < 0 {
+			v = 0
+		}
+		if v > 1 {
+			v = 1
+		}
+		w.Elevation[i] = v
+	}
+}
+
+// smoothBiomeBoundaries runs after assignTerrains. For each land cell
+// that sits on a biome boundary (at least one neighbour has a different
+// terrain), with probability biomeSmoothChance the cell adopts the
+// terrain of one of those differently-typed neighbours. The choice is
+// deterministic — hashing cellID against the world seed — so the result
+// is reproducible without a global RNG state. Only land-to-land swaps
+// are performed; ocean and lake cells are never touched.
+func smoothBiomeBoundaries(w *World, seed int64) {
+	if w == nil || len(w.Voronoi.Cells) == 0 {
+		return
+	}
+	// Work from a snapshot of pre-pass terrains so swaps made earlier
+	// in the loop do not influence later cells in the same pass.
+	snapshot := make([]gworld.Terrain, len(w.Terrain))
+	copy(snapshot, w.Terrain)
+
+	for i, cell := range w.Voronoi.Cells {
+		t := snapshot[i]
+		if t == gworld.TerrainOcean || t == gworld.TerrainDeepOcean {
+			continue
+		}
+
+		// Collect neighbours with a different land terrain.
+		different := make([]gworld.Terrain, 0, len(cell.Neighbors))
+		for _, n := range cell.Neighbors {
+			nt := snapshot[n]
+			if nt == gworld.TerrainOcean || nt == gworld.TerrainDeepOcean {
+				continue
+			}
+			if nt != t {
+				different = append(different, nt)
+			}
+		}
+		if len(different) == 0 {
+			continue
+		}
+
+		// Deterministic probability check: hash (cellID, seed) → [0,1).
+		// Using a simple xorshift mix keeps the hot path allocation-free.
+		h := uint64(i)*0x9e3779b97f4a7c15 ^ uint64(seed)*0x6c62272e07bb0142
+		h ^= h >> 30
+		h *= 0xbf58476d1ce4e5b9
+		h ^= h >> 27
+		h *= 0x94d049bb133111eb
+		h ^= h >> 31
+		prob := float64(h>>11) / float64(1<<53)
+		if prob >= biomeSmoothChance {
+			continue
+		}
+
+		// Pick one of the differing-terrain neighbours deterministically.
+		pick := int(h>>32) % len(different)
+		w.Terrain[i] = different[pick]
 	}
 }

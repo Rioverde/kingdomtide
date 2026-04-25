@@ -50,7 +50,11 @@ func renderCell(w *worldgen.World, l layer, wx, wy int) string {
 		if w.IsRiver(wx, wy) && !w.IsOcean(cellID) {
 			return riverCell
 		}
-		return terrainCell[w.Terrain[cellID]]
+		t := w.Terrain[cellID]
+		if variants := terrainCellVariants[t]; len(variants) > 0 {
+			return variants[int(cellID)%len(variants)]
+		}
+		return terrainCell[t]
 	case layerCells:
 		return cellsPaletteCell[int(cellID)%len(cellsPaletteCell)]
 	case layerLand:
@@ -103,10 +107,14 @@ var (
 	riverCell string
 
 	// terrainCell[t] — fully-styled "glyph " string for terrain t.
-	// world.Terrain is a string-typed enum, so this is a map; the
-	// per-frame lookup is still cheap (sub-100ns) compared to the
-	// alternative styling chain it replaces.
+	// Used as fallback for terrains with no variants defined.
 	terrainCell = map[gworld.Terrain]string{}
+
+	// terrainCellVariants[t] — pre-rendered variant strings for terrain t.
+	// Each entry is a fully-styled "glyph " string; index selected per
+	// cell via cellID%len(variants) so the same cell always shows the
+	// same glyph across redraws.
+	terrainCellVariants = map[gworld.Terrain][]string{}
 
 	// cellsPaletteCell — 15-entry debug palette for the cells layer.
 	cellsPaletteCell = make([]string, 15)
@@ -157,6 +165,15 @@ func init() {
 
 	for terrain, glyph := range tilestyle.TerrainRunes {
 		terrainCell[terrain] = tilestyle.StyleFor(terrain).Render(glyph + " ")
+	}
+
+	for terrain, variants := range tilestyle.TerrainRuneVariants {
+		style := tilestyle.StyleFor(terrain)
+		rendered := make([]string, len(variants))
+		for i, glyph := range variants {
+			rendered[i] = style.Render(glyph + " ")
+		}
+		terrainCellVariants[terrain] = rendered
 	}
 
 	cellsPalette := []string{

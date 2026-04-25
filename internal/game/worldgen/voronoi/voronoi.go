@@ -20,6 +20,7 @@ import (
 	"math"
 	"math/rand/v2"
 	"runtime"
+	"sort"
 	"sync"
 	"time"
 )
@@ -458,11 +459,17 @@ func findCorners(cellID []uint16, w, h int) ([]Vertex, [][]uint16) {
 // vertex to a chosen anchor so the corner graph stays connected
 // without duplicate worry (rivers/watersheds dedup neighbours
 // downstream).
+//
+// Uses a flat sorted slice instead of a map to avoid per-key slice
+// allocations. Each vertex × cell-pair combo becomes one entry; sort
+// groups them; a single pass emits edges. Deterministic by sort key.
 func buildEdges(vertCells [][]uint16) []Edge {
-	type pair struct {
-		a, b uint16
+	type entry struct {
+		key  uint32 // uint16(a)<<16 | uint16(b), a<=b
+		vert uint32
 	}
-	pairToVerts := make(map[pair][]uint32, len(vertCells))
+
+	entries := make([]entry, 0, len(vertCells)*3)
 	for vi, cells := range vertCells {
 		for i := 0; i < len(cells); i++ {
 			for j := i + 1; j < len(cells); j++ {
@@ -470,26 +477,42 @@ func buildEdges(vertCells [][]uint16) []Edge {
 				if a > b {
 					a, b = b, a
 				}
-				k := pair{a, b}
-				pairToVerts[k] = append(pairToVerts[k], uint32(vi))
+				entries = append(entries, entry{
+					key:  uint32(a)<<16 | uint32(b),
+					vert: uint32(vi),
+				})
 			}
 		}
 	}
 
-	edges := make([]Edge, 0, len(pairToVerts))
-	for k, vs := range pairToVerts {
-		if len(vs) < 2 {
-			continue
+	sort.Slice(entries, func(i, j int) bool {
+		if entries[i].key != entries[j].key {
+			return entries[i].key < entries[j].key
 		}
-		anchor := vs[0]
-		for i := 1; i < len(vs); i++ {
-			edges = append(edges, Edge{
-				Va:    anchor,
-				Vb:    vs[i],
-				CellL: k.a,
-				CellR: k.b,
-			})
+		return entries[i].vert < entries[j].vert
+	})
+
+	edges := make([]Edge, 0, len(entries)/2)
+	for i := 0; i < len(entries); {
+		j := i + 1
+		for j < len(entries) && entries[j].key == entries[i].key {
+			j++
 		}
+		// run [i, j) shares a cell-pair; need ≥2 vertices for an edge.
+		if j-i >= 2 {
+			anchor := entries[i].vert
+			a := uint16(entries[i].key >> 16)
+			b := uint16(entries[i].key)
+			for k := i + 1; k < j; k++ {
+				edges = append(edges, Edge{
+					Va:    anchor,
+					Vb:    entries[k].vert,
+					CellL: a,
+					CellR: b,
+				})
+			}
+		}
+		i = j
 	}
 	return edges
 }

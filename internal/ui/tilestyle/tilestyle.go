@@ -95,6 +95,43 @@ var TerrainStyles = map[world.Terrain]lipgloss.Style{
 		Background(lipgloss.Color("234")),
 }
 
+// TerrainRuneVariants holds 2-4 alternative glyphs per biome. Variant
+// selected at render time via a stable hash of cell position so the
+// same cell always shows the same glyph in the same world.
+//
+// Glyphs are single display-cell wide. Emoji with VS16 selector and
+// double-width CJK characters must not appear here — they break the
+// grid layout.
+var TerrainRuneVariants = map[world.Terrain][]string{
+	world.TerrainPlains:    {"·", ",", "˙", "."},
+	world.TerrainGrassland: {"„", "ʼ", "ʻ", "ʹ"},
+	world.TerrainMeadow:    {"*", "+", "x", "o"},
+	world.TerrainBeach:     {"░", "▒", "·", "."},
+	world.TerrainSavanna:   {"⁖", ",", "⁘", ":"},
+	world.TerrainDesert:    {"∙", "·", "˙", "."},
+	world.TerrainForest:    {"♣", "T", "t", "Y"},
+	world.TerrainJungle:    {"♠", "♣", "T", "Y"},
+	world.TerrainTaiga:     {"♤", "T", "^", "t"},
+	world.TerrainTundra:    {"‥", "ʹ", "˙", "·"},
+	world.TerrainSnow:      {"*", ".", "·", "+"},
+	world.TerrainHills:     {"∩", "∪", "n", "u"},
+	world.TerrainMountain:  {"▲", "△", "^", "A"},
+	world.TerrainSnowyPeak: {"△", "▲", "^", "A"},
+	world.TerrainOcean:     {"≈", "~", "-", "≈"},
+	world.TerrainDeepOcean: {"≋", "≈", "~", "≋"},
+}
+
+// GlyphVariantFor returns one of TerrainRuneVariants[t] selected by
+// the given seed (typically a cellID). Falls back to TerrainRunes[t]
+// if no variants are defined for the terrain.
+func GlyphVariantFor(t world.Terrain, seed uint32) string {
+	variants := TerrainRuneVariants[t]
+	if len(variants) == 0 {
+		return TerrainRunes[t]
+	}
+	return variants[seed%uint32(len(variants))]
+}
+
 // GlyphFor returns the rune registered for a terrain, or empty string
 // when the terrain is unknown. Callers supply their own fallback.
 func GlyphFor(t world.Terrain) string {

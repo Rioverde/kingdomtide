@@ -8,9 +8,11 @@ package worldgen
 // === Cell density ============================================
 //
 // cellsPerSqrtArea multiplies √area to derive Voronoi cell count.
-// 10.0 lands at ~13-tile cells on Standard — fine-grained enough
-// that a single viewport spans many biome transitions.
-const cellsPerSqrtArea = 10.0
+// 20.0 lands at ~9-tile cells on Standard — small enough that
+// individual cell outlines drop below visual perception even at
+// medium zoom; combined with the multi-octave noisy-edges warp,
+// pentagon shapes disappear entirely.
+const cellsPerSqrtArea = 20.0
 
 // === Land/water classification (classify.go) =================
 //
@@ -44,6 +46,41 @@ const (
 const (
 	moistureNoiseFreq = 3.0  // spatial frequency multiplier
 	moistureJitter    = 0.25 // ± amplitude of perturbation
+
+	// fBm parameters for multi-octave moisture noise.
+	moistureOctaves    = 4   // number of stacked octaves
+	moistureLacunarity = 2.0 // frequency doubles each octave
+	moistureGain       = 0.5 // amplitude halves each octave
+)
+
+// === Rain shadow (terrain.go) ================================
+//
+// After BFS moisture, cells east of high terrain are penalised.
+// The check walks westward via neighbour hops — cheap on the cell
+// graph, no spatial hash needed.
+const (
+	// rainShadowHops is how many westward cell-graph hops to check
+	// for blocking terrain. 4 hops ≈ a few cell widths, enough to
+	// shadow the immediate lee side of a mountain.
+	rainShadowHops = 4
+	// rainShadowElevThreshold — cells at or above this normalised
+	// elevation (post-redistribute, so ~top 30% of land) cast shadow.
+	rainShadowElevThreshold = 0.70
+	// rainShadowPenalty multiplies moisture on shadowed cells.
+	// 0.55 gives a noticeable desert-rain-shadow without desiccating
+	// every continental interior.
+	rainShadowPenalty = 0.55
+)
+
+// === Elevation perturbation (terrain.go) =====================
+//
+// fBm noise added to BFS elevation BEFORE redistribution breaks the
+// monotonic coast-distance gradient so mountains have valleys and
+// plains have hills.
+const (
+	elevationOctaves       = 4    // stacked octaves
+	elevationNoiseFreq     = 1.5  // base spatial frequency
+	elevationNoiseAmplitude = 0.15 // relative perturbation magnitude
 )
 
 // === Temperature (terrain.go) ================================
@@ -115,13 +152,62 @@ const (
 	riverHeadFraction = 0.015
 )
 
-// === Noisy edges (noisy_edges.go) ============================
+// === Biome boundary smoothing (terrain.go) ===================
+//
+// A post-assignTerrains pass that randomly swaps boundary cells to
+// a neighbour's terrain. Creates DF-like fringe zones where biomes
+// blend instead of cutting hard lines.
 const (
-	// noisyEdgesFreq — spatial frequency of the displacement field.
-	// ~25-tile period gives gentle large-scale curves.
+	// biomeSmoothChance is the probability a boundary land cell
+	// adopts a neighbouring biome. 0.25 blends ~25% of edges.
+	biomeSmoothChance = 0.25
+)
+
+// === Noisy edges (noisy_edges.go) ============================
+//
+// Multi-octave fBm warp — single-octave produced uniform wave-pattern
+// boundaries that still read as polygonal cell shapes. Stacking 4
+// octaves spans periods ~25, 10, 4, 1.6 tiles → big organic curves
+// PLUS pixel-level jitter that scatters individual tiles across
+// biome boundaries.
+//
+// Amplitude tuned ≈ avg cell side so cells visibly intrude into
+// their neighbours, dissolving the pentagon outlines.
+//
+// Coarse-grid sampling: noise is evaluated on a sparse grid
+// (1 sample per noisyEdgesCoarseFactor×noisyEdgesCoarseFactor tile
+// patch) and bilinearly interpolated at every tile. fBm is smooth at
+// small scales so 8×8 interpolation is visually indistinguishable
+// from per-tile sampling while cutting noise evaluations by 64×.
+const (
+	// noisyEdgesOctaves stacks octaves of displacement noise.
+	noisyEdgesOctaves = 4
+	// noisyEdgesFreq — base spatial frequency. ~25-tile period for
+	// the lowest octave; higher octaves multiply by lacunarity.
 	noisyEdgesFreq = 0.04
-	// noisyEdgesAmplitude — max ± per-axis tile displacement. ±5 is
-	// visibly organic; tuned against Lloyd-relaxed cell sizes so the
-	// warp stays inside neighbouring-cell territory.
-	noisyEdgesAmplitude = 5.0
+	// noisyEdgesLacunarity — frequency multiplier per octave.
+	noisyEdgesLacunarity = 2.5
+	// noisyEdgesGain — amplitude multiplier per octave. 0.55 keeps
+	// high octaves contributing meaningful pixel-level jitter.
+	noisyEdgesGain = 0.55
+	// noisyEdgesAmplitude — overall ± per-axis tile displacement.
+	// 14 makes cells fully invade their neighbours at every fringe;
+	// combined with 3 per-tile high-freq octaves below, polygon
+	// outlines dissolve completely.
+	noisyEdgesAmplitude = 14.0
+	// noisyEdgesCoarseOctaves splits the fBm: the LOW octaves (long
+	// wavelength, big curves) are baked onto a coarse grid and
+	// bilinearly interpolated — cheap and visually lossless. The
+	// HIGH octaves (short wavelength, pixel-scale jitter) are
+	// evaluated per-tile because bilinear interp would otherwise
+	// smear them away and re-expose the underlying cell polygons as
+	// blocky outlines. 1 coarse + 3 per-tile maximises the per-tile
+	// jitter that destroys pentagon visibility.
+	noisyEdgesCoarseOctaves = 1
+	// noisyEdgesCoarseFactor — tiles per coarse-grid cell on each
+	// axis. Noise is sampled once per (cf×cf) patch and bilinearly
+	// interpolated at each tile. 8 gives 64× fewer Eval2 calls with
+	// no perceptible quality loss because fBm is spatially smooth
+	// at this scale (lowest-octave period is ~25 tiles >> 8).
+	noisyEdgesCoarseFactor = 8
 )
