@@ -5,10 +5,24 @@ package worldgen
 
 import (
 	"math"
+	"time"
 
 	gworld "github.com/Rioverde/gongeons/internal/game/world"
 	"github.com/Rioverde/gongeons/internal/game/worldgen/voronoi"
 )
+
+// GenStageHook is called after each Generate pipeline stage when
+// non-nil. Used by diagnostic tooling to time each pass — production
+// code leaves this at its zero value (no-op).
+var GenStageHook func(stage string, dur time.Duration)
+
+// stageTime invokes the hook if installed. Helper to keep the
+// pipeline body readable.
+func stageTime(stage string, t0 time.Time) {
+	if GenStageHook != nil {
+		GenStageHook(stage, time.Since(t0))
+	}
+}
 
 // World is the output of Generate. Data is a cell graph: Voronoi
 // holds the tile-to-cell rasterisation and cell adjacency; the
@@ -23,9 +37,23 @@ type World struct {
 
 	Voronoi *voronoi.Diagram
 
-	Elevation []float32
-	Moisture  []float32
-	Terrain   []gworld.Terrain
+	Elevation   []float32
+	Moisture    []float32
+	Temperature []float32
+	Terrain     []gworld.Terrain
+
+	// Watershed maps each cell to the corner index it ultimately
+	// drains to (its coast outlet). -1 means no path to coast — ocean
+	// cells, or endorheic basins. Two cells with the same value belong
+	// to the same drainage basin. int32 not int — corner indices fit
+	// well inside ±2¹⁵, halving the memory cost on big worlds.
+	Watershed []int32
+
+	// riverBits is a packed W*H bitset — bit set if the tile lies on
+	// a rasterised river edge. Consumed by TileAt to set
+	// OverlayRiver on the returned tile. 8× smaller than the equivalent
+	// []bool, which matters at Huge / 10x-Large scales.
+	riverBits *bitset
 }
 
 // Generate runs the mapgen2 pipeline end-to-end.
@@ -37,6 +65,8 @@ type World struct {
 //  4. Elevation — graph distance from coast
 //  5. Moisture — graph distance from water, inverted
 //  6. Terrain — Whittaker table on (elevation, moisture)
+//  7. Hydrology — corner graph, rivers (downslope + Bresenham),
+//     watersheds (downslope propagation to coast)
 func Generate(seed int64, size WorldSize) *World {
 	w, h := size.Dimensions()
 	cellCount := cellCountFor(size)
@@ -49,30 +79,85 @@ func Generate(seed int64, size WorldSize) *World {
 	}
 
 	cellSize := math.Sqrt(float64(w*h) / float64(cellCount))
+	t0 := time.Now()
 	out.Voronoi = voronoi.Generate(seed, w, h, cellCount, 2, cellSize*0.25)
+	stageTime("voronoi", t0)
+
+	t0 = time.Now()
+	applyNoisyEdges(out, seed)
+	stageTime("noisy_edges", t0)
 
 	n := len(out.Voronoi.Cells)
 	out.Elevation = make([]float32, n)
 	out.Moisture = make([]float32, n)
+	out.Temperature = make([]float32, n)
 	out.Terrain = make([]gworld.Terrain, n)
 
+	t0 = time.Now()
 	isWater := classifyWater(out, seed)
+	stageTime("classify_water", t0)
+
+	t0 = time.Now()
 	isOcean, isLake := classifyOceanLake(out, isWater)
+	stageTime("classify_ocean_lake", t0)
+
+	t0 = time.Now()
 	computeElevation(out, isOcean)
-	computeMoisture(out, isWater)
+	stageTime("elevation", t0)
+
+	t0 = time.Now()
+	redistributeElevation(out, isOcean)
+	stageTime("redistribute_elev", t0)
+
+	t0 = time.Now()
+	computeMoisture(out, isWater, seed)
+	stageTime("moisture", t0)
+
+	t0 = time.Now()
+	computeTemperature(out)
+	stageTime("temperature", t0)
+
+	t0 = time.Now()
 	assignTerrains(out, isOcean, isLake)
+	stageTime("terrains", t0)
+
+	t0 = time.Now()
+	corners := buildCorners(out, isOcean)
+	assignDownslope(corners)
+	rivers, lakeCorners := computeRivers(out, corners, seed)
+	out.riverBits = rivers
+	applyRiverLakes(out, corners, lakeCorners, isOcean)
+	out.Watershed = computeWatersheds(out, corners, isOcean)
+	stageTime("hydrology", t0)
 
 	return out
 }
 
 // TileAt implements world.TileSource. Off-grid queries return deep
 // ocean so callers can safely probe outside the world boundary.
+// Sets OverlayRiver when the tile is on a rasterised river edge.
 func (w *World) TileAt(x, y int) gworld.Tile {
 	if x < 0 || y < 0 || x >= w.Width || y >= w.Height {
 		return gworld.Tile{Terrain: gworld.TerrainDeepOcean}
 	}
 	cellID := w.Voronoi.CellIDAt(x, y)
-	return gworld.Tile{Terrain: w.Terrain[cellID]}
+	tile := gworld.Tile{Terrain: w.Terrain[cellID]}
+	if w.IsRiver(x, y) {
+		tile.Overlays |= gworld.OverlayRiver
+	}
+	return tile
+}
+
+// IsRiver reports whether the tile sits on a river edge. Off-grid
+// queries return false.
+func (w *World) IsRiver(x, y int) bool {
+	if x < 0 || y < 0 || x >= w.Width || y >= w.Height {
+		return false
+	}
+	if w.riverBits == nil {
+		return false
+	}
+	return w.riverBits.Get(y*w.Width + x)
 }
 
 // IsOcean reports whether the cell's terrain is ocean-like.
@@ -97,11 +182,17 @@ func (w *World) IsCoast(cellID uint16) bool {
 
 var _ gworld.TileSource = (*World)(nil)
 
-// cellCountFor scales the Voronoi cell count with world area —
-// ~1500 cells for Standard.
+// cellCountFor scales the Voronoi cell count with world area. The
+// 10.0 multiplier on √area lands at ~13-tile cells on Standard —
+// fine-grained enough that biome transitions feel hand-painted on a
+// roguelike tile grid. Cell COUNT scales with √area so smaller
+// worlds stay light. The pipeline relies on three optimisations to
+// keep generation under each size's budget at this density: a
+// spatial-hash for nearest-site rasterisation, parallel per-cell
+// noise classification, and Bridson's Poisson-disc seed placement.
 func cellCountFor(size WorldSize) int {
 	w, h := size.Dimensions()
-	per := math.Sqrt(float64(w*h)) * 0.3
+	per := math.Sqrt(float64(w*h)) * 10.0
 	count := int(per)
 	if count < 200 {
 		count = 200

@@ -40,6 +40,7 @@ const (
 	layerElevation
 	layerMoisture
 	layerCoast
+	layerWatershed
 	layerCount
 )
 
@@ -57,6 +58,8 @@ func (l layer) String() string {
 		return "moisture"
 	case layerCoast:
 		return "coast"
+	case layerWatershed:
+		return "watershed"
 	}
 	return "unknown"
 }
