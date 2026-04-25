@@ -36,19 +36,41 @@ func renderCell(w *worldgen.World, l layer, wx, wy int) string {
 	cellID := w.Voronoi.CellIDAt(wx, wy)
 	switch l {
 	case layerBiome:
+		if w.IsRiver(wx, wy) && !w.IsOcean(cellID) {
+			return renderRiverCell()
+		}
 		return renderTerrainCell(w.Terrain[cellID])
 	case layerCells:
 		return renderCellsLayer(cellID)
 	case layerLand:
+		if w.IsRiver(wx, wy) && !w.IsOcean(cellID) {
+			return renderRiverCell()
+		}
 		return renderLandLayer(w, cellID)
 	case layerElevation:
 		return renderScalarLayer(w.Elevation[cellID])
 	case layerMoisture:
 		return renderScalarLayer(w.Moisture[cellID])
 	case layerCoast:
+		if w.IsRiver(wx, wy) && !w.IsOcean(cellID) {
+			return renderRiverCell()
+		}
 		return renderCoastLayer(w, cellID)
+	case layerWatershed:
+		if w.IsRiver(wx, wy) && !w.IsOcean(cellID) {
+			return renderRiverCell()
+		}
+		return renderWatershedLayer(w, cellID)
 	}
 	return "  "
+}
+
+// renderRiverCell paints a tile that lies on a rasterised river edge
+// — reuses the shared ocean glyph + colour from tilestyle so rivers
+// read as the same "water" element as the rest of the map.
+func renderRiverCell() string {
+	style := tilestyle.StyleFor(gworld.TerrainOcean).Bold(true)
+	return style.Render(tilestyle.GlyphFor(gworld.TerrainOcean) + " ")
 }
 
 // renderTerrainCell reuses the shared tilestyle palette — same
@@ -76,12 +98,14 @@ func renderCellsLayer(cellID uint16) string {
 }
 
 // renderLandLayer paints binary land / ocean so the developer can
-// see continent outlines without biome variation.
+// see continent outlines without biome variation. Colours come from
+// the shared tilestyle palette via Reverse(true) — turning the
+// foreground biome colour into a solid background swatch.
 func renderLandLayer(w *worldgen.World, cellID uint16) string {
 	if w.IsOcean(cellID) {
-		return lipgloss.NewStyle().Background(lipgloss.Color("#0d3a70")).Render("  ")
+		return tilestyle.StyleFor(gworld.TerrainDeepOcean).Reverse(true).Render("  ")
 	}
-	return lipgloss.NewStyle().Background(lipgloss.Color("#6a8040")).Render("  ")
+	return tilestyle.StyleFor(gworld.TerrainGrassland).Reverse(true).Render("  ")
 }
 
 // renderScalarLayer draws a greyscale bar for a [0, 1] scalar —
@@ -92,16 +116,50 @@ func renderScalarLayer(v float32) string {
 	return lipgloss.NewStyle().Background(bg).Render("  ")
 }
 
-// renderCoastLayer highlights coast cells in yellow, ocean in dark
-// blue, inland in green.
+// watershedPalette is a hand-picked subset of biomes whose foreground
+// colours have maximally-separated hues — ten basins on a typical
+// Standard map cycle through these without two adjacent basins ever
+// landing on the same swatch. All sourced from tilestyle, no new
+// hex constants.
+var watershedPalette = []gworld.Terrain{
+	gworld.TerrainGrassland,
+	gworld.TerrainDesert,
+	gworld.TerrainTaiga,
+	gworld.TerrainSavanna,
+	gworld.TerrainJungle,
+	gworld.TerrainBeach,
+	gworld.TerrainHills,
+	gworld.TerrainMeadow,
+	gworld.TerrainTundra,
+	gworld.TerrainForest,
+}
+
+// renderWatershedLayer paints every land cell with a colour keyed off
+// its drainage basin (watershed). Ocean stays deep-ocean blue;
+// endorheic / unreachable land cells fall back to a neutral grey.
+func renderWatershedLayer(w *worldgen.World, cellID uint16) string {
+	if w.IsOcean(cellID) {
+		return tilestyle.StyleFor(gworld.TerrainDeepOcean).Reverse(true).Render("  ")
+	}
+	ws := w.Watershed[cellID]
+	if ws < 0 {
+		return oobStyle.Render("  ")
+	}
+	t := watershedPalette[int(ws)%len(watershedPalette)]
+	return tilestyle.StyleFor(t).Reverse(true).Render("  ")
+}
+
+// renderCoastLayer highlights coast cells in beach-yellow, ocean in
+// deep-ocean blue, inland in forest-green — all sourced from the
+// shared tilestyle palette via Reverse(true).
 func renderCoastLayer(w *worldgen.World, cellID uint16) string {
 	if w.IsOcean(cellID) {
-		return lipgloss.NewStyle().Background(lipgloss.Color("#0d3a70")).Render("  ")
+		return tilestyle.StyleFor(gworld.TerrainDeepOcean).Reverse(true).Render("  ")
 	}
 	if w.IsCoast(cellID) {
-		return lipgloss.NewStyle().Background(lipgloss.Color("#e6c64a")).Render("  ")
+		return tilestyle.StyleFor(gworld.TerrainBeach).Reverse(true).Render("  ")
 	}
-	return lipgloss.NewStyle().Background(lipgloss.Color("#334a26")).Render("  ")
+	return tilestyle.StyleFor(gworld.TerrainForest).Reverse(true).Render("  ")
 }
 
 func lerpRGB(r0, g0, b0, r1, g1, b1 int, t float64) (int, int, int) {

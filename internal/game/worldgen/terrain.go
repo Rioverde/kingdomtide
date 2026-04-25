@@ -1,7 +1,19 @@
 package worldgen
 
 import (
+	"math"
+	"sort"
+
+	opensimplex "github.com/ojrac/opensimplex-go"
+
 	gworld "github.com/Rioverde/gongeons/internal/game/world"
+)
+
+// saltMoistNoise / saltTempNoise are the fixed salts for the
+// moisture-perturbation and temperature-jitter noise fields.
+const (
+	saltMoistNoise int64 = 0x082efa98ec4eec6a
+	saltTempNoise  int64 = 0x38d8c2c4e0a4f7a3
 )
 
 // computeElevation walks outward from coast cells (land with at
@@ -51,9 +63,45 @@ func computeElevation(w *World, isOcean []bool) {
 	}
 }
 
+// redistributeElevation re-maps land-cell elevations to a uniform
+// [0, 1] distribution by sorting by current elevation and reassigning
+// to rank/N. Patel's mapgen2 calls this out as a required step:
+// raw BFS-distance elevations cluster heavily at low values (most
+// cells are 1-2 hops from coast), which leaves the Whittaker biome
+// bands so squashed that beach swallows half the lowland and rivers
+// can never accumulate volume because their heads sit at impossibly
+// low elevations. After redistribution, x% of land cells have
+// elevation ≤ x/100 — the assumption every threshold in
+// whittakerTerrain and pickRiverHeads was tuned against.
+func redistributeElevation(w *World, isOcean []bool) {
+	type rank struct {
+		id   uint16
+		elev float32
+	}
+	land := make([]rank, 0, len(w.Voronoi.Cells))
+	for i, e := range w.Elevation {
+		if isOcean[i] {
+			continue
+		}
+		land = append(land, rank{uint16(i), e})
+	}
+	if len(land) == 0 {
+		return
+	}
+	sort.Slice(land, func(a, b int) bool {
+		return land[a].elev < land[b].elev
+	})
+	n := float32(len(land))
+	for r, c := range land {
+		w.Elevation[c.id] = float32(r) / n
+	}
+}
+
 // computeMoisture — multi-source BFS from every water cell. Distance
-// in hops = dryness; inverted and normalised to [0, 1].
-func computeMoisture(w *World, isWater []bool) {
+// in hops = dryness; inverted and normalised to [0, 1]. A final
+// noise perturbation breaks the uniform BFS gradient so adjacent
+// cells land in different biome bands.
+func computeMoisture(w *World, isWater []bool, seed int64) {
 	dist := make([]int, len(w.Voronoi.Cells))
 	for i := range dist {
 		dist[i] = -1
@@ -79,12 +127,59 @@ func computeMoisture(w *World, isWater []bool) {
 			queue = append(queue, n)
 		}
 	}
+
+	// Noise perturbation — shifts each cell by up to ±0.18 so the
+	// BFS distribution spreads across the Whittaker bands instead
+	// of bunching all cells at similar moisture.
+	noise := opensimplex.New(seed ^ saltMoistNoise)
+	halfH := float64(w.Height) / 2
 	for i, d := range dist {
-		if d < 0 || maxDist == 0 {
-			w.Moisture[i] = 0
-			continue
+		var v float32
+		if d >= 0 && maxDist > 0 {
+			v = 1 - float32(d)/float32(maxDist)
 		}
-		w.Moisture[i] = 1 - float32(d)/float32(maxDist)
+		cell := w.Voronoi.Cells[i]
+		nx := (cell.CenterX - float64(w.Width)/2) / halfH
+		ny := (cell.CenterY - halfH) / halfH
+		jitter := float32(noise.Eval2(nx*3, ny*3)) * 0.18
+		v += jitter
+		if v < 0 {
+			v = 0
+		}
+		if v > 1 {
+			v = 1
+		}
+		w.Moisture[i] = v
+	}
+}
+
+// computeTemperature derives per-cell temperature from latitude
+// (equator warm, poles cold) with an elevation correction (high
+// altitudes cool) and light noise to break hard latitude bands.
+// Normalised to [0, 1].
+func computeTemperature(w *World) {
+	noise := opensimplex.New(w.Seed ^ saltTempNoise)
+	halfH := float64(w.Height) / 2
+	for i, cell := range w.Voronoi.Cells {
+		// Latitude factor: 1 at equator (centre), 0 at poles.
+		lat := 1 - math.Abs(cell.CenterY-halfH)/halfH
+
+		// Elevation cooling — high peaks are cold even on the equator.
+		cooling := float64(w.Elevation[i]) * 0.55
+
+		// Small noise jitter so latitude bands are not razor-straight.
+		nx := (cell.CenterX - float64(w.Width)/2) / halfH
+		ny := cell.CenterY / halfH
+		jitter := noise.Eval2(nx*2, ny*2) * 0.07
+
+		t := lat - cooling + jitter
+		if t < 0 {
+			t = 0
+		}
+		if t > 1 {
+			t = 1
+		}
+		w.Temperature[i] = float32(t)
 	}
 }
 
@@ -112,62 +207,82 @@ func assignTerrains(w *World, isOcean, isLake []bool) {
 		case isLake[i]:
 			w.Terrain[i] = gworld.TerrainOcean
 		default:
-			w.Terrain[i] = whittakerTerrain(w.Elevation[i], w.Moisture[i])
+			w.Terrain[i] = whittakerTerrain(w.Elevation[i], w.Moisture[i], w.Temperature[i])
 		}
 	}
 }
 
-// whittakerTerrain picks a game Terrain from (elevation, moisture).
-// Bands on elevation crossed with bands on moisture — Amit Patel's
-// Whittaker table mapped onto the game's terrain enum.
-func whittakerTerrain(elev, moist float32) gworld.Terrain {
+// whittakerTerrain picks a game Terrain from (elevation, moisture,
+// temperature). Three-dimensional classification: elevation gives
+// relief ladders (peak / hill / lowland), temperature splits climate
+// zones (polar / temperate / tropical), moisture picks vegetation
+// density within each band. Covers all 16 non-volcanic terrains.
+func whittakerTerrain(elev, moist, temp float32) gworld.Terrain {
+	// Beach — very low elevation everywhere (coastal sand / tundra
+	// shoreline reads the same regardless of temperature).
 	if elev < 0.08 {
 		return gworld.TerrainBeach
 	}
 
-	if elev < 0.30 {
-		switch {
-		case moist < 0.16:
-			return gworld.TerrainDesert
-		case moist < 0.33:
-			return gworld.TerrainSavanna
-		default:
-			return gworld.TerrainJungle
+	// High peaks — temperature decides snow-capped vs bare rock.
+	if elev > 0.85 {
+		if temp < 0.45 {
+			return gworld.TerrainSnowyPeak
 		}
+		return gworld.TerrainMountain
 	}
 
-	if elev < 0.60 {
+	// Upper highlands.
+	if elev > 0.70 {
 		switch {
-		case moist < 0.16:
-			return gworld.TerrainDesert
-		case moist < 0.33:
-			return gworld.TerrainPlains
-		case moist < 0.50:
-			return gworld.TerrainGrassland
+		case temp < 0.28:
+			return gworld.TerrainSnow
+		case temp > 0.70:
+			return gworld.TerrainMountain // tropical bare mountains
+		case moist > 0.65:
+			return gworld.TerrainTaiga
 		default:
-			return gworld.TerrainForest
-		}
-	}
-
-	if elev < 0.80 {
-		switch {
-		case moist < 0.33:
 			return gworld.TerrainHills
-		case moist < 0.66:
-			return gworld.TerrainMeadow
-		default:
+		}
+	}
+
+	// Polar zone (cold climate) — dominates irrespective of elev.
+	if temp < 0.25 {
+		if moist > 0.50 {
 			return gworld.TerrainTaiga
 		}
+		return gworld.TerrainTundra
 	}
 
+	// Tropical zone (hot climate).
+	if temp > 0.70 {
+		switch {
+		case moist > 0.65:
+			return gworld.TerrainJungle
+		case moist > 0.35:
+			return gworld.TerrainSavanna
+		default:
+			return gworld.TerrainDesert
+		}
+	}
+
+	// Temperate highlands (above lowland, below peaks).
+	if elev > 0.55 {
+		if moist > 0.60 {
+			return gworld.TerrainMeadow
+		}
+		return gworld.TerrainHills
+	}
+
+	// Temperate lowlands.
 	switch {
-	case moist < 0.20:
-		return gworld.TerrainMountain
-	case moist < 0.50:
-		return gworld.TerrainTundra
-	case moist < 0.80:
-		return gworld.TerrainSnow
+	case moist > 0.75:
+		return gworld.TerrainForest
+	case moist > 0.50:
+		return gworld.TerrainGrassland
+	case moist > 0.28:
+		return gworld.TerrainPlains
 	default:
-		return gworld.TerrainSnowyPeak
+		return gworld.TerrainDesert
 	}
 }
