@@ -81,8 +81,7 @@ type VolcanoSource struct {
 	terrainAt map[uint64]world.Terrain
 }
 
-// NewVolcanoSource builds a real volcano source over a finished
-// worldgen.World. Replaces the all-empty NoiseVolcanoSource stub.
+// NewVolcanoSource builds a VolcanoSource over a finished worldgen.Map.
 //
 // Algorithm:
 //  1. Walk every cell, keep those that pass the eligibility filter
@@ -92,7 +91,7 @@ type VolcanoSource struct {
 //  3. For each anchor, materialise the three concentric Euclidean rings
 //     and assign a state from the weighted roll.
 //  4. Bucket volcanoes by super-chunk and build the tile→terrain map.
-func NewVolcanoSource(w *World, seed int64) *VolcanoSource {
+func NewVolcanoSource(w *Map, seed int64) *VolcanoSource {
 	src := &VolcanoSource{
 		bySC:      make(map[geom.SuperChunkCoord][]world.Volcano),
 		terrainAt: make(map[uint64]world.Terrain),
@@ -149,18 +148,18 @@ func NewVolcanoSource(w *World, seed int64) *VolcanoSource {
 		src.bySC[sc] = append(src.bySC[sc], v)
 
 		for _, t := range v.CoreTiles {
-			src.terrainAt[packPos(t)] = coreTerrain(v.State)
+			src.terrainAt[geom.PackPos(t)] = coreTerrain(v.State)
 		}
 		for _, t := range v.SlopeTiles {
-			src.terrainAt[packPos(t)] = world.TerrainVolcanoSlope
+			src.terrainAt[geom.PackPos(t)] = world.TerrainVolcanoSlope
 		}
 		for _, t := range v.AshlandTiles {
 			// Don't overwrite if a slope/core tile from another volcano
 			// already claimed this position — core/slope take priority.
-			if _, exists := src.terrainAt[packPos(t)]; exists {
+			if _, exists := src.terrainAt[geom.PackPos(t)]; exists {
 				continue
 			}
-			src.terrainAt[packPos(t)] = world.TerrainAshland
+			src.terrainAt[geom.PackPos(t)] = world.TerrainAshland
 		}
 	}
 
@@ -177,7 +176,7 @@ func (s *VolcanoSource) VolcanoAt(sc geom.SuperChunkCoord) []world.Volcano {
 // TerrainOverrideAt reports the volcanic terrain at t, or ("", false)
 // when t is not inside any volcano footprint. O(1) map read.
 func (s *VolcanoSource) TerrainOverrideAt(t geom.Position) (world.Terrain, bool) {
-	if terr, ok := s.terrainAt[packPos(t)]; ok {
+	if terr, ok := s.terrainAt[geom.PackPos(t)]; ok {
 		return terr, true
 	}
 	return "", false
@@ -191,7 +190,7 @@ func (s *VolcanoSource) All() []world.Volcano { return s.volcanoes }
 // position of every cell that satisfies the eligibility filter.
 // Returns positions, not cell IDs, so the picking pass operates on a
 // flat slice without re-deriving geometry.
-func collectCandidates(w *World) []geom.Position {
+func collectCandidates(w *Map) []geom.Position {
 	out := make([]geom.Position, 0, 256)
 	for cellID := range w.Voronoi.Cells {
 		id := uint32(cellID)
@@ -217,7 +216,7 @@ func collectCandidates(w *World) []geom.Position {
 //   - terrain ∈ {Mountain, SnowyPeak, Hills}
 //
 // Lakes are caught by the terrain filter (they're not in the allow set).
-func cellEligible(w *World, cellID uint32) bool {
+func cellEligible(w *Map, cellID uint32) bool {
 	if w.IsOcean(cellID) {
 		return false
 	}
@@ -235,7 +234,7 @@ func cellEligible(w *World, cellID uint32) bool {
 // budgetFor returns the target volcano count for w's size: continent
 // count × hotspotsPerContinent. Floor of 2 so even Tiny worlds get a
 // volcano or two for tests and demos.
-func budgetFor(w *World) int {
+func budgetFor(w *Map) int {
 	n := w.Size.ContinentCount() * hotspotsPerContinent
 	return max(2, n)
 }
@@ -282,7 +281,7 @@ func pickWithSpacing(candidates []geom.Position, budget, minDist int) []geom.Pos
 // disc, slope of 5 a 81-tile disc minus core, ashland of 9 a 253-tile
 // disc minus the inner two — close to the docstring's "~13 / ~96 / ~220"
 // targets after ocean filtering trims the edges.
-func buildVolcano(w *World, anchor geom.Position, seed int64) world.Volcano {
+func buildVolcano(w *Map, anchor geom.Position, seed int64) world.Volcano {
 	state := rollState(seed, anchor)
 
 	core := tilesInRadius(w, anchor, 0, volcanoCoreRadius)
@@ -305,7 +304,7 @@ func buildVolcano(w *World, anchor geom.Position, seed int64) world.Volcano {
 // Output order is row-major (y outer, x inner) so test snapshots stay
 // stable, and the slice is sized exactly so we don't carry hidden
 // excess capacity into the per-volcano storage.
-func tilesInRadius(w *World, anchor geom.Position, innerR, outerR int) []geom.Position {
+func tilesInRadius(w *Map, anchor geom.Position, innerR, outerR int) []geom.Position {
 	if outerR <= 0 {
 		return nil
 	}
@@ -341,9 +340,7 @@ func tilesInRadius(w *World, anchor geom.Position, innerR, outerR int) []geom.Po
 // Uses Splitmix64 over (seed, salt, anchor.X, anchor.Y) so the result
 // is independent of the picking PRNG and stable under shuffle changes.
 func rollState(seed int64, anchor geom.Position) world.VolcanoState {
-	mix := uint64(seed) ^ uint64(volcanoStateSalt) ^
-		(uint64(int64(anchor.X)) * 0x9e3779b97f4a7c15) ^
-		(uint64(int64(anchor.Y)) * 0xbf58476d1ce4e5b9)
+	mix := geom.MixCoords(seed, volcanoStateSalt, anchor.X, anchor.Y)
 	roll := geom.Splitmix64(mix) % volcanoWeightTotal
 	switch {
 	case roll < volcanoActiveWeight:
@@ -371,14 +368,6 @@ func coreTerrain(s world.VolcanoState) world.Terrain {
 		// the empty-string Terrain and break the override contract.
 		return world.TerrainVolcanoCoreDormant
 	}
-}
-
-// packPos folds a (x, y) tile coord into a single uint64. Each axis
-// gets 32 bits, signed values are reinterpreted via uint32 cast so
-// negative coordinates pack without collision. Worlds top out at
-// ~21K×8K tiles (Gigantic) so 32 bits per axis is generous.
-func packPos(p geom.Position) uint64 {
-	return (uint64(uint32(p.X)) << 32) | uint64(uint32(p.Y))
 }
 
 var _ world.VolcanoSource = (*VolcanoSource)(nil)

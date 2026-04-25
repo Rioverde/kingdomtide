@@ -6,6 +6,7 @@ import (
 
 	opensimplex "github.com/ojrac/opensimplex-go"
 
+	"github.com/Rioverde/gongeons/internal/game/geom"
 	gworld "github.com/Rioverde/gongeons/internal/game/world"
 )
 
@@ -23,7 +24,7 @@ const (
 // least one ocean neighbour) via multi-source BFS through the land
 // graph. Hops from coast = elevation rank; normalised to [0, 1].
 // Ocean cells stay at 0.
-func computeElevation(w *World, isOcean []bool) {
+func computeElevation(w *Map, isOcean []bool) {
 	dist := make([]int, len(w.Voronoi.Cells))
 	for i := range dist {
 		dist[i] = -1
@@ -76,7 +77,7 @@ func computeElevation(w *World, isOcean []bool) {
 // low elevations. After redistribution, x% of land cells have
 // elevation ≤ x/100 — the assumption every threshold in
 // whittakerTerrain and pickRiverHeads was tuned against.
-func redistributeElevation(w *World, isOcean []bool) {
+func redistributeElevation(w *Map, isOcean []bool) {
 	type rank struct {
 		id   uint32
 		elev float32
@@ -105,7 +106,7 @@ func redistributeElevation(w *World, isOcean []bool) {
 // fBm perturbation breaks the uniform BFS gradient so adjacent cells
 // land in different Whittaker bands. A rain-shadow pass then penalises
 // cells sheltered behind high terrain to the west.
-func computeMoisture(w *World, isWater []bool, seed int64) {
+func computeMoisture(w *Map, isWater []bool, seed int64) {
 	dist := make([]int, len(w.Voronoi.Cells))
 	for i := range dist {
 		dist[i] = -1
@@ -213,7 +214,7 @@ func computeMoisture(w *World, isWater []bool, seed int64) {
 // (equator warm, poles cold) with an elevation correction (high
 // altitudes cool) and light noise to break hard latitude bands.
 // Normalised to [0, 1].
-func computeTemperature(w *World) {
+func computeTemperature(w *Map) {
 	noise := opensimplex.New(w.Seed ^ saltTempNoise)
 	halfH := float64(w.Height) / 2
 	for i, cell := range w.Voronoi.Cells {
@@ -250,7 +251,7 @@ func computeTemperature(w *World) {
 // beach threshold, leaving sparse / discontinuous coastlines. The
 // override skips peak-elevation cells so cliff-into-ocean still
 // reads as mountain.
-func assignTerrains(w *World, isOcean, isLake []bool) {
+func assignTerrains(w *Map, isOcean, isLake []bool) {
 	for i := range w.Voronoi.Cells {
 		switch {
 		case isOcean[i]:
@@ -281,7 +282,7 @@ func assignTerrains(w *World, isOcean, isLake []bool) {
 
 // cellTouchesOcean reports whether cell i has at least one ocean
 // neighbour — coastline detection used to force the beach override.
-func cellTouchesOcean(w *World, i int, isOcean []bool) bool {
+func cellTouchesOcean(w *Map, i int, isOcean []bool) bool {
 	for _, n := range w.Voronoi.Cells[i].Neighbors {
 		if isOcean[n] {
 			return true
@@ -374,7 +375,7 @@ func whittakerTerrain(elev, moist, temp float32) gworld.Terrain {
 // valleys and plains have no hills. The perturbation re-orders cells in
 // the elevation ranking so redistribution produces a more varied result.
 // Ocean cells are left at zero — they do not participate in redistribution.
-func perturbElevation(w *World, isOcean []bool, seed int64) {
+func perturbElevation(w *Map, isOcean []bool, seed int64) {
 	if w == nil || len(w.Voronoi.Cells) == 0 {
 		return
 	}
@@ -417,7 +418,7 @@ func perturbElevation(w *World, isOcean []bool, seed int64) {
 // deterministic — hashing cellID against the world seed — so the result
 // is reproducible without a global RNG state. Only land-to-land swaps
 // are performed; ocean and lake cells are never touched.
-func smoothBiomeBoundaries(w *World, seed int64) {
+func smoothBiomeBoundaries(w *Map, seed int64) {
 	if w == nil || len(w.Voronoi.Cells) == 0 {
 		return
 	}
@@ -449,12 +450,8 @@ func smoothBiomeBoundaries(w *World, seed int64) {
 
 		// Deterministic probability check: hash (cellID, seed) → [0,1).
 		// Using a simple xorshift mix keeps the hot path allocation-free.
-		h := uint64(i)*0x9e3779b97f4a7c15 ^ uint64(seed)*0x6c62272e07bb0142
-		h ^= h >> 30
-		h *= 0xbf58476d1ce4e5b9
-		h ^= h >> 27
-		h *= 0x94d049bb133111eb
-		h ^= h >> 31
+		mixed := uint64(i)*geom.SeedSaltX ^ uint64(seed)*0x6c62272e07bb0142
+		h := geom.Splitmix64(mixed)
 		prob := float64(h>>11) / float64(1<<53)
 		if prob >= biomeSmoothChance {
 			continue

@@ -1,3 +1,6 @@
+//go:build diag
+// +build diag
+
 package worldgen
 
 import (
@@ -15,7 +18,7 @@ func TestReportLandmarks(t *testing.T) {
 		t.Skip("short — Standard world generation costs ~3s")
 	}
 	w, regions := buildLandmarkTestWorld(t)
-	src := NewLandmarkSource(w, landmarkSampleSeed, regions, nil)
+	src := NewLandmarkSource(w, landmarkSampleSeed, LandmarkSourceConfig{Regions: regions})
 
 	totals := map[gworld.LandmarkKind]int{}
 	all := []gworld.Landmark{}

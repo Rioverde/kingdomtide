@@ -37,6 +37,16 @@ func (f *fakeVolcanoSource) TerrainOverrideAt(p geom.Position) (world.Terrain, b
 	return t, ok
 }
 
+// All returns every volcano stored across all super-chunks. Order is
+// undefined but stable for a given map iteration (tests do not rely on order).
+func (f *fakeVolcanoSource) All() []world.Volcano {
+	var out []world.Volcano
+	for _, vs := range f.volcanoes {
+		out = append(out, vs...)
+	}
+	return out
+}
+
 // TestVolcanoCache_VolcanoAt_CachesHit verifies that repeated lookups
 // on the same SuperChunkCoord incur exactly one upstream call — all
 // subsequent hits must be served from the LRU.

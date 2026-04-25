@@ -1,7 +1,6 @@
 package worldgen
 
 import (
-	"math/rand/v2"
 	"sort"
 
 	"github.com/Rioverde/gongeons/internal/game/geom"
@@ -30,19 +29,12 @@ const (
 	depositMaxSulfur   int32 = 90
 )
 
-// depositWeight pairs a DepositKind with its probability weight in a
-// per-terrain candidate table.
-type depositWeight struct {
-	Kind   gworld.DepositKind
-	Weight float32
-}
-
 // Biome-based candidate tables. Each slice sums to a natural weight; the
 // draw normalises at roll time so the exact values are relative ratios.
 // An explicit "nothing" entry uses DepositNone as a placeholder — when
 // the draw lands on it no deposit is placed for that cell.
 var (
-	depositWeightsMountain = []depositWeight{
+	depositWeightsMountain = []weighted[gworld.DepositKind]{
 		{gworld.DepositIron, 38},
 		{gworld.DepositStone, 28},
 		{gworld.DepositSilver, 5},
@@ -50,7 +42,7 @@ var (
 		{gworld.DepositGems, 2},
 		{gworld.DepositNone, 23},
 	}
-	depositWeightsHills = []depositWeight{
+	depositWeightsHills = []weighted[gworld.DepositKind]{
 		{gworld.DepositStone, 30},
 		{gworld.DepositIron, 15},
 		{gworld.DepositSilver, 3},
@@ -60,45 +52,45 @@ var (
 	}
 	// Jungle is the densest biome — highest timber yield. Forest is
 	// thinner; Taiga is coniferous and sparser still.
-	depositWeightsJungle = []depositWeight{
+	depositWeightsJungle = []weighted[gworld.DepositKind]{
 		{gworld.DepositTimber, 55},
 		{gworld.DepositGame, 18},
 		{gworld.DepositNone, 27},
 	}
-	depositWeightsForest = []depositWeight{
+	depositWeightsForest = []weighted[gworld.DepositKind]{
 		{gworld.DepositTimber, 38},
 		{gworld.DepositGame, 17},
 		{gworld.DepositNone, 45},
 	}
-	depositWeightsTaiga = []depositWeight{
+	depositWeightsTaiga = []weighted[gworld.DepositKind]{
 		{gworld.DepositTimber, 22},
 		{gworld.DepositGame, 22},
 		{gworld.DepositNone, 56},
 	}
-	depositWeightsSnow = []depositWeight{
+	depositWeightsSnow = []weighted[gworld.DepositKind]{
 		{gworld.DepositGame, 15},
 		{gworld.DepositNone, 85},
 	}
-	depositWeightsPlains = []depositWeight{
+	depositWeightsPlains = []weighted[gworld.DepositKind]{
 		{gworld.DepositGame, 15},
 		{gworld.DepositFertile, 10},
 		{gworld.DepositNone, 75},
 	}
-	depositWeightsSavanna = []depositWeight{
+	depositWeightsSavanna = []weighted[gworld.DepositKind]{
 		{gworld.DepositGame, 20},
 		{gworld.DepositNone, 80},
 	}
-	depositWeightsDesertTundra = []depositWeight{
+	depositWeightsDesertTundra = []weighted[gworld.DepositKind]{
 		{gworld.DepositSalt, 8},
 		{gworld.DepositStone, 5},
 		{gworld.DepositNone, 87},
 	}
-	depositWeightsCoast = []depositWeight{
+	depositWeightsCoast = []weighted[gworld.DepositKind]{
 		{gworld.DepositFish, 28},
 		{gworld.DepositSalt, 4},
 		{gworld.DepositNone, 68},
 	}
-	depositWeightsVolcanic = []depositWeight{
+	depositWeightsVolcanic = []weighted[gworld.DepositKind]{
 		{gworld.DepositObsidian, 20},
 		{gworld.DepositSulfur, 15},
 		{gworld.DepositNone, 65},
@@ -137,15 +129,21 @@ type DepositSource struct {
 	sorted []gworld.Deposit
 }
 
-// NewDepositSource builds a real deposit source over a finished worldgen.World.
-// Replaces NoiseDepositSource. Construction iterates every Voronoi cell once,
-// O(cells), and never runs again.
+// DepositSourceConfig holds the upstream sources a DepositSource needs.
+// Volcanoes may be nil — deposits degrade to biome-only weights when absent.
+type DepositSourceConfig struct {
+	Volcanoes gworld.VolcanoSource // for volcanic kind eligibility
+}
+
+// NewDepositSource builds a DepositSource over a finished worldgen.Map.
+// Construction iterates every Voronoi cell once, O(cells), and never runs again.
 //
-// volcanoes is optional — pass nil to disable volcanic deposit placement. When
-// non-nil, cells whose center tile falls inside a volcano zone (core, slope,
-// ashland, crater lake) use the volcanic weight table (obsidian + sulfur)
-// instead of the cell's underlying biome table.
-func NewDepositSource(w *World, seed int64, volcanoes gworld.VolcanoSource) *DepositSource {
+// cfg.Volcanoes is optional — when nil volcanic deposit placement is disabled.
+// When non-nil, cells whose center tile falls inside a volcano zone (core,
+// slope, ashland, crater lake) use the volcanic weight table (obsidian +
+// sulfur) instead of the cell's underlying biome table.
+func NewDepositSource(w *Map, seed int64, cfg DepositSourceConfig) *DepositSource {
+	volcanoes := cfg.Volcanoes
 	byPos := make(map[uint64]gworld.Deposit, len(w.Voronoi.Cells)/4)
 	var all []gworld.Deposit
 
@@ -169,11 +167,10 @@ func NewDepositSource(w *World, seed int64, volcanoes gworld.VolcanoSource) *Dep
 		// Deterministic per-cell PRNG: mix seed, cell ID, and salt.
 		state := uint64(seed) ^
 			uint64(depositSeedSalt) ^
-			(uint64(cellID)*0x9e3779b97f4a7c15)
-		stream := geom.Splitmix64(state ^ 0x94d049bb133111eb)
-		rng := rand.New(rand.NewPCG(state, stream))
+			(uint64(cellID) * geom.SeedSaltX)
+		rng := newPCG(state)
 
-		kind := rollDepositKind(rng, weights)
+		kind := pickWeighted(rng, weights, gworld.DepositNone)
 		if kind == gworld.DepositNone {
 			continue
 		}
@@ -187,7 +184,7 @@ func NewDepositSource(w *World, seed int64, volcanoes gworld.VolcanoSource) *Dep
 			CurrentAmount: maxAmt,
 			LastRespawn:   0,
 		}
-		key := packPos(pos)
+		key := geom.PackPos(pos)
 		byPos[key] = d
 		all = append(all, d)
 	}
@@ -218,11 +215,11 @@ func NewDepositSource(w *World, seed int64, volcanoes gworld.VolcanoSource) *Dep
 // ocean/deep-ocean cells are pre-filtered by the caller.
 func depositWeightsForCell(
 	t gworld.Terrain,
-	w *World,
+	w *Map,
 	cellID uint32,
 	center geom.Position,
 	volcanoes gworld.VolcanoSource,
-) []depositWeight {
+) []weighted[gworld.DepositKind] {
 	if volcanoes != nil {
 		if override, ok := volcanoes.TerrainOverrideAt(center); ok {
 			switch override {
@@ -242,7 +239,7 @@ func depositWeightsForCell(
 // cell using the cell-level terrain value. Volcanic terrain entries are kept
 // here as a fallback for cases where the VolcanoSource is nil but the cell
 // terrain was somehow classified as volcanic at the Voronoi level.
-func depositWeightsByBiome(t gworld.Terrain, w *World, cellID uint32) []depositWeight {
+func depositWeightsByBiome(t gworld.Terrain, w *Map, cellID uint32) []weighted[gworld.DepositKind] {
 	switch t {
 	case gworld.TerrainMountain, gworld.TerrainSnowyPeak:
 		return depositWeightsMountain
@@ -279,34 +276,11 @@ func depositWeightsByBiome(t gworld.Terrain, w *World, cellID uint32) []depositW
 	return nil
 }
 
-// rollDepositKind draws from a weighted table. DepositNone is a valid draw
-// result ("nothing here") — callers must skip it.
-func rollDepositKind(rng *rand.Rand, weights []depositWeight) gworld.DepositKind {
-	if len(weights) == 0 {
-		return gworld.DepositNone
-	}
-	var total float32
-	for _, w := range weights {
-		total += w.Weight
-	}
-	if total <= 0 {
-		return gworld.DepositNone
-	}
-	r := rng.Float32() * total
-	var cum float32
-	for _, w := range weights {
-		cum += w.Weight
-		if r < cum {
-			return w.Kind
-		}
-	}
-	return weights[len(weights)-1].Kind
-}
 
 // DepositAt returns the deposit on the exact tile p, or (Deposit{}, false)
 // when none exists.
 func (s *DepositSource) DepositAt(p geom.Position) (gworld.Deposit, bool) {
-	d, ok := s.byPos[packPos(p)]
+	d, ok := s.byPos[geom.PackPos(p)]
 	return d, ok
 }
 
@@ -326,59 +300,25 @@ func (s *DepositSource) DepositsIn(rect geom.Rect) []gworld.Deposit {
 }
 
 // DepositsNear returns every deposit within Chebyshev radius of p, sorted by
-// Chebyshev distance ascending; ties break by (X, Y) lex order.
+// Chebyshev distance ascending; ties break by (Y, X) lex order.
 func (s *DepositSource) DepositsNear(p geom.Position, radius int) []gworld.Deposit {
 	var out []gworld.Deposit
 	for _, d := range s.sorted {
-		dx := d.Position.X - p.X
-		if dx < 0 {
-			dx = -dx
-		}
-		dy := d.Position.Y - p.Y
-		if dy < 0 {
-			dy = -dy
-		}
-		cheb := dx
-		if dy > cheb {
-			cheb = dy
-		}
-		if cheb <= radius {
+		if geom.ChebyshevDist(d.Position, p) <= radius {
 			out = append(out, d)
 		}
 	}
 	sort.SliceStable(out, func(i, j int) bool {
-		ai, bi := out[i].Position, out[j].Position
-		dxi := ai.X - p.X
-		if dxi < 0 {
-			dxi = -dxi
-		}
-		dyi := ai.Y - p.Y
-		if dyi < 0 {
-			dyi = -dyi
-		}
-		di := dxi
-		if dyi > di {
-			di = dyi
-		}
-		dxj := bi.X - p.X
-		if dxj < 0 {
-			dxj = -dxj
-		}
-		dyj := bi.Y - p.Y
-		if dyj < 0 {
-			dyj = -dyj
-		}
-		dj := dxj
-		if dyj > dj {
-			dj = dyj
-		}
+		di := geom.ChebyshevDist(out[i].Position, p)
+		dj := geom.ChebyshevDist(out[j].Position, p)
 		if di != dj {
 			return di < dj
 		}
-		if ai.Y != bi.Y {
-			return ai.Y < bi.Y
+		a, b := out[i].Position, out[j].Position
+		if a.Y != b.Y {
+			return a.Y < b.Y
 		}
-		return ai.X < bi.X
+		return a.X < b.X
 	})
 	return out
 }

@@ -4,6 +4,8 @@ import (
 	"math"
 	"math/rand/v2"
 	"testing"
+
+	"github.com/Rioverde/gongeons/internal/game/geom"
 )
 
 // coord is a test-local two-int holder replacing any game.Position
@@ -302,27 +304,27 @@ func TestSaltDistinct(t *testing.T) {
 	namingSalts := []int64{saltRegion, saltLandmarkName, saltSettlement}
 
 	existing := []int64{
-		toSaltInt64(0x9e3779b97f4a7c15),
-		toSaltInt64(0xbf58476d1ce4e5b9),
-		toSaltInt64(0x94d049bb133111eb),
-		toSaltInt64(0x9e3779b185ebca87),
-		toSaltInt64(0xc2b2ae3d27d4eb4f),
-		toSaltInt64(0x243f6a8885a308d3),
-		toSaltInt64(0x13198a2e03707344),
-		toSaltInt64(0x5a308d313198a2e0),
-		toSaltInt64(0x452821e638d01377),
-		toSaltInt64(0xbe5466cf34e90c6c),
-		toSaltInt64(0x6c62272e07bb0142),
-		toSaltInt64(0x3c6ef372fe94f82b),
-		toSaltInt64(0xd1b54a32d192ed03),
-		toSaltInt64(0x7f4a7c15be5466cf),
-		toSaltInt64(0x34e90c6c85a308d3),
-		toSaltInt64(0x82efa98ec4eec6a9),
-		toSaltInt64(0xc0ac29b7c97c50dd),
-		toSaltInt64(0x3f84d5b5b5470917),
+		geom.ToInt64(geom.SeedSaltX),
+		geom.ToInt64(geom.SeedSaltY),
+		geom.ToInt64(0x94d049bb133111eb),
+		geom.ToInt64(0x9e3779b185ebca87),
+		geom.ToInt64(0xc2b2ae3d27d4eb4f),
+		geom.ToInt64(0x243f6a8885a308d3),
+		geom.ToInt64(0x13198a2e03707344),
+		geom.ToInt64(0x5a308d313198a2e0),
+		geom.ToInt64(0x452821e638d01377),
+		geom.ToInt64(0xbe5466cf34e90c6c),
+		geom.ToInt64(0x6c62272e07bb0142),
+		geom.ToInt64(0x3c6ef372fe94f82b),
+		geom.ToInt64(0xd1b54a32d192ed03),
+		geom.ToInt64(0x7f4a7c15be5466cf),
+		geom.ToInt64(0x34e90c6c85a308d3),
+		geom.ToInt64(0x82efa98ec4eec6a9),
+		geom.ToInt64(0xc0ac29b7c97c50dd),
+		geom.ToInt64(0x3f84d5b5b5470917),
 		// Naming-local hashCoord primes.
-		toSaltInt64(hashCoordPrimeX),
-		toSaltInt64(hashCoordPrimeY),
+		geom.ToInt64(hashCoordPrimeX),
+		geom.ToInt64(hashCoordPrimeY),
 	}
 
 	for _, s := range namingSalts {

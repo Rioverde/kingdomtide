@@ -1,3 +1,6 @@
+//go:build diag
+// +build diag
+
 package worldgen
 
 import (
@@ -57,7 +60,7 @@ func TestVisualGen(t *testing.T) {
 	dumpAscii(t, w, stepX, stepY, true)
 }
 
-func dumpStats(t *testing.T, w *World) {
+func dumpStats(t *testing.T, w *Map) {
 	cells := len(w.Voronoi.Cells)
 	var ocean, land, lakes int
 	for i := range cells {
@@ -192,7 +195,7 @@ func terrainGlyph(t gworld.Terrain) byte {
 	return '?'
 }
 
-func dumpAscii(t *testing.T, w *World, stepX, stepY int, landOcean bool) {
+func dumpAscii(t *testing.T, w *Map, stepX, stepY int, landOcean bool) {
 	var sb strings.Builder
 	for y := 0; y < w.Height; y += stepY {
 		for x := 0; x < w.Width; x += stepX {

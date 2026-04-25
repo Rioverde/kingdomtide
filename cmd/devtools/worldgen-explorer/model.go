@@ -81,7 +81,7 @@ func (l layer) String() string {
 func (l layer) next() layer { return (l + 1) % layerCount }
 
 // buildDoneMsg is emitted on the tea event loop when Generate returns.
-type buildDoneMsg struct{ world *worldgen.World }
+type buildDoneMsg struct{ world *worldgen.Map }
 
 // Model is the entire explorer state.
 type Model struct {
@@ -99,7 +99,7 @@ type Model struct {
 	pendingSeed int64
 
 	// Viewer phase.
-	world          *worldgen.World
+	world          *worldgen.Map
 	showRegionTint bool // true → biome layer overlays region character tint
 	volcanoSrc     gworld.VolcanoSource
 	regionSrc      gworld.RegionSource
@@ -168,8 +168,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		w := msg.world
 		volcSrc := worldgen.NewVolcanoSource(w, w.Seed)
 		regionSrc := worldgen.NewRegionSource(w, w.Seed)
-		landmarkSrc := worldgen.NewLandmarkSource(w, w.Seed, regionSrc, volcSrc)
-		depositSrc := worldgen.NewDepositSource(w, w.Seed, volcSrc)
+		landmarkSrc := worldgen.NewLandmarkSource(w, w.Seed, worldgen.LandmarkSourceConfig{
+			Regions:   regionSrc,
+			Volcanoes: volcSrc,
+		})
+		depositSrc := worldgen.NewDepositSource(w, w.Seed, worldgen.DepositSourceConfig{
+			Volcanoes: volcSrc,
+		})
 		m.volcanoSrc = volcSrc
 		m.regionSrc = regionSrc
 		m.landmarkSrc = landmarkSrc
@@ -215,7 +220,7 @@ func randomSeedString() string {
 // and accumulates all landmark coords into a flat map keyed by packed XY so
 // per-tile lookups are O(1) during rendering. It also returns a flat slice for
 // bbox-scan at high zoom levels. Built once at world load.
-func buildLandmarkIndex(w *worldgen.World, src gworld.LandmarkSource) (map[uint64]gworld.Landmark, []gworld.Landmark) {
+func buildLandmarkIndex(w *worldgen.Map, src gworld.LandmarkSource) (map[uint64]gworld.Landmark, []gworld.Landmark) {
 	idx := make(map[uint64]gworld.Landmark)
 	var list []gworld.Landmark
 	scW := (w.Width + geom.SuperChunkSize - 1) / geom.SuperChunkSize
@@ -224,7 +229,7 @@ func buildLandmarkIndex(w *worldgen.World, src gworld.LandmarkSource) (map[uint6
 		for sx := 0; sx < scW; sx++ {
 			sc := geom.SuperChunkCoord{X: sx, Y: sy}
 			for _, lm := range src.LandmarksIn(sc) {
-				key := uint64(lm.Coord.X)<<32 | uint64(uint32(lm.Coord.Y))
+				key := geom.PackPos(lm.Coord)
 				idx[key] = lm
 				list = append(list, lm)
 			}
@@ -244,7 +249,7 @@ func buildDepositIndex(src gworld.DepositSource) map[uint64]gworld.Deposit {
 	all := src.DepositsIn(geom.Rect{MinX: -1 << 20, MinY: -1 << 20, MaxX: 1 << 20, MaxY: 1 << 20})
 	idx := make(map[uint64]gworld.Deposit, len(all))
 	for _, d := range all {
-		key := uint64(d.Position.X)<<32 | uint64(uint32(d.Position.Y))
+		key := geom.PackPos(d.Position)
 		idx[key] = d
 	}
 	return idx

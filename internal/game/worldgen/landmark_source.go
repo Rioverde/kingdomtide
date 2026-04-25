@@ -42,21 +42,6 @@ const (
 // Value: fractional hex of sqrt(41).
 const landmarkSeedSalt int64 = 0x73c1a8f5b2e9d406
 
-// landmarkPrefixCount mirrors the active.*.toml entries under
-// "landmark.prefix.<character>.<idx>". All seven characters carry five
-// prefixes today; if a future locale shrinks one bucket, the value
-// here must drop in lock-step or naming.Generate will produce out-of-
-// range PrefixIndex values.
-var landmarkPrefixCount = map[string]int{
-	"normal":   5,
-	"blighted": 5,
-	"fey":      5,
-	"ancient":  5,
-	"savage":   5,
-	"holy":     5,
-	"wild":     5,
-}
-
 // landmarkPatternCount mirrors the active.*.toml entries under
 // "landmark.name.<sub_kind>.kind_pattern.<idx>". Counts per sub-kind:
 // tower=3, giant_tree=2, standing_stones=2, obelisk=2, chasm=3, shrine=3.
@@ -76,17 +61,8 @@ var landmarkPatternCount = map[string]int{
 func landmarkBounds() naming.Bounds {
 	return naming.Bounds{
 		PatternCount: landmarkPatternCount,
-		PrefixCount:  landmarkPrefixCount,
+		PrefixCount:  characterPrefixCount,
 	}
-}
-
-// kindWeight pairs a LandmarkKind with its weight inside a per-character
-// distribution. Weights are float32 cumulative probabilities — they are
-// normalized at draw time, so the absolute values only need the
-// relative ratio called out in the design doc.
-type kindWeight struct {
-	Kind   gworld.LandmarkKind
-	Weight float32
 }
 
 // landmarkKindWeights resolves a region character to its weighted kind
@@ -99,39 +75,39 @@ type kindWeight struct {
 // Tables are package-level fixed slices (not maps) because the lookup
 // is hot, the set is small, and slice iteration is allocation-free.
 var (
-	landmarkKindsNormal = []kindWeight{
+	landmarkKindsNormal = []weighted[gworld.LandmarkKind]{
 		{gworld.LandmarkTower, 0.25},
 		{gworld.LandmarkGiantTree, 0.25},
 		{gworld.LandmarkStandingStones, 0.25},
 		{gworld.LandmarkShrine, 0.25},
 	}
-	landmarkKindsBlighted = []kindWeight{
+	landmarkKindsBlighted = []weighted[gworld.LandmarkKind]{
 		{gworld.LandmarkObelisk, 0.40},
 		{gworld.LandmarkChasm, 0.30},
 		{gworld.LandmarkStandingStones, 0.20},
 		{gworld.LandmarkShrine, 0.10},
 	}
-	landmarkKindsFey = []kindWeight{
+	landmarkKindsFey = []weighted[gworld.LandmarkKind]{
 		{gworld.LandmarkGiantTree, 0.40},
 		{gworld.LandmarkStandingStones, 0.30},
 		{gworld.LandmarkShrine, 0.30},
 	}
-	landmarkKindsAncient = []kindWeight{
+	landmarkKindsAncient = []weighted[gworld.LandmarkKind]{
 		{gworld.LandmarkObelisk, 0.50},
 		{gworld.LandmarkStandingStones, 0.30},
 		{gworld.LandmarkTower, 0.20},
 	}
-	landmarkKindsSavage = []kindWeight{
+	landmarkKindsSavage = []weighted[gworld.LandmarkKind]{
 		{gworld.LandmarkChasm, 0.40},
 		{gworld.LandmarkObelisk, 0.30},
 		{gworld.LandmarkStandingStones, 0.30},
 	}
-	landmarkKindsHoly = []kindWeight{
+	landmarkKindsHoly = []weighted[gworld.LandmarkKind]{
 		{gworld.LandmarkShrine, 0.50},
 		{gworld.LandmarkTower, 0.30},
 		{gworld.LandmarkGiantTree, 0.20},
 	}
-	landmarkKindsWild = []kindWeight{
+	landmarkKindsWild = []weighted[gworld.LandmarkKind]{
 		{gworld.LandmarkGiantTree, 0.40},
 		{gworld.LandmarkChasm, 0.30},
 		{gworld.LandmarkStandingStones, 0.30},
@@ -142,7 +118,7 @@ var (
 // region character. Unknown characters fall back to the Normal table —
 // defensive only; every character defined in the world package has an
 // explicit entry above.
-func kindWeightsFor(c gworld.RegionCharacter) []kindWeight {
+func kindWeightsFor(c gworld.RegionCharacter) []weighted[gworld.LandmarkKind] {
 	switch c {
 	case gworld.RegionNormal:
 		return landmarkKindsNormal
@@ -174,7 +150,7 @@ func kindWeightsFor(c gworld.RegionCharacter) []kindWeight {
 // cache fills — the duplicated work is bounded to the cache miss
 // window and is harmless because the computation is pure.
 type LandmarkSource struct {
-	world     *World
+	world     *Map
 	seed      int64
 	regions   gworld.RegionSource
 	volcanoes gworld.VolcanoSource // optional — may be nil
@@ -188,54 +164,46 @@ type LandmarkSource struct {
 	cache sync.Map // SuperChunkCoord -> []gworld.Landmark
 }
 
-// NewLandmarkSource builds a real landmark source over a finished
-// worldgen.World. Replaces the all-empty NoiseLandmarkSource stub.
+// LandmarkSourceConfig holds the upstream sources a LandmarkSource
+// needs. Either field may be nil — landmarks degrade gracefully when
+// a source is absent.
+type LandmarkSourceConfig struct {
+	Regions   gworld.RegionSource  // for region-character-aware kind weights
+	Volcanoes gworld.VolcanoSource // for avoiding volcano core/slope tiles
+}
+
+// NewLandmarkSource builds a LandmarkSource over a finished worldgen.Map.
 //
-// volcanoes is optional — pass nil to disable the volcano-zone reject
-// check. When non-nil, every tile inside a volcano's CoreTiles or
+// cfg.Volcanoes is optional — when nil the volcano-zone reject check is
+// disabled. When non-nil, every tile inside a volcano's CoreTiles or
 // SlopeTiles becomes ineligible for landmark placement. AshlandTiles
 // stay eligible: ashland is dusted but passable terrain and reads
 // thematically as a place where ancient things might still stand.
-func NewLandmarkSource(
-	w *World,
-	seed int64,
-	regions gworld.RegionSource,
-	volcanoes gworld.VolcanoSource,
-) *LandmarkSource {
+func NewLandmarkSource(w *Map, seed int64, cfg LandmarkSourceConfig) *LandmarkSource {
 	src := &LandmarkSource{
 		world:     w,
 		seed:      seed,
-		regions:   regions,
-		volcanoes: volcanoes,
+		regions:   cfg.Regions,
+		volcanoes: cfg.Volcanoes,
 	}
-	if volcanoes != nil {
-		src.volcanoZoneAt = buildVolcanoZoneIndex(volcanoes)
+	if cfg.Volcanoes != nil {
+		src.volcanoZoneAt = buildVolcanoZoneIndex(cfg.Volcanoes)
 	}
 	return src
 }
 
-// buildVolcanoZoneIndex walks every volcano via the source's per-super-
-// chunk lookup and folds core+slope tiles into a flat reject set. Built
-// once at construction so the per-placement reject check is a single
-// map read. Ashland tiles are intentionally excluded — see
-// NewLandmarkSource.
+// buildVolcanoZoneIndex walks every volcano via All() and folds
+// core+slope tiles into a flat reject set. Built once at construction
+// so the per-placement reject check is a single map read. Ashland
+// tiles are intentionally excluded — see NewLandmarkSource.
 func buildVolcanoZoneIndex(volcanoes gworld.VolcanoSource) map[uint64]struct{} {
 	out := map[uint64]struct{}{}
-	// Walk every super-chunk a volcano could anchor in. We don't know the
-	// exact set up front; sentinel-source signature is per-sc lookup so
-	// we collect by re-querying with each unique anchor we hit. The
-	// concrete VolcanoSource implementation memoises its volcanoes
-	// slice, so this is safe and cheap on the standard implementation.
-	if all, ok := volcanoes.(interface {
-		All() []gworld.Volcano
-	}); ok {
-		for _, v := range all.All() {
-			for _, t := range v.CoreTiles {
-				out[packPos(t)] = struct{}{}
-			}
-			for _, t := range v.SlopeTiles {
-				out[packPos(t)] = struct{}{}
-			}
+	for _, v := range volcanoes.All() {
+		for _, t := range v.CoreTiles {
+			out[geom.PackPos(t)] = struct{}{}
+		}
+		for _, t := range v.SlopeTiles {
+			out[geom.PackPos(t)] = struct{}{}
 		}
 	}
 	return out
@@ -246,12 +214,7 @@ func buildVolcanoZoneIndex(volcanoes gworld.VolcanoSource) map[uint64]struct{} {
 // LoadOrStore makes the second writer's result visible atomically and
 // the duplicated work is bounded to the miss window.
 func (s *LandmarkSource) LandmarksIn(sc geom.SuperChunkCoord) []gworld.Landmark {
-	if cached, ok := s.cache.Load(sc); ok {
-		return cached.([]gworld.Landmark)
-	}
-	out := s.computeLandmarks(sc)
-	actual, _ := s.cache.LoadOrStore(sc, out)
-	return actual.([]gworld.Landmark)
+	return lazyLoad(&s.cache, sc, func() []gworld.Landmark { return s.computeLandmarks(sc) })
 }
 
 // computeLandmarks runs the full placement pipeline for one super-
@@ -276,11 +239,8 @@ func (s *LandmarkSource) computeLandmarks(sc geom.SuperChunkCoord) []gworld.Land
 	// salt and the super-chunk coords yields a stable but decorrelated
 	// stream — same (seed, sc) always produces the same draws regardless
 	// of which order callers query super-chunks.
-	state := uint64(s.seed) ^ uint64(landmarkSeedSalt) ^
-		(uint64(int64(sc.X)) * 0x9e3779b97f4a7c15) ^
-		(uint64(int64(sc.Y)) * 0xbf58476d1ce4e5b9)
-	stream := geom.Splitmix64(state ^ 0x94d049bb133111eb)
-	rng := rand.New(rand.NewPCG(state, stream))
+	state := geom.MixCoords(s.seed, landmarkSeedSalt, sc.X, sc.Y)
+	rng := newPCG(state)
 
 	count := rollLandmarkCount(rng)
 	if count == 0 {
@@ -296,7 +256,7 @@ func (s *LandmarkSource) computeLandmarks(sc geom.SuperChunkCoord) []gworld.Land
 		if !ok {
 			continue
 		}
-		kind := pickKind(rng, weights)
+		kind := pickWeighted(rng, weights, gworld.LandmarkTower)
 		name := naming.Generate(naming.Input{
 			Domain:    naming.DomainLandmark,
 			Character: region.Character.Key(),
@@ -395,7 +355,7 @@ func (s *LandmarkSource) tileInVolcanoZone(p geom.Position) bool {
 	if s.volcanoZoneAt == nil {
 		return false
 	}
-	_, exists := s.volcanoZoneAt[packPos(p)]
+	_, exists := s.volcanoZoneAt[geom.PackPos(p)]
 	return exists
 }
 
@@ -406,44 +366,12 @@ func (s *LandmarkSource) tileInVolcanoZone(p geom.Position) bool {
 // tile box".
 func tooCloseToExisting(p geom.Position, existing []gworld.Landmark, minSpacing int) bool {
 	for _, lm := range existing {
-		dx := p.X - lm.Coord.X
-		if dx < 0 {
-			dx = -dx
-		}
-		dy := p.Y - lm.Coord.Y
-		if dy < 0 {
-			dy = -dy
-		}
-		if dx < minSpacing && dy < minSpacing {
+		if geom.ChebyshevDist(p, lm.Coord) < minSpacing {
 			return true
 		}
 	}
 	return false
 }
 
-// pickKind draws a LandmarkKind from a weighted distribution. The
-// weights need not be normalized — the cumulative sum is computed at
-// draw time so callers can express ratios directly.
-func pickKind(rng *rand.Rand, weights []kindWeight) gworld.LandmarkKind {
-	if len(weights) == 0 {
-		return gworld.LandmarkTower
-	}
-	var total float32
-	for _, w := range weights {
-		total += w.Weight
-	}
-	if total <= 0 {
-		return weights[0].Kind
-	}
-	r := rng.Float32() * total
-	var cum float32
-	for _, w := range weights {
-		cum += w.Weight
-		if r < cum {
-			return w.Kind
-		}
-	}
-	return weights[len(weights)-1].Kind
-}
 
 var _ gworld.LandmarkSource = (*LandmarkSource)(nil)

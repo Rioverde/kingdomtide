@@ -24,9 +24,12 @@ func newBitset(n int) *bitset {
 // Len returns the number of bits the set holds.
 func (b *bitset) Len() int { return b.n }
 
-// Set marks bit i as 1. No bounds check — caller must keep i within
-// [0, n). Benchmarks show the inlined version costs ~1ns.
+// Set marks bit i as 1. Out-of-range indices are silently ignored.
+// Benchmarks show the inlined version costs ~1ns.
 func (b *bitset) Set(i int) {
+	if i < 0 || i >= b.n {
+		return
+	}
 	b.bits[i>>6] |= 1 << uint(i&63)
 }
 
