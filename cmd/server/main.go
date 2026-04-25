@@ -180,6 +180,13 @@ func buildWorld(seed int64, size worldgen.WorldSize, logger *slog.Logger) *world
 		Volcanoes: volcanoSrc,
 	})
 
+	campSrc := worldgen.NewCampSource(wgWorld, seed, worldgen.CampSourceConfig{
+		Regions:   regionSrc,
+		Landmarks: landmarkSrc,
+		Volcanoes: volcanoSrc,
+		Deposits:  depositSrc,
+	})
+
 	cal := calendar.NewCalendar(
 		calendar.DefaultCalendarConfig.TicksPerDay,
 		calendar.DefaultCalendarConfig.DaysPerMonth,
@@ -193,6 +200,7 @@ func buildWorld(seed int64, size worldgen.WorldSize, logger *slog.Logger) *world
 		world.WithLandmarkSource(landmarkSrc),
 		world.WithVolcanoSource(volcanoSrc),
 		world.WithDepositSource(depositSrc),
+		world.WithCampSource(campSrc),
 		world.WithCalendar(cal),
 	)
 }

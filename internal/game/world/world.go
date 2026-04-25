@@ -58,6 +58,10 @@ type World struct {
 	// methods return the empty result when unset so callers need not
 	// special-case the missing source.
 	depositSource DepositSource
+	// campSource produces the canonical camp list per super-chunk and
+	// the full sorted world list. May be nil; CampSource() returns nil
+	// so callers need not special-case the missing source.
+	campSource CampSource
 	// currentTick is the monotonic tick counter — advances by exactly 1
 	// per Tick() call. Zero on a freshly constructed world. Calendar-
 	// derived GameTime reads from this counter through w.cal.
@@ -138,6 +142,17 @@ func WithDepositSource(source DepositSource) WorldOption {
 	}
 }
 
+// WithCampSource attaches a CampSource. If nil is passed, the option is a
+// no-op so callers can pass an optional source built behind a feature
+// flag without conditioning the option list.
+func WithCampSource(source CampSource) WorldOption {
+	return func(w *World) {
+		if source != nil {
+			w.campSource = source
+		}
+	}
+}
+
 // WithCalendar attaches a Calendar. A zero-value Calendar is treated
 // the same as "no calendar wired" — Tick() still advances the internal
 // counter but emits no boundary events and GameTime() returns the zero
@@ -214,6 +229,13 @@ func (w *World) VolcanoSource() VolcanoSource {
 // decide whether to wire caching or skip deposit-aware code paths.
 func (w *World) DepositSource() DepositSource {
 	return w.depositSource
+}
+
+// CampSource returns the configured camp source, or nil when the world
+// was built without one. Mirrors DepositSource so the optional backends
+// follow the same accessor shape.
+func (w *World) CampSource() CampSource {
+	return w.campSource
 }
 
 // CurrentTick returns the monotonic tick counter. Zero on a freshly

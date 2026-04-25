@@ -94,6 +94,13 @@ func (m Model) updateViewer(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.layer = layerLandmarks
 	case "0":
 		m.layer = layerDeposits
+	case "c":
+		// Press once: switch to camps. Press again: toggle faith background.
+		if m.layer == layerCamps {
+			m.showCampFaithBg = !m.showCampFaithBg
+		} else {
+			m.layer = layerCamps
+		}
 	}
 	m.clampViewport()
 	return m, nil
@@ -190,7 +197,7 @@ func (m Model) renderStatusBar() string {
 // hintsCached — the hints line never changes, so render it once and
 // reuse. Saves a lipgloss.Render call per frame.
 var hintsCached = hintsStyle.Render(
-	"arrows: scroll  ·  shift+arrows: fast  ·  l: layer  ·  1-9,0: direct  ·  +/-: zoom  ·  i: info  ·  ?: legend  ·  n: new  ·  q: quit")
+	"arrows: scroll  ·  shift+arrows: fast  ·  l: layer  ·  1-9,0,c: direct  ·  +/-: zoom  ·  i: info  ·  ?: legend  ·  n: new  ·  q: quit")
 
 func (m Model) renderInfo() string {
 	visCols, visRows := m.viewportSize()
@@ -212,7 +219,15 @@ func (m Model) renderInfo() string {
 		m.world.Terrain[cellID])
 
 	var line2 string
-	if m.regionSrc != nil {
+	if m.layer == layerCamps && m.campIndex != nil {
+		key := geom.PackPos(geom.Position{X: cx, Y: cy})
+		if camp, ok := m.campIndex[key]; ok {
+			line2 = fmt.Sprintf(" region=%s  faith=%s  pop=%d  born=%d  footprint=%d tile(s) ",
+				camp.Region.Key(), camp.Faith, camp.Pop, camp.BornYear, len(camp.Footprint))
+		} else {
+			line2 = " (no camp at cursor) "
+		}
+	} else if m.regionSrc != nil {
 		sc := geom.WorldToSuperChunk(cx, cy)
 		region := m.regionSrc.RegionAt(sc)
 		name := renderRegionName(region.Name)

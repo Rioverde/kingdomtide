@@ -47,6 +47,7 @@ const (
 	layerRegions
 	layerLandmarks
 	layerDeposits
+	layerCamps
 	layerCount
 )
 
@@ -74,6 +75,8 @@ func (l layer) String() string {
 		return "landmarks"
 	case layerDeposits:
 		return "deposits"
+	case layerCamps:
+		return "camps"
 	}
 	return "unknown"
 }
@@ -108,6 +111,9 @@ type Model struct {
 	landmarkList  []gworld.Landmark
 	depositSrc    gworld.DepositSource
 	depositIndex  map[uint64]gworld.Deposit
+	campSrc       gworld.CampSource
+	campIndex     map[uint64]gworld.Camp // packed anchor/footprint pos → Camp
+	showCampFaithBg bool
 	layer         layer
 	zoom          int
 	vpX, vpY      int
@@ -175,12 +181,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		depositSrc := worldgen.NewDepositSource(w, w.Seed, worldgen.DepositSourceConfig{
 			Volcanoes: volcSrc,
 		})
+		campSrc := worldgen.NewCampSource(w, w.Seed, worldgen.CampSourceConfig{
+			Regions:   regionSrc,
+			Landmarks: landmarkSrc,
+			Volcanoes: volcSrc,
+			Deposits:  depositSrc,
+		})
 		m.volcanoSrc = volcSrc
 		m.regionSrc = regionSrc
 		m.landmarkSrc = landmarkSrc
 		m.landmarkIndex, m.landmarkList = buildLandmarkIndex(w, landmarkSrc)
 		m.depositSrc = depositSrc
 		m.depositIndex = buildDepositIndex(depositSrc)
+		m.campSrc = campSrc
+		m.campIndex = buildCampIndex(campSrc)
 		return m, nil
 	}
 
@@ -251,6 +265,23 @@ func buildDepositIndex(src gworld.DepositSource) map[uint64]gworld.Deposit {
 	for _, d := range all {
 		key := geom.PackPos(d.Position)
 		idx[key] = d
+	}
+	return idx
+}
+
+// buildCampIndex flattens a CampSource into a packed-XY map keyed by every
+// footprint position (including anchor) for O(1) per-tile lookups during
+// rendering. Built once at world load.
+func buildCampIndex(src gworld.CampSource) map[uint64]gworld.Camp {
+	if src == nil {
+		return nil
+	}
+	camps := src.All()
+	idx := make(map[uint64]gworld.Camp, len(camps)*3)
+	for _, c := range camps {
+		for _, fp := range c.Footprint {
+			idx[geom.PackPos(fp)] = c
+		}
 	}
 	return idx
 }
