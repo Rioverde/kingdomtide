@@ -65,11 +65,9 @@ const (
 // field in the program.
 //
 // Two of the literals exceed math.MaxInt64 in their unsigned form, so
-// they cannot be spelled as untyped int64 constants. Routing through a
-// uint64 variable via toRegionSaltInt64 lets Go perform the conversion
-// at runtime with two's-complement wraparound, preserving the full
-// 64-bit pattern. This mirrors the pattern used in geom.toInt64 and
-// naming.toSaltInt64.
+// they cannot be spelled as untyped int64 constants. geom.ToInt64 performs
+// the conversion at runtime with two's-complement wraparound, preserving
+// the full 64-bit pattern.
 //
 //	regionSaltBlight  — fractional hex of sqrt(17)
 //	regionSaltFae     — fractional hex of sqrt(19)
@@ -78,33 +76,13 @@ const (
 //	regionSaltHoly    — fractional hex of sqrt(31)
 //	regionSaltWild    — fractional hex of sqrt(37)
 var (
-	regionSaltBlight  = toRegionSaltInt64(0x428a2f98d728ae22)
-	regionSaltFae     = toRegionSaltInt64(0x7137449123ef65cd)
-	regionSaltAncient = toRegionSaltInt64(0xb5c0fbcfec4d3b2f)
-	regionSaltSavage  = toRegionSaltInt64(0xe9b5dba58189dbbc)
-	regionSaltHoly    = toRegionSaltInt64(0x3956c25bf348b538)
-	regionSaltWild    = toRegionSaltInt64(0x59f111f1b605d019)
+	regionSaltBlight  = geom.ToInt64(0x428a2f98d728ae22)
+	regionSaltFae     = geom.ToInt64(0x7137449123ef65cd)
+	regionSaltAncient = geom.ToInt64(0xb5c0fbcfec4d3b2f)
+	regionSaltSavage  = geom.ToInt64(0xe9b5dba58189dbbc)
+	regionSaltHoly    = geom.ToInt64(0x3956c25bf348b538)
+	regionSaltWild    = geom.ToInt64(0x59f111f1b605d019)
 )
-
-// toRegionSaltInt64 reinterprets a uint64 bit pattern as int64. The
-// function call turns constant checking off so the full 64-bit pattern
-// survives regardless of the high bit.
-func toRegionSaltInt64(u uint64) int64 { return int64(u) }
-
-// regionPrefixCount and regionPatternCounts mirror the locale catalog
-// shape. They live here rather than in a wired-up registry because the
-// catalog is static and the worldgen package owns the only call site.
-// Numbers must match the entries in internal/ui/locale/active.*.toml —
-// drift triggers a Format downgrade or out-of-range index in the client.
-var regionPrefixCount = map[string]int{
-	"normal":   5,
-	"blighted": 5,
-	"fey":      5,
-	"ancient":  5,
-	"savage":   5,
-	"holy":     5,
-	"wild":     5,
-}
 
 var regionPatternCount = map[string]int{
 	"region.forest":   5,
@@ -123,7 +101,7 @@ var regionPatternCount = map[string]int{
 func regionBounds() naming.Bounds {
 	return naming.Bounds{
 		PatternCount: regionPatternCount,
-		PrefixCount:  regionPrefixCount,
+		PrefixCount:  characterPrefixCount,
 	}
 }
 
@@ -135,7 +113,7 @@ func regionBounds() naming.Bounds {
 // internal/server walks the same coords many times during a session)
 // avoid redundant noise evaluation.
 type RegionSource struct {
-	world *World
+	world *Map
 	seed  int64
 
 	noiseBlight  opensimplex.Noise
@@ -148,14 +126,13 @@ type RegionSource struct {
 	cache sync.Map // SuperChunkCoord -> gworld.Region
 }
 
-// NewRegionSource builds a real region source over a finished
-// worldgen.World. Replaces the all-Normal NoiseRegionSource stub.
+// NewRegionSource builds a RegionSource over a finished worldgen.Map.
 //
 // The six per-character fBm fields are constructed eagerly so every
 // RegionAt call hits the same shared, concurrent-safe noise instances.
 // opensimplex.Noise.Eval2 is reentrant after construction — the
 // classify/terrain stages already rely on the same property.
-func NewRegionSource(w *World, seed int64) *RegionSource {
+func NewRegionSource(w *Map, seed int64) *RegionSource {
 	return &RegionSource{
 		world:        w,
 		seed:         seed,
@@ -175,13 +152,7 @@ func NewRegionSource(w *World, seed int64) *RegionSource {
 // after the second writer's Store completes, so duplicate work is
 // bounded to the cache miss window and is harmless.
 func (r *RegionSource) RegionAt(sc geom.SuperChunkCoord) gworld.Region {
-	if cached, ok := r.cache.Load(sc); ok {
-		return cached.(gworld.Region)
-	}
-
-	region := r.computeRegion(sc)
-	actual, _ := r.cache.LoadOrStore(sc, region)
-	return actual.(gworld.Region)
+	return lazyLoad(&r.cache, sc, func() gworld.Region { return r.computeRegion(sc) })
 }
 
 // computeRegion runs the full region pipeline for one super-chunk.
@@ -390,6 +361,14 @@ func clamp01(v float32) float32 {
 func (r *RegionSource) InfluenceAt(x, y int) gworld.RegionInfluence {
 	_, sc := geom.AnchorAt(r.seed, x, y)
 	return r.RegionAt(sc).Influence
+}
+
+// InfluenceSampler is the per-tile thematic-influence lookup the client
+// UI consumes for region tinting. RegionSource implements it; the field
+// on the UI Model is nil until the server delivers real region data, at
+// which point callers may substitute a live *RegionSource.
+type InfluenceSampler interface {
+	InfluenceAt(x, y int) gworld.RegionInfluence
 }
 
 var (

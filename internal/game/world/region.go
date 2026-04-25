@@ -58,8 +58,8 @@ func (c RegionCharacter) Key() string {
 
 // RegionInfluence is the per-region accumulator of thematic influences.
 // Each component is in [0, 1]. Multiple components can be non-zero — a
-// region can be simultaneously Ancient and Fey. Dominant picks the strongest
-// above regionDominantThreshold; if all are below, RegionNormal is returned.
+// region can be simultaneously Ancient and Fey. Dominant picks the
+// strongest component; if all are zero, RegionNormal is returned.
 //
 // Field order matches the RegionCharacter enum (Blight..Wild) and is the
 // tie-break order used by Dominant.
@@ -72,17 +72,13 @@ type RegionInfluence struct {
 	Wild    float32
 }
 
-// regionDominantThreshold is the minimum component magnitude required for a
-// character to be considered "dominant". Components strictly greater than
-// the threshold qualify; equal or below is treated as background. Chosen so
-// that noise fields in [0, 1] with typical peaks around 0.6-0.8 produce a
-// rough 40% dominant / 60% Normal mix.
-const regionDominantThreshold float32 = 0.45
-
-// Dominant projects the influence vector onto a single character. Returns
-// RegionNormal when no component exceeds regionDominantThreshold. Ties are
-// broken by field declaration order: Blight > Fae > Ancient > Savage > Holy
-// > Wild. The method is pure and allocation-free.
+// Dominant projects the influence vector onto a single character by
+// returning the character with the highest component value. Returns
+// RegionNormal when all components are zero. Ties are broken by field
+// declaration order: Blight > Fae > Ancient > Savage > Holy > Wild.
+// The threshold gate has been removed — callers that need a minimum
+// cutoff (e.g. worldgen.RegionSource) apply it at their layer.
+// The method is pure and allocation-free.
 func (r RegionInfluence) Dominant() RegionCharacter {
 	best := RegionNormal
 	var bestVal float32
@@ -100,7 +96,7 @@ func (r RegionInfluence) Dominant() RegionCharacter {
 		{r.Wild, RegionWild},
 	}
 	for _, c := range components {
-		if c.value > regionDominantThreshold && c.value > bestVal {
+		if c.value > bestVal {
 			bestVal = c.value
 			best = c.char
 		}

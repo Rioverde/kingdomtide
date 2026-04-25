@@ -10,9 +10,9 @@ import (
 // standardWorld builds a Standard world with seed 42 for tests that need a
 // fully-generated world. Gated behind testing.Short() when used in multi-seed
 // or sweep contexts — see individual tests.
-func standardWorld(t *testing.T) *World {
+func standardWorld(t *testing.T) *Map {
 	t.Helper()
-	return Generate(42, WorldSizeStandard)
+	return Generate(testSeed, WorldSizeStandard)
 }
 
 // TestDepositSource_PlacementByBiome samples a large world and verifies that
@@ -24,7 +24,7 @@ func TestDepositSource_PlacementByBiome(t *testing.T) {
 		t.Skip("placement sweep: needs full worldgen, slow in -short")
 	}
 	w := standardWorld(t)
-	src := NewDepositSource(w, 42, nil)
+	src := NewDepositSource(w, testSeed, DepositSourceConfig{})
 
 	var (
 		mountainTotal, mountainMineral int
@@ -99,8 +99,8 @@ func TestDepositSource_Determinism(t *testing.T) {
 		t.Skip("determinism check: needs full worldgen, slow in -short")
 	}
 	w := standardWorld(t)
-	a := NewDepositSource(w, 42, nil)
-	b := NewDepositSource(w, 42, nil)
+	a := NewDepositSource(w, testSeed, DepositSourceConfig{})
+	b := NewDepositSource(w, testSeed, DepositSourceConfig{})
 
 	if len(a.sorted) != len(b.sorted) {
 		t.Fatalf("deposit counts differ: %d vs %d", len(a.sorted), len(b.sorted))
@@ -121,7 +121,7 @@ func TestDepositSource_DepositsInRect(t *testing.T) {
 		t.Skip("DepositsIn rect: needs full worldgen, slow in -short")
 	}
 	w := standardWorld(t)
-	src := NewDepositSource(w, 42, nil)
+	src := NewDepositSource(w, testSeed, DepositSourceConfig{})
 
 	rect := geom.Rect{MinX: 0, MinY: 0, MaxX: 200, MaxY: 200}
 	results := src.DepositsIn(rect)
@@ -135,11 +135,11 @@ func TestDepositSource_DepositsInRect(t *testing.T) {
 	// rect must appear in results.
 	resultSet := make(map[uint64]bool, len(results))
 	for _, d := range results {
-		resultSet[packPos(d.Position)] = true
+		resultSet[geom.PackPos(d.Position)] = true
 	}
 	for _, d := range src.sorted {
 		if rect.Contains(d.Position) {
-			if !resultSet[packPos(d.Position)] {
+			if !resultSet[geom.PackPos(d.Position)] {
 				t.Errorf("deposit at %+v inside rect but missing from DepositsIn", d.Position)
 			}
 		}
@@ -153,7 +153,7 @@ func TestDepositSource_AvoidOcean(t *testing.T) {
 		t.Skip("ocean avoidance sweep: needs full worldgen, slow in -short")
 	}
 	w := standardWorld(t)
-	src := NewDepositSource(w, 42, nil)
+	src := NewDepositSource(w, testSeed, DepositSourceConfig{})
 
 	for id, cell := range w.Voronoi.Cells {
 		if !w.IsOcean(uint32(id)) {
@@ -174,7 +174,7 @@ func TestDepositSource_NoneKindNeverStored(t *testing.T) {
 		t.Skip("none-kind invariant: needs full worldgen, slow in -short")
 	}
 	w := standardWorld(t)
-	src := NewDepositSource(w, 42, nil)
+	src := NewDepositSource(w, testSeed, DepositSourceConfig{})
 
 	for _, d := range src.sorted {
 		if d.Kind == gworld.DepositNone {
@@ -195,7 +195,7 @@ func TestDepositSource_CurrentAmountEqualsMax(t *testing.T) {
 		t.Skip("amount invariant: needs full worldgen, slow in -short")
 	}
 	w := standardWorld(t)
-	src := NewDepositSource(w, 42, nil)
+	src := NewDepositSource(w, testSeed, DepositSourceConfig{})
 
 	for _, d := range src.sorted {
 		if d.CurrentAmount != d.MaxAmount {
@@ -219,8 +219,8 @@ func TestDepositSource_VolcanicKindsAppear(t *testing.T) {
 		t.Skip("volcanic deposit check: needs full worldgen, slow in -short")
 	}
 	w := standardWorld(t)
-	volcSrc := NewVolcanoSource(w, 42)
-	src := NewDepositSource(w, 42, volcSrc)
+	volcSrc := NewVolcanoSource(w, testSeed)
+	src := NewDepositSource(w, testSeed, DepositSourceConfig{Volcanoes: volcSrc})
 
 	var volcanic int
 	for _, d := range src.sorted {

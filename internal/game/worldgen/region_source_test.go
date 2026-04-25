@@ -7,23 +7,19 @@ import (
 	gworld "github.com/Rioverde/gongeons/internal/game/world"
 )
 
-// regionSampleSeed is a fixed seed used across the RegionSource tests.
-// Pinned so the variety / determinism / biome-affinity assertions stay
-// stable across runs.
-const regionSampleSeed int64 = 42
 
 // buildRegionTestWorld generates a Standard world for the heavier
 // region-source tests. Centralised so each test pays the gen cost once
 // when invoked individually but never duplicates the world build.
-func buildRegionTestWorld(tb testing.TB) *World {
+func buildRegionTestWorld(tb testing.TB) *Map {
 	tb.Helper()
-	return Generate(regionSampleSeed, WorldSizeStandard)
+	return Generate(testSeed, WorldSizeStandard)
 }
 
 // sweepRegionSuperChunks walks every super-chunk grid cell that has at
 // least one tile inside the world and yields the resulting Region.
 // Visit is called in row-major order over the super-chunk grid.
-func sweepRegionSuperChunks(w *World, src *RegionSource, visit func(geom.SuperChunkCoord, gworld.Region)) {
+func sweepRegionSuperChunks(w *Map, src *RegionSource, visit func(geom.SuperChunkCoord, gworld.Region)) {
 	maxX := (w.Width + geom.SuperChunkSize - 1) / geom.SuperChunkSize
 	maxY := (w.Height + geom.SuperChunkSize - 1) / geom.SuperChunkSize
 	for sy := 0; sy < maxY; sy++ {
@@ -44,7 +40,7 @@ func TestRegionSource_DiverseCharacters(t *testing.T) {
 		t.Skip("short — Standard world generation costs ~3s")
 	}
 	w := buildRegionTestWorld(t)
-	src := NewRegionSource(w, regionSampleSeed)
+	src := NewRegionSource(w, testSeed)
 
 	seen := make(map[gworld.RegionCharacter]int)
 	sweepRegionSuperChunks(w, src, func(_ geom.SuperChunkCoord, r gworld.Region) {
@@ -67,7 +63,7 @@ func TestRegionSource_BiomeAffinity(t *testing.T) {
 		t.Skip("short — Standard world generation costs ~3s")
 	}
 	w := buildRegionTestWorld(t)
-	src := NewRegionSource(w, regionSampleSeed)
+	src := NewRegionSource(w, testSeed)
 
 	type bucket struct {
 		blight, fae, ancient, savage, holy, wild float32
@@ -183,8 +179,8 @@ func TestRegionSource_Determinism(t *testing.T) {
 		t.Skip("short — Standard world generation costs ~3s")
 	}
 	w := buildRegionTestWorld(t)
-	a := NewRegionSource(w, regionSampleSeed)
-	b := NewRegionSource(w, regionSampleSeed)
+	a := NewRegionSource(w, testSeed)
+	b := NewRegionSource(w, testSeed)
 
 	coords := []geom.SuperChunkCoord{
 		{X: 0, Y: 0},
@@ -221,7 +217,7 @@ func TestRegionSource_NamesGenerated(t *testing.T) {
 		t.Skip("short — Standard world generation costs ~3s")
 	}
 	w := buildRegionTestWorld(t)
-	src := NewRegionSource(w, regionSampleSeed)
+	src := NewRegionSource(w, testSeed)
 
 	zeros := 0
 	total := 0
@@ -296,7 +292,7 @@ func TestRegionSource_InfluenceAtMatchesRegion(t *testing.T) {
 		t.Skip("short — Standard world generation costs ~3s")
 	}
 	w := buildRegionTestWorld(t)
-	src := NewRegionSource(w, regionSampleSeed)
+	src := NewRegionSource(w, testSeed)
 
 	// Pick a handful of arbitrary tiles spread across the world. Use
 	// odd offsets so the tile is not on a super-chunk boundary.
@@ -308,7 +304,7 @@ func TestRegionSource_InfluenceAtMatchesRegion(t *testing.T) {
 	}
 	for _, p := range samples {
 		got := src.InfluenceAt(p.X, p.Y)
-		_, sc := geom.AnchorAt(regionSampleSeed, p.X, p.Y)
+		_, sc := geom.AnchorAt(testSeed, p.X, p.Y)
 		want := src.RegionAt(sc).Influence
 		if got != want {
 			t.Errorf("InfluenceAt(%d,%d)=%+v; RegionAt(sc=%+v).Influence=%+v",

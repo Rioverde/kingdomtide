@@ -26,7 +26,7 @@ func (s testTiles) TileAt(x, y int) Tile {
 // starts at the origin so tests that care about spawn position should
 // place a passable tile at (0, 0).
 func newTestWorld(src TileSource) *World {
-	return NewWorldFromSource(src)
+	return NewWorld(src)
 }
 
 // unknownCmd exercises the ApplyCommand default branch.

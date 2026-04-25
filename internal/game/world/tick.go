@@ -26,102 +26,16 @@ import (
 	"github.com/Rioverde/gongeons/internal/game/stats"
 )
 
-// tickEntity is the discriminated-union view Tick uses for turn-resolution
-// bookkeeping. Exactly one of player / monster is non-nil; accessor
-// methods branch on that discriminator to read and write the underlying
-// entity's tick fields. The wrapper exists because Go forbids method
-// definitions on types declared outside the current package, and Player/
-// Monster now live in the entity package — the pre-split method set
-// (tickID, tickSpeed, ...) is migrated onto this local wrapper instead.
-type tickEntity struct {
-	player  *entity.Player
-	monster *entity.Monster
-}
-
-// playerTick wraps p for turn resolution.
-func playerTick(p *entity.Player) tickEntity { return tickEntity{player: p} }
-
-// monsterTick wraps m for turn resolution.
-func monsterTick(m *entity.Monster) tickEntity { return tickEntity{monster: m} }
-
-// tickID returns the entity's unique identifier for tick ordering.
-func (e tickEntity) tickID() string {
-	if e.player != nil {
-		return e.player.ID
-	}
-	return e.monster.ID
-}
-
-// tickSpeed returns the entity's Speed for Energy accumulation.
-func (e tickEntity) tickSpeed() int {
-	if e.player != nil {
-		return e.player.Speed
-	}
-	return e.monster.Speed
-}
-
-// tickInitiative returns the entity's Initiative for within-tick
-// ordering.
-func (e tickEntity) tickInitiative() int {
-	if e.player != nil {
-		return e.player.Initiative
-	}
-	return e.monster.Initiative
-}
-
-// tickEnergy returns the entity's current Energy.
-func (e tickEntity) tickEnergy() int {
-	if e.player != nil {
-		return e.player.Energy
-	}
-	return e.monster.Energy
-}
-
-// setTickEnergy updates the entity's Energy.
-func (e tickEntity) setTickEnergy(n int) {
-	if e.player != nil {
-		e.player.Energy = n
-		return
-	}
-	e.monster.Energy = n
-}
-
-// tickIntent returns the entity's pending Intent, or nil when idle.
-// Player.Intent and Monster.Intent are typed as any for the duration of
-// the ongoing package split; the value was deposited by EnqueueIntent or
-// a future Monster AI wiring, both of which only ever store an Intent,
-// so the assertion is safe.
-func (e tickEntity) tickIntent() Intent {
-	var v any
-	if e.player != nil {
-		v = e.player.Intent
-	} else {
-		v = e.monster.Intent
-	}
+// moverIntent extracts the pending Intent from a Mover, returning nil when
+// the entity is idle. TickIntent returns any to avoid an import cycle;
+// the assertion is safe because only Intent values (or untyped nil) are
+// ever stored via SetTickIntent / EnqueueIntent.
+func moverIntent(m Mover) Intent {
+	v := m.TickIntent()
 	if v == nil {
 		return nil
 	}
 	return v.(Intent)
-}
-
-// setTickIntent replaces the entity's pending Intent. Pass nil to clear.
-// The nil branches write an untyped nil rather than a typed-Intent nil
-// so the downstream v == nil check in tickIntent evaluates true on the
-// next cycle.
-func (e tickEntity) setTickIntent(i Intent) {
-	if e.player != nil {
-		if i == nil {
-			e.player.Intent = nil
-			return
-		}
-		e.player.Intent = i
-		return
-	}
-	if i == nil {
-		e.monster.Intent = nil
-		return
-	}
-	e.monster.Intent = i
 }
 
 // mcalcMove returns the energy gain for an entity with the given speed this
@@ -188,25 +102,25 @@ func (w *World) Tick() []event.Event {
 		// one-action-per-tick cap already forbids cashing in that surplus,
 		// so the cap is lossless: "ready" equals exactly one action's
 		// worth and the UI progress bar saturates cleanly at Cost.
-		e.setTickEnergy(min(e.tickEnergy()+w.mcalcMove(e.tickSpeed()), stats.BaseActionCost))
-		intent := e.tickIntent()
+		e.SetTickEnergy(min(e.TickEnergy()+w.mcalcMove(e.TickSpeed()), stats.BaseActionCost))
+		intent := moverIntent(e)
 		if intent == nil {
 			continue
 		}
 		cost := intent.Cost()
-		if e.tickEnergy() < cost {
+		if e.TickEnergy() < cost {
 			continue
 		}
 
 		evs, ok := w.resolveIntent(e, intent)
 		if !ok {
 			events = append(events, evs...)
-			e.setTickIntent(nil)
+			e.SetTickIntent(nil)
 			continue
 		}
 		events = append(events, evs...)
-		e.setTickEnergy(e.tickEnergy() - cost)
-		e.setTickIntent(nil)
+		e.SetTickEnergy(e.TickEnergy() - cost)
+		e.SetTickIntent(nil)
 	}
 
 	// Calendar boundary events — emitted AFTER entity resolution so
@@ -257,24 +171,24 @@ func (w *World) EnqueueIntent(playerID string, intent Intent) error {
 // orderedEntities returns all players and monsters in the canonical tick
 // order: Initiative descending, then Speed descending, then ID ascending.
 // The result is a fresh slice — Tick mutates pointer targets (Energy,
-// Intent) through the tickEntity wrapper but never the backing maps.
-func (w *World) orderedEntities() []tickEntity {
-	out := make([]tickEntity, 0, len(w.players)+len(w.monsters))
+// Intent) through the Mover interface but never the backing maps.
+func (w *World) orderedEntities() []Mover {
+	out := make([]Mover, 0, len(w.players)+len(w.monsters))
 	for _, p := range w.players {
-		out = append(out, playerTick(p))
+		out = append(out, p)
 	}
 	for _, m := range w.monsters {
-		out = append(out, monsterTick(m))
+		out = append(out, m)
 	}
 	sort.Slice(out, func(i, j int) bool {
 		a, b := out[i], out[j]
-		if a.tickInitiative() != b.tickInitiative() {
-			return a.tickInitiative() > b.tickInitiative()
+		if a.TickInitiative() != b.TickInitiative() {
+			return a.TickInitiative() > b.TickInitiative()
 		}
-		if a.tickSpeed() != b.tickSpeed() {
-			return a.tickSpeed() > b.tickSpeed()
+		if a.TickSpeed() != b.TickSpeed() {
+			return a.TickSpeed() > b.TickSpeed()
 		}
-		return a.tickID() < b.tickID()
+		return a.TickID() < b.TickID()
 	})
 	return out
 }
@@ -284,18 +198,18 @@ func (w *World) orderedEntities() []tickEntity {
 // world has been mutated and events carries the observable transitions.
 // On failure (ok == false) the world is unchanged and events carries a
 // single event.IntentFailedEvent the caller forwards to subscribers.
-func (w *World) resolveIntent(e tickEntity, i Intent) ([]event.Event, bool) {
+func (w *World) resolveIntent(e Mover, i Intent) ([]event.Event, bool) {
 	switch v := i.(type) {
 	case MoveIntent:
-		if e.player != nil {
-			return w.applyMoveIntent(e.player, v)
-		}
-		if e.monster != nil {
-			return w.applyMonsterMoveIntent(e.monster, v)
+		switch m := e.(type) {
+		case *entity.Player:
+			return w.applyMoveIntent(m, v)
+		case *entity.Monster:
+			return w.applyMonsterMoveIntent(m, v)
 		}
 	}
 	return []event.Event{event.IntentFailedEvent{
-		EntityID: e.tickID(),
+		EntityID: e.TickID(),
 		Reason:   event.ReasonIntentMoveInvalid,
 	}}, false
 }

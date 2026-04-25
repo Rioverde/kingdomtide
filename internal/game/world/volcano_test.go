@@ -1,10 +1,6 @@
 package world
 
-import (
-	"testing"
-
-	"github.com/Rioverde/gongeons/internal/game/geom"
-)
+import "testing"
 
 func TestVolcanoState_Key(t *testing.T) {
 	cases := []struct {
@@ -49,66 +45,10 @@ func TestVolcanoState_String(t *testing.T) {
 	}
 }
 
-func TestVolcanoZone_Key(t *testing.T) {
-	cases := []struct {
-		zone VolcanoZone
-		want string
-	}{
-		{VolcanoZoneNone, ""},
-		{VolcanoZoneCore, "core"},
-		{VolcanoZoneSlope, "slope"},
-		{VolcanoZoneAshland, "ashland"},
-		{VolcanoZone(99), ""},
-	}
-	for _, c := range cases {
-		if got := c.zone.Key(); got != c.want {
-			t.Fatalf("VolcanoZone(%d).Key() = %q, want %q", c.zone, got, c.want)
-		}
-		if got := c.zone.String(); got != c.want {
-			t.Fatalf("VolcanoZone(%d).String() = %q, want %q", c.zone, got, c.want)
-		}
-	}
-}
-
-func TestVolcano_ZoneAt(t *testing.T) {
-	core := geom.Position{X: 0, Y: 0}
-	slopeA := geom.Position{X: 1, Y: 0}
-	slopeB := geom.Position{X: 0, Y: 1}
-	ash := geom.Position{X: 2, Y: 0}
-	miss := geom.Position{X: 10, Y: 10}
-
-	v := Volcano{
-		Anchor:       core,
-		State:        VolcanoActive,
-		CoreTiles:    []geom.Position{core},
-		SlopeTiles:   []geom.Position{slopeA, slopeB},
-		AshlandTiles: []geom.Position{ash},
-	}
-
-	cases := []struct {
-		tile geom.Position
-		want VolcanoZone
-	}{
-		{core, VolcanoZoneCore},
-		{slopeA, VolcanoZoneSlope},
-		{slopeB, VolcanoZoneSlope},
-		{ash, VolcanoZoneAshland},
-		{miss, VolcanoZoneNone},
-	}
-	for _, c := range cases {
-		if got := v.ZoneAt(c.tile); got != c.want {
-			t.Fatalf("Volcano.ZoneAt(%+v) = %v, want %v", c.tile, got, c.want)
-		}
-	}
-}
-
 func TestVolcano_ZeroValue(t *testing.T) {
 	var v Volcano
 	if v.State != VolcanoStateUnknown {
 		t.Fatalf("zero-value Volcano.State = %v, want VolcanoStateUnknown", v.State)
-	}
-	if got := v.ZoneAt(geom.Position{X: 0, Y: 0}); got != VolcanoZoneNone {
-		t.Fatalf("zero-value Volcano.ZoneAt = %v, want VolcanoZoneNone", got)
 	}
 	if v.CoreTiles != nil || v.SlopeTiles != nil || v.AshlandTiles != nil {
 		t.Fatalf("zero-value Volcano footprint slices should be nil, got core=%v slope=%v ash=%v",

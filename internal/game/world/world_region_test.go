@@ -49,7 +49,7 @@ func (s *stubRegionSource) RegionAt(sc geom.SuperChunkCoord) Region {
 
 func TestWorldRegionAtDelegates(t *testing.T) {
 	src := &stubRegionSource{seen: make(map[geom.SuperChunkCoord]int)}
-	w := NewWorldFromSource(testTiles{}, WithSeed(17), WithRegionSource(src))
+	w := NewWorld(testTiles{}, WithSeed(17), WithRegionSource(src))
 	if w.Seed() != 17 {
 		t.Fatalf("Seed() = %d, want 17", w.Seed())
 	}

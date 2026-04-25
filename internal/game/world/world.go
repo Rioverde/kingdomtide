@@ -39,7 +39,7 @@ type World struct {
 	seed int64
 	// rng drives the probabilistic speed rounding in mcalcMove. Seeded
 	// deterministically from seed so replays with the same world seed
-	// produce identical combat timing. Never nil after NewWorldFromSource.
+	// produce identical combat timing. Never nil after NewWorld.
 	rng *rand.Rand
 	// regionSource produces canonical Region data per anchor. May be nil; if
 	// nil, RegionAt returns a placeholder RegionNormal region.
@@ -150,19 +150,11 @@ func WithCalendar(c calendar.Calendar) WorldOption {
 
 // NewWorld constructs an infinite World around the given TileSource. Use
 // worldgen.Generate for the procedural production source (the returned
-// *worldgen.World implements TileSource), or NewWorldFromSource with a
-// test-painted source for deterministic unit tests. Optional seed and
-// RegionSource configuration arrive as functional options; omit them for
+// *worldgen.Map implements TileSource), or supply a hand-crafted
+// TileSource for deterministic unit tests. Optional seed and source
+// configuration arrive as functional options; omit them for
 // back-compatible default construction.
 func NewWorld(source TileSource, opts ...WorldOption) *World {
-	return NewWorldFromSource(source, opts...)
-}
-
-// NewWorldFromSource wraps the given TileSource in a World. Production code
-// goes through NewWorld; NewWorldFromSource lets tests (or future scenario
-// loaders) supply a hand-crafted source without touching the procedural
-// pipeline. Accepts the same WorldOptions as NewWorld.
-func NewWorldFromSource(source TileSource, opts ...WorldOption) *World {
 	w := &World{
 		source:           source,
 		players:          make(map[string]*entity.Player),

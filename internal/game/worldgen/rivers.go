@@ -3,7 +3,6 @@ package worldgen
 import (
 	"math/rand/v2"
 
-	gworld "github.com/Rioverde/gongeons/internal/game/world"
 	"github.com/Rioverde/gongeons/internal/game/worldgen/voronoi"
 )
 
@@ -30,7 +29,7 @@ type corner struct {
 // indices where rivers terminated at inland local minima — caller
 // uses these to form lakes. Caller owns the corner graph; this
 // function only consumes it.
-func computeRivers(w *World, corners []corner, seed int64) (*bitset, []int) {
+func computeRivers(w *Map, corners []corner, seed int64) (*bitset, []int) {
 	if len(corners) == 0 {
 		return newBitset(w.Width * w.Height), nil
 	}
@@ -38,23 +37,6 @@ func computeRivers(w *World, corners []corner, seed int64) (*bitset, []int) {
 	heads := pickRiverHeads(corners, rng)
 	edges, lakes := traceRivers(corners, heads)
 	return rasterizeRivers(corners, edges, w.Width, w.Height), lakes
-}
-
-// applyRiverLakes turns every land cell adjacent to a river-terminated
-// local minimum corner into a lake (TerrainOcean — our convention for
-// any standing water body). The isOcean tracker is updated alongside
-// so downstream features (watersheds) treat the new lakes as drainage
-// barriers.
-func applyRiverLakes(w *World, corners []corner, lakes []int, isOcean []bool) {
-	for _, ci := range lakes {
-		for _, adj := range corners[ci].adjCells {
-			if isOcean[adj] {
-				continue
-			}
-			w.Terrain[adj] = gworld.TerrainOcean
-			isOcean[adj] = true
-		}
-	}
 }
 
 // buildCorners hydrates a per-vertex corner slice from the raster-
@@ -66,7 +48,7 @@ func applyRiverLakes(w *World, corners []corner, lakes []int, isOcean []bool) {
 // we preallocate cap=4 on every per-corner slice to land each
 // corner's growth in a single tiny allocation instead of the
 // 0→1→2→4 ramp that would dominate the buildCorners memory profile.
-func buildCorners(w *World, isOcean []bool) []corner {
+func buildCorners(w *Map, isOcean []bool) []corner {
 	d := w.Voronoi
 	if d == nil || len(d.Vertices) == 0 {
 		return nil
@@ -88,10 +70,10 @@ func buildCorners(w *World, isOcean []bool) []corner {
 		b := int(e.Vb)
 		corners[a].neighbors = appendUnique(corners[a].neighbors, b)
 		corners[b].neighbors = appendUnique(corners[b].neighbors, a)
-		corners[a].adjCells = appendUniqueU32(corners[a].adjCells, e.CellL)
-		corners[a].adjCells = appendUniqueU32(corners[a].adjCells, e.CellR)
-		corners[b].adjCells = appendUniqueU32(corners[b].adjCells, e.CellL)
-		corners[b].adjCells = appendUniqueU32(corners[b].adjCells, e.CellR)
+		corners[a].adjCells = appendUnique(corners[a].adjCells, e.CellL)
+		corners[a].adjCells = appendUnique(corners[a].adjCells, e.CellR)
+		corners[b].adjCells = appendUnique(corners[b].adjCells, e.CellL)
+		corners[b].adjCells = appendUnique(corners[b].adjCells, e.CellR)
 	}
 
 	for i := range corners {
@@ -275,17 +257,7 @@ func absInt(v int) int {
 }
 
 // appendUnique appends v to s only if it is not already present.
-func appendUnique(s []int, v int) []int {
-	for _, x := range s {
-		if x == v {
-			return s
-		}
-	}
-	return append(s, v)
-}
-
-// appendUniqueU32 is the uint32 specialisation.
-func appendUniqueU32(s []uint32, v uint32) []uint32 {
+func appendUnique[T comparable](s []T, v T) []T {
 	for _, x := range s {
 		if x == v {
 			return s

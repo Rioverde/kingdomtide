@@ -9,18 +9,14 @@ import (
 	gworld "github.com/Rioverde/gongeons/internal/game/world"
 )
 
-// landmarkSampleSeed pins the seed used across the heavier
-// LandmarkSource tests. Stable so the placement / distribution
-// assertions stay reproducible across CI runs.
-const landmarkSampleSeed int64 = 42
 
 // buildLandmarkTestWorld generates a Standard world plus its real
 // region source. Centralised so each test pays the gen cost once when
 // invoked individually but never duplicates the world build.
-func buildLandmarkTestWorld(tb testing.TB) (*World, *RegionSource) {
+func buildLandmarkTestWorld(tb testing.TB) (*Map, *RegionSource) {
 	tb.Helper()
-	w := Generate(landmarkSampleSeed, WorldSizeStandard)
-	regions := NewRegionSource(w, landmarkSampleSeed)
+	w := Generate(testSeed, WorldSizeStandard)
+	regions := NewRegionSource(w, testSeed)
 	return w, regions
 }
 
@@ -28,7 +24,7 @@ func buildLandmarkTestWorld(tb testing.TB) (*World, *RegionSource) {
 // invokes visit with the placed landmark slice. Visit is called in
 // row-major order so callers can deterministically aggregate.
 func sweepLandmarkSuperChunks(
-	w *World,
+	w *Map,
 	src *LandmarkSource,
 	visit func(geom.SuperChunkCoord, []gworld.Landmark),
 ) {
@@ -52,7 +48,7 @@ func TestLandmarkSource_PlacesLandmarks(t *testing.T) {
 		t.Skip("short — Standard world generation costs ~3s")
 	}
 	w, regions := buildLandmarkTestWorld(t)
-	src := NewLandmarkSource(w, landmarkSampleSeed, regions, nil)
+	src := NewLandmarkSource(w, testSeed, LandmarkSourceConfig{Regions: regions})
 
 	total := 0
 	sweepLandmarkSuperChunks(w, src, func(_ geom.SuperChunkCoord, lms []gworld.Landmark) {
@@ -75,9 +71,9 @@ func TestLandmarkSource_RegionAffinity(t *testing.T) {
 	if testing.Short() {
 		t.Skip("short — Huge world generation costs ~10s")
 	}
-	w := Generate(landmarkSampleSeed, WorldSizeHuge)
-	regions := NewRegionSource(w, landmarkSampleSeed)
-	src := NewLandmarkSource(w, landmarkSampleSeed, regions, nil)
+	w := Generate(testSeed, WorldSizeHuge)
+	regions := NewRegionSource(w, testSeed)
+	src := NewLandmarkSource(w, testSeed, LandmarkSourceConfig{Regions: regions})
 
 	// counts[character][kind] = number of landmarks of that kind in
 	// regions of that character.
@@ -99,7 +95,7 @@ func TestLandmarkSource_RegionAffinity(t *testing.T) {
 	const minSample = 20 // skip buckets too sparse for a reliable share
 
 	checked := 0
-	for ch, weights := range map[gworld.RegionCharacter][]kindWeight{
+	for ch, weights := range map[gworld.RegionCharacter][]weighted[gworld.LandmarkKind]{
 		gworld.RegionNormal:   landmarkKindsNormal,
 		gworld.RegionBlighted: landmarkKindsBlighted,
 		gworld.RegionFey:      landmarkKindsFey,
@@ -139,7 +135,7 @@ func TestLandmarkSource_AvoidsOcean(t *testing.T) {
 		t.Skip("short — Standard world generation costs ~3s")
 	}
 	w, regions := buildLandmarkTestWorld(t)
-	src := NewLandmarkSource(w, landmarkSampleSeed, regions, nil)
+	src := NewLandmarkSource(w, testSeed, LandmarkSourceConfig{Regions: regions})
 
 	violations := 0
 	sweepLandmarkSuperChunks(w, src, func(_ geom.SuperChunkCoord, lms []gworld.Landmark) {
@@ -167,28 +163,28 @@ func TestLandmarkSource_AvoidsVolcanoes(t *testing.T) {
 		t.Skip("short — Standard world generation costs ~3s")
 	}
 	w, regions := buildLandmarkTestWorld(t)
-	volcanoes := NewVolcanoSource(w, landmarkSampleSeed)
+	volcanoes := NewVolcanoSource(w, testSeed)
 	if len(volcanoes.All()) == 0 {
 		t.Skip("no volcanoes placed for this seed — check is vacuously true")
 	}
-	src := NewLandmarkSource(w, landmarkSampleSeed, regions, volcanoes)
+	src := NewLandmarkSource(w, testSeed, LandmarkSourceConfig{Regions: regions, Volcanoes: volcanoes})
 
 	// Build a flat lookup once, mirroring the source's own index, so
 	// the test does not depend on private map state.
 	reject := map[uint64]struct{}{}
 	for _, v := range volcanoes.All() {
 		for _, t := range v.CoreTiles {
-			reject[packPos(t)] = struct{}{}
+			reject[geom.PackPos(t)] = struct{}{}
 		}
 		for _, t := range v.SlopeTiles {
-			reject[packPos(t)] = struct{}{}
+			reject[geom.PackPos(t)] = struct{}{}
 		}
 	}
 
 	violations := 0
 	sweepLandmarkSuperChunks(w, src, func(_ geom.SuperChunkCoord, lms []gworld.Landmark) {
 		for _, lm := range lms {
-			if _, bad := reject[packPos(lm.Coord)]; bad {
+			if _, bad := reject[geom.PackPos(lm.Coord)]; bad {
 				violations++
 				if violations <= 5 {
 					t.Errorf("landmark in volcano zone: kind=%s coord=%v",
@@ -211,8 +207,8 @@ func TestLandmarkSource_Determinism(t *testing.T) {
 		t.Skip("short — Standard world generation costs ~3s")
 	}
 	w, regions := buildLandmarkTestWorld(t)
-	a := NewLandmarkSource(w, landmarkSampleSeed, regions, nil)
-	b := NewLandmarkSource(w, landmarkSampleSeed, regions, nil)
+	a := NewLandmarkSource(w, testSeed, LandmarkSourceConfig{Regions: regions})
+	b := NewLandmarkSource(w, testSeed, LandmarkSourceConfig{Regions: regions})
 
 	maxX := (w.Width + geom.SuperChunkSize - 1) / geom.SuperChunkSize
 	maxY := (w.Height + geom.SuperChunkSize - 1) / geom.SuperChunkSize
@@ -237,7 +233,7 @@ func TestLandmarkSource_NamesGenerated(t *testing.T) {
 		t.Skip("short — Standard world generation costs ~3s")
 	}
 	w, regions := buildLandmarkTestWorld(t)
-	src := NewLandmarkSource(w, landmarkSampleSeed, regions, nil)
+	src := NewLandmarkSource(w, testSeed, LandmarkSourceConfig{Regions: regions})
 
 	zeros := 0
 	total := 0
@@ -266,7 +262,7 @@ func TestLandmarkSource_Spacing(t *testing.T) {
 		t.Skip("short — Standard world generation costs ~3s")
 	}
 	w, regions := buildLandmarkTestWorld(t)
-	src := NewLandmarkSource(w, landmarkSampleSeed, regions, nil)
+	src := NewLandmarkSource(w, testSeed, LandmarkSourceConfig{Regions: regions})
 
 	violations := 0
 	sweepLandmarkSuperChunks(w, src, func(sc geom.SuperChunkCoord, lms []gworld.Landmark) {

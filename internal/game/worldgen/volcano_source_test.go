@@ -8,9 +8,6 @@ import (
 	"github.com/Rioverde/gongeons/internal/game/world"
 )
 
-// volcanoTestSeed is a fixed seed used by the heavy Standard-world
-// tests so failures reproduce locally with the same data shape.
-const volcanoTestSeed int64 = 42
 
 // TestVolcanoSource_PlacesAtMountains exercises the full pipeline on a
 // real Standard world: at least a handful of volcanoes get placed, and
@@ -21,8 +18,8 @@ func TestVolcanoSource_PlacesAtMountains(t *testing.T) {
 	if testing.Short() {
 		t.Skip("short: standard worldgen ~25s, gated for fast loop")
 	}
-	w := Generate(volcanoTestSeed, WorldSizeStandard)
-	src := NewVolcanoSource(w, volcanoTestSeed)
+	w := Generate(testSeed, WorldSizeStandard)
+	src := NewVolcanoSource(w, testSeed)
 
 	all := src.All()
 	if len(all) < 2 {
@@ -59,8 +56,8 @@ func TestVolcanoSource_TerrainOverrides(t *testing.T) {
 	if testing.Short() {
 		t.Skip("short: standard worldgen ~25s, gated for fast loop")
 	}
-	w := Generate(volcanoTestSeed, WorldSizeStandard)
-	src := NewVolcanoSource(w, volcanoTestSeed)
+	w := Generate(testSeed, WorldSizeStandard)
+	src := NewVolcanoSource(w, testSeed)
 
 	all := src.All()
 	if len(all) == 0 {
@@ -110,10 +107,10 @@ func TestVolcanoSource_Determinism(t *testing.T) {
 	if testing.Short() {
 		t.Skip("short: two standard worldgens ~50s, gated for fast loop")
 	}
-	w1 := Generate(volcanoTestSeed, WorldSizeStandard)
-	w2 := Generate(volcanoTestSeed, WorldSizeStandard)
-	a := NewVolcanoSource(w1, volcanoTestSeed).All()
-	b := NewVolcanoSource(w2, volcanoTestSeed).All()
+	w1 := Generate(testSeed, WorldSizeStandard)
+	w2 := Generate(testSeed, WorldSizeStandard)
+	a := NewVolcanoSource(w1, testSeed).All()
+	b := NewVolcanoSource(w2, testSeed).All()
 	if len(a) != len(b) {
 		t.Fatalf("non-deterministic count: %d vs %d", len(a), len(b))
 	}
@@ -140,8 +137,8 @@ func TestVolcanoSource_Determinism(t *testing.T) {
 // hundred ms even without -short, exercises the wiring end-to-end on
 // a small world without depending on the full Standard pipeline.
 func TestVolcanoSource_TinyWorld(t *testing.T) {
-	w := Generate(volcanoTestSeed, WorldSizeTiny)
-	src := NewVolcanoSource(w, volcanoTestSeed)
+	w := Generate(testSeed, WorldSizeTiny)
+	src := NewVolcanoSource(w, testSeed)
 
 	// Tiny is small; volcanoes may not be placed if the world has no
 	// high-elevation cells. Just verify the source is well-formed.
@@ -184,8 +181,8 @@ func TestVolcanoSource_NilWorldDefensive(t *testing.T) {
 // matches the anchor list — every placed volcano must be retrievable
 // through VolcanoAt with its anchor's super-chunk coord.
 func TestVolcanoSource_VolcanoAtIndex(t *testing.T) {
-	w := Generate(volcanoTestSeed, WorldSizeSmall)
-	src := NewVolcanoSource(w, volcanoTestSeed)
+	w := Generate(testSeed, WorldSizeSmall)
+	src := NewVolcanoSource(w, testSeed)
 
 	for i, v := range src.All() {
 		sc := geom.WorldToSuperChunk(v.Anchor.X, v.Anchor.Y)
@@ -210,7 +207,7 @@ func TestRollState_StateDistribution(t *testing.T) {
 	const samples = 1000
 	counts := map[world.VolcanoState]int{}
 	for i := 0; i < samples; i++ {
-		s := rollState(volcanoTestSeed, geom.Position{X: i, Y: i * 7})
+		s := rollState(testSeed, geom.Position{X: i, Y: i * 7})
 		counts[s]++
 	}
 	// Loose bounds — 30/50/20 split with ±10pp tolerance for n=1000.
@@ -243,7 +240,7 @@ func TestPackPos(t *testing.T) {
 	for y := -8; y <= 8; y++ {
 		for x := -8; x <= 8; x++ {
 			p := geom.Position{X: x, Y: y}
-			k := packPos(p)
+			k := geom.PackPos(p)
 			if other, dup := seen[k]; dup {
 				t.Fatalf("collision: %v and %v both pack to %#x", p, other, k)
 			}

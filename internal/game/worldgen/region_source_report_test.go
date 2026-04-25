@@ -1,3 +1,6 @@
+//go:build diag
+// +build diag
+
 package worldgen
 
 import (

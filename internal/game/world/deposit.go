@@ -78,51 +78,6 @@ func AllDepositKinds() []DepositKind {
 	}
 }
 
-// DepositCategory groups kinds by sampling strategy. Placement code
-// dispatches on this value to pick the right algorithm: zonal kinds use
-// Perlin + threshold, point-like use Poisson-disk, structural are
-// feature-locked (coast / volcano slope / core-adjacent).
-type DepositCategory uint8
-
-const (
-	CategoryZonal DepositCategory = iota
-	CategoryPointLike
-	CategoryStructural
-)
-
-var depositCategoryNames = [...]string{
-	CategoryZonal:      "zonal",
-	CategoryPointLike:  "point_like",
-	CategoryStructural: "structural",
-}
-
-// String implements fmt.Stringer for DepositCategory so debug output
-// reads as human text rather than a bare integer.
-func (c DepositCategory) String() string {
-	if int(c) >= len(depositCategoryNames) {
-		return ""
-	}
-	return depositCategoryNames[c]
-}
-
-// CategoryOf returns which sampling strategy applies to k. Every value
-// in AllDepositKinds has an entry; DepositNone and out-of-range values
-// fall through to CategoryZonal as a safe default — tests assert the
-// mapping stays total over AllDepositKinds so a new kind without a
-// category assignment fails loudly.
-func CategoryOf(k DepositKind) DepositCategory {
-	switch k {
-	case DepositFertile, DepositTimber, DepositGame:
-		return CategoryZonal
-	case DepositIron, DepositStone, DepositSalt,
-		DepositGold, DepositSilver, DepositGems:
-		return CategoryPointLike
-	case DepositFish, DepositObsidian, DepositSulfur:
-		return CategoryStructural
-	}
-	return CategoryZonal
-}
-
 // Deposit is the server-side record for one placed resource. Position
 // is the tile; Kind picks the resource type; MaxAmount is the total
 // yield potential at generation time; CurrentAmount equals MaxAmount
@@ -147,8 +102,8 @@ type Deposit struct {
 }
 
 // DepositSource is the consumer-side interface World delegates to for
-// resource queries. The production implementation lives in
-// worldgen.NoiseDepositSource.
+// resource queries. Implementations live outside this package and must
+// be deterministic and safe for concurrent read.
 //
 // DepositAt returns the deposit on the exact tile p, or (Deposit{}, false)
 // when none exists.

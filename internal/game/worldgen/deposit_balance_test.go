@@ -1,3 +1,6 @@
+//go:build diag
+// +build diag
+
 package worldgen
 
 import (
@@ -16,7 +19,7 @@ func TestDepositBalance(t *testing.T) {
 	}
 	w := Generate(42, WorldSizeStandard)
 	volcanoes := NewVolcanoSource(w, 42)
-	deposits := NewDepositSource(w, 42, volcanoes)
+	deposits := NewDepositSource(w, 42, DepositSourceConfig{Volcanoes: volcanoes})
 
 	rect := geom.Rect{MinX: 0, MinY: 0, MaxX: w.Width, MaxY: w.Height}
 	all := deposits.DepositsIn(rect)

@@ -42,7 +42,7 @@ const (
 //     while keeping full visual quality.
 //
 // Parallelised across rows; the coarse grid is read-only after build.
-func applyNoisyEdges(w *World, seed int64) {
+func applyNoisyEdges(w *Map, seed int64) {
 	nx := opensimplex.New(seed ^ saltNoisyEdgesX)
 	ny := opensimplex.New(seed ^ saltNoisyEdgesY)
 

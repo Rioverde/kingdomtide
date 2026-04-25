@@ -7,6 +7,8 @@ import (
 	"sync"
 
 	opensimplex "github.com/ojrac/opensimplex-go"
+
+	gworld "github.com/Rioverde/gongeons/internal/game/world"
 )
 
 // Per-field salts for water / continent placement.
@@ -28,7 +30,7 @@ const (
 // (reads cell centre + continent centres, samples noise, writes its
 // own isWater slot). opensimplex.Noise.Eval2 is concurrent-safe
 // after construction, so the noise instance is shared across workers.
-func classifyWater(w *World, seed int64) []bool {
+func classifyWater(w *Map, seed int64) []bool {
 	cells := w.Voronoi.Cells
 	isWater := make([]bool, len(cells))
 	noise := opensimplex.New(seed ^ saltClass)
@@ -80,7 +82,7 @@ func classifyWater(w *World, seed int64) []bool {
 				amp := 1.0
 				freq := 1.0
 				norm := 0.0
-				for j := 0; j < classifyOctaves; j++ {
+				for range classifyOctaves {
 					v += amp * noise.Eval2(nx*2*freq, ny*2*freq)
 					norm += amp
 					amp *= 0.5
@@ -128,9 +130,26 @@ func placeContinentCentres(rng *rand.Rand, width, height, count int, minSep floa
 	return out
 }
 
+// applyRiverLakes turns every land cell adjacent to a river-terminated
+// local minimum corner into a lake (TerrainOcean — our convention for
+// any standing water body). The isOcean tracker is updated alongside
+// so downstream features (watersheds) treat the new lakes as drainage
+// barriers.
+func applyRiverLakes(w *Map, corners []corner, lakes []int, isOcean []bool) {
+	for _, ci := range lakes {
+		for _, adj := range corners[ci].adjCells {
+			if isOcean[adj] {
+				continue
+			}
+			w.Terrain[adj] = gworld.TerrainOcean
+			isOcean[adj] = true
+		}
+	}
+}
+
 // classifyOceanLake — flood-fill from border water cells. Water
 // reachable from the border is ocean; the rest is lake.
-func classifyOceanLake(w *World, isWater []bool) (isOcean, isLake []bool) {
+func classifyOceanLake(w *Map, isWater []bool) (isOcean, isLake []bool) {
 	isOcean = make([]bool, len(isWater))
 	isLake = make([]bool, len(isWater))
 	queue := make([]uint32, 0, len(isWater))
