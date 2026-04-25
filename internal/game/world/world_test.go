@@ -39,7 +39,7 @@ func TestWorldLandmarksInDelegation(t *testing.T) {
 		{Coord: geom.Position{X: 30, Y: 40}, Kind: LandmarkShrine},
 	}
 	stub := &stubLandmarkSource{out: want}
-	w := NewWorldFromSource(testTiles{}, WithLandmarkSource(stub))
+	w := NewWorld(testTiles{}, WithLandmarkSource(stub))
 
 	sc := geom.SuperChunkCoord{X: 7, Y: 11}
 	got := w.LandmarksIn(sc)

@@ -61,5 +61,10 @@ func (c *volcanoCache) TerrainOverrideAt(t geom.Position) (world.Terrain, bool) 
 	return c.source.TerrainOverrideAt(t)
 }
 
+// All delegates directly to the underlying source. The full volcano list
+// is already held in the production *worldgen.VolcanoSource; caching it
+// here would be redundant.
+func (c *volcanoCache) All() []world.Volcano { return c.source.All() }
+
 // Len returns the number of entries currently held by the LRU. Test-only.
 func (c *volcanoCache) Len() int { return c.lru.Len() }

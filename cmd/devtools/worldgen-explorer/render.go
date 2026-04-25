@@ -66,7 +66,7 @@ func renderCell(m *Model, wx, wy, zoom int) string {
 		if m.landmarkIndex != nil {
 			for dy := 0; dy < zoom; dy++ {
 				for dx := 0; dx < zoom; dx++ {
-					key := uint64(wx+dx)<<32 | uint64(uint32(wy+dy))
+					key := geom.PackPos(geom.Position{X: wx + dx, Y: wy + dy})
 					if lm, ok := m.landmarkIndex[key]; ok {
 						idx := int(lm.Kind)
 						if idx > 0 && idx < len(landmarkKindCell) {
@@ -509,7 +509,7 @@ func renderLandmarkCell(m *Model, wx, wy, zoom int, cellID uint32) string {
 	if zoom == 1 {
 		// Fast path: exact tile lookup.
 		if m.landmarkIndex != nil {
-			key := uint64(wx)<<32 | uint64(uint32(wy))
+			key := geom.PackPos(geom.Position{X: wx, Y: wy})
 			if lm, ok := m.landmarkIndex[key]; ok {
 				idx := int(lm.Kind)
 				if idx > 0 && idx < len(landmarkKindCell) {
@@ -556,7 +556,7 @@ func renderDepositCell(m *Model, wx, wy, zoom int, cellID uint32) string {
 	}
 
 	if zoom == 1 {
-		key := uint64(wx)<<32 | uint64(uint32(wy))
+		key := geom.PackPos(geom.Position{X: wx, Y: wy})
 		if d, ok := m.depositIndex[key]; ok {
 			idx := int(d.Kind)
 			if idx > 0 && idx < len(depositKindCell) {
@@ -569,7 +569,7 @@ func renderDepositCell(m *Model, wx, wy, zoom int, cellID uint32) string {
 	// Zoom > 1: scan the sample block for any deposit.
 	for dy := 0; dy < zoom; dy++ {
 		for dx := 0; dx < zoom; dx++ {
-			key := uint64(wx+dx)<<32 | uint64(uint32(wy+dy))
+			key := geom.PackPos(geom.Position{X: wx + dx, Y: wy + dy})
 			if d, ok := m.depositIndex[key]; ok {
 				idx := int(d.Kind)
 				if idx > 0 && idx < len(depositKindCell) {

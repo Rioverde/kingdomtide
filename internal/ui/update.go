@@ -10,7 +10,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/Rioverde/gongeons/internal/game/stats"
-	"github.com/Rioverde/gongeons/internal/game/worldgen"
 	"github.com/Rioverde/gongeons/internal/ui/locale"
 )
 
@@ -83,9 +82,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // handleSessionAccepted folds the post-join result from JoinSession
 // into the Model. The PlayerID anchors "me" for rendering, the world
-// seed spins up a local influenceSource for cosmetic tint sampling,
-// and the initial snapshot is applied synchronously so the first
-// frame renders without waiting on a pump event. The Subscribe call
+// seed is stored for future use, and the initial snapshot is applied
+// synchronously so the first frame renders without waiting on a pump
+// event. The Subscribe call
 // installs the in-process event feed and the returned unsubscribe is
 // stored so Quit and netError paths can tear it down symmetrically.
 //
@@ -96,7 +95,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m *Model) handleSessionAccepted(v sessionAcceptedMsg) (tea.Model, tea.Cmd) {
 	m.myID = v.Result.PlayerID
 	m.worldSeed = v.Result.WorldSeed
-	m.influenceSource = worldgen.NewInfluenceSampler(v.Result.WorldSeed)
+	m.influenceSource = nil
 	if cal := v.Result.Calendar; cal.TicksPerDay() > 0 {
 		m.calendarCfg = calendarConfig{
 			TicksPerDay:     cal.TicksPerDay(),

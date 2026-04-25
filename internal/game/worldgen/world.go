@@ -24,12 +24,12 @@ func stageTime(stage string, t0 time.Time) {
 	}
 }
 
-// World is the output of Generate. Data is a cell graph: Voronoi
+// Map is the output of Generate. Data is a cell graph: Voronoi
 // holds the tile-to-cell rasterisation and cell adjacency; the
 // per-cell slices (Elevation, Moisture, Terrain) are indexed by
 // cell ID. Land/ocean / coast classifications are not stored — they
 // derive from Terrain and the Voronoi graph via IsOcean / IsCoast.
-type World struct {
+type Map struct {
 	Size   WorldSize
 	Seed   int64
 	Width  int
@@ -67,11 +67,11 @@ type World struct {
 //  6. Terrain — Whittaker table on (elevation, moisture)
 //  7. Hydrology — corner graph, rivers (downslope + Bresenham),
 //     watersheds (downslope propagation to coast)
-func Generate(seed int64, size WorldSize) *World {
+func Generate(seed int64, size WorldSize) *Map {
 	w, h := size.Dimensions()
 	cellCount := cellCountFor(size)
 
-	out := &World{
+	out := &Map{
 		Size:   size,
 		Seed:   seed,
 		Width:  w,
@@ -147,7 +147,7 @@ func Generate(seed int64, size WorldSize) *World {
 // TileAt implements world.TileSource. Off-grid queries return deep
 // ocean so callers can safely probe outside the world boundary.
 // Sets OverlayRiver when the tile is on a rasterised river edge.
-func (w *World) TileAt(x, y int) gworld.Tile {
+func (w *Map) TileAt(x, y int) gworld.Tile {
 	if x < 0 || y < 0 || x >= w.Width || y >= w.Height {
 		return gworld.Tile{Terrain: gworld.TerrainDeepOcean}
 	}
@@ -161,7 +161,7 @@ func (w *World) TileAt(x, y int) gworld.Tile {
 
 // IsRiver reports whether the tile sits on a river edge. Off-grid
 // queries return false.
-func (w *World) IsRiver(x, y int) bool {
+func (w *Map) IsRiver(x, y int) bool {
 	if x < 0 || y < 0 || x >= w.Width || y >= w.Height {
 		return false
 	}
@@ -172,14 +172,14 @@ func (w *World) IsRiver(x, y int) bool {
 }
 
 // IsOcean reports whether the cell's terrain is ocean-like.
-func (w *World) IsOcean(cellID uint32) bool {
+func (w *Map) IsOcean(cellID uint32) bool {
 	t := w.Terrain[cellID]
 	return t == gworld.TerrainOcean || t == gworld.TerrainDeepOcean
 }
 
 // IsCoast reports whether the cell is land with at least one ocean
 // neighbour — derived from the Voronoi graph.
-func (w *World) IsCoast(cellID uint32) bool {
+func (w *Map) IsCoast(cellID uint32) bool {
 	if w.IsOcean(cellID) {
 		return false
 	}
@@ -191,7 +191,7 @@ func (w *World) IsCoast(cellID uint32) bool {
 	return false
 }
 
-var _ gworld.TileSource = (*World)(nil)
+var _ gworld.TileSource = (*Map)(nil)
 
 // cellCountFor scales the Voronoi cell count with world area. The
 // cellsPerSqrtArea constant (see tuning.go) lands at ~13-tile cells

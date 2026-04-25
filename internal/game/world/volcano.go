@@ -49,45 +49,6 @@ func (s VolcanoState) String() string {
 	return s.Key()
 }
 
-// VolcanoZone identifies which concentric ring of a volcano footprint
-// contains a given tile. VolcanoZoneNone is the zero value meaning "not
-// inside the volcano" — the safe default so a malformed or missing
-// lookup reads as miss rather than a false hit on a real zone.
-//
-// The enum uses an explicit named type (not bare strings) so callers
-// cannot silently misspell zone names — a typo becomes a compile error
-// instead of a runtime miss. Order matches the outward growth of a
-// volcano footprint: core → slope → ashland.
-type VolcanoZone uint8
-
-const (
-	VolcanoZoneNone VolcanoZone = iota
-	VolcanoZoneCore
-	VolcanoZoneSlope
-	VolcanoZoneAshland
-)
-
-var volcanoZoneNames = [...]string{
-	VolcanoZoneNone:    "",
-	VolcanoZoneCore:    "core",
-	VolcanoZoneSlope:   "slope",
-	VolcanoZoneAshland: "ashland",
-}
-
-// Key returns the lowercase identifier used for locale catalog keys and
-// structured logging (e.g. "core", "slope", "ashland"). VolcanoZoneNone
-// and out-of-range values return the empty string so debug output on a
-// corrupt value remains usable.
-func (z VolcanoZone) Key() string {
-	if int(z) >= len(volcanoZoneNames) {
-		return ""
-	}
-	return volcanoZoneNames[z]
-}
-
-// String implements fmt.Stringer by delegating to Key.
-func (z VolcanoZone) String() string { return z.Key() }
-
 // Volcano is the server-facing record for one placed volcano — its
 // anchor tile, lifecycle state, and the three footprint rings (core,
 // slope, ashland) the placement pipeline filled in. Anchor is the
@@ -104,29 +65,6 @@ type Volcano struct {
 	AshlandTiles []geom.Position
 }
 
-// ZoneAt reports which footprint ring contains t, or VolcanoZoneNone
-// when t sits outside the volcano entirely. The check is a linear scan
-// — footprints are small (dozens of tiles at most) and the call path is
-// cold, so the simple form beats building a set.
-func (v Volcano) ZoneAt(t geom.Position) VolcanoZone {
-	for _, p := range v.CoreTiles {
-		if p.Equal(t) {
-			return VolcanoZoneCore
-		}
-	}
-	for _, p := range v.SlopeTiles {
-		if p.Equal(t) {
-			return VolcanoZoneSlope
-		}
-	}
-	for _, p := range v.AshlandTiles {
-		if p.Equal(t) {
-			return VolcanoZoneAshland
-		}
-	}
-	return VolcanoZoneNone
-}
-
 // VolcanoSource is the consumer-side interface the World delegates to
 // when reporting volcanoes inside a super-chunk and when resolving a
 // tile's volcanic terrain override. The interface lives in this
@@ -139,8 +77,11 @@ func (v Volcano) ZoneAt(t geom.Position) VolcanoZone {
 // the same override result, and must be safe for concurrent read.
 // Returning nil or an empty slice is the correct way to signal "no
 // volcanoes in this super-chunk". TerrainOverrideAt returns ("", false)
-// when t is not covered by any volcano footprint.
+// when t is not covered by any volcano footprint. All returns every
+// placed volcano in a stable order; implementations that do not
+// enumerate volcanoes may return nil.
 type VolcanoSource interface {
 	VolcanoAt(sc geom.SuperChunkCoord) []Volcano
 	TerrainOverrideAt(t geom.Position) (Terrain, bool)
+	All() []Volcano
 }

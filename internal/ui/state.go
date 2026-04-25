@@ -220,17 +220,17 @@ type Model struct {
 	// messages until the player actually leaves and returns.
 	approached approachedLandmark
 
-	// World seed delivered by JoinAccepted. Stored read-only; used to drive
-	// the local influenceSource for per-tile tint sampling and the same
-	// Voronoi-anchor queries the server ran authoritatively. Zero means we
+	// World seed delivered by JoinAccepted. Stored read-only; used for
+	// Voronoi-anchor queries and future client-side sampling. Zero means we
 	// have not joined yet (the server always sends a non-zero seed even for
 	// seed=0 worlds because JoinAccepted arrives strictly after dial).
 	worldSeed int64
 
-	// influenceSource is the client's local copy of the region noise pipeline,
-	// used exclusively for cosmetic per-tile tint sampling in renderCell.
-	// Identity (name/character) always comes from the server-authoritative
-	// Region in the Snapshot — the client never rederives those.
+	// influenceSource is an optional per-tile thematic-influence sampler used
+	// for cosmetic mini-map tinting in renderCell. Nil until a live
+	// *RegionSource is wired in; renderCell returns a zero RegionInfluence
+	// (neutral tint) when nil. Identity (name/character) always comes from
+	// the server-authoritative Region in the Snapshot.
 	influenceSource worldgen.InfluenceSampler
 
 	// Localization. lang is the BCP-47 short tag the client renders UI in

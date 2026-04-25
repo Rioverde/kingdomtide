@@ -148,7 +148,7 @@ func run() error {
 }
 
 // buildWorld constructs the production world: the bounded worldgen
-// pipeline runs once at boot, producing a *worldgen.World that doubles
+// pipeline runs once at boot, producing a *worldgen.Map that doubles
 // as the world.TileSource. Real region/landmark/volcano/deposit sources
 // stack on top; the volcano source is wrapped in the server-side LRU
 // cache so hot-path snapshot rebuilds skip a map read on repeat queries.
@@ -171,9 +171,14 @@ func buildWorld(seed int64, size worldgen.WorldSize, logger *slog.Logger) *world
 
 	regionSrc := worldgen.NewRegionSource(wgWorld, seed)
 	volcanoSrc := worldgen.NewVolcanoSource(wgWorld, seed)
-	landmarkSrc := worldgen.NewLandmarkSource(wgWorld, seed, regionSrc, volcanoSrc)
+	landmarkSrc := worldgen.NewLandmarkSource(wgWorld, seed, worldgen.LandmarkSourceConfig{
+		Regions:   regionSrc,
+		Volcanoes: volcanoSrc,
+	})
 
-	depositSrc := worldgen.NewDepositSource(wgWorld, seed, volcanoSrc)
+	depositSrc := worldgen.NewDepositSource(wgWorld, seed, worldgen.DepositSourceConfig{
+		Volcanoes: volcanoSrc,
+	})
 
 	cal := calendar.NewCalendar(
 		calendar.DefaultCalendarConfig.TicksPerDay,

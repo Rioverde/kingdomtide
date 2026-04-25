@@ -41,9 +41,9 @@ func TestRegionInfluenceDominant(t *testing.T) {
 			want: RegionNormal,
 		},
 		{
-			name: "just below threshold stays Normal",
-			in:   RegionInfluence{Blight: regionDominantThreshold},
-			want: RegionNormal,
+			name: "single non-zero component wins",
+			in:   RegionInfluence{Blight: 0.01},
+			want: RegionBlighted,
 		},
 		{
 			name: "single Blight above threshold",
@@ -76,13 +76,13 @@ func TestRegionInfluenceDominant(t *testing.T) {
 			want: RegionHoly,
 		},
 		{
-			name: "all at threshold exactly",
+			name: "all equal non-zero, Blight wins by declaration order",
 			in: RegionInfluence{
-				Blight: regionDominantThreshold, Fae: regionDominantThreshold,
-				Ancient: regionDominantThreshold, Savage: regionDominantThreshold,
-				Holy: regionDominantThreshold, Wild: regionDominantThreshold,
+				Blight: 0.5, Fae: 0.5,
+				Ancient: 0.5, Savage: 0.5,
+				Holy: 0.5, Wild: 0.5,
 			},
-			want: RegionNormal,
+			want: RegionBlighted,
 		},
 	}
 	for _, tc := range cases {

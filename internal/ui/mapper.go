@@ -7,7 +7,6 @@ import (
 	"github.com/Rioverde/gongeons/internal/game/geom"
 	"github.com/Rioverde/gongeons/internal/game/naming"
 	"github.com/Rioverde/gongeons/internal/game/world"
-	"github.com/Rioverde/gongeons/internal/game/worldgen"
 	pb "github.com/Rioverde/gongeons/internal/proto"
 	"github.com/Rioverde/gongeons/internal/ui/locale"
 )
@@ -23,9 +22,8 @@ func positionFromPB(p *pb.Position) geom.Position {
 }
 
 // applyJoinAccepted folds the JoinAccepted reply into the Model. The player
-// ID anchors "me" on every subsequent snapshot; the world seed spins up a
-// local InfluenceSampler whose only job is per-tile tint sampling in
-// renderCell. Region identity — the name and character shown in the status
+// ID anchors "me" on every subsequent snapshot; the world seed is stored for
+// future use. Region identity — the name and character shown in the status
 // bar, and the SuperChunkCoord used for crossing detection — always arrives
 // via Snapshot.Region, never derived client-side. Keeping the two flows
 // separate means a history mutation of a region reaches the UI
@@ -39,7 +37,7 @@ func positionFromPB(p *pb.Position) geom.Position {
 func applyJoinAccepted(m *Model, v acceptedMsg) {
 	m.myID = v.PlayerID
 	m.worldSeed = v.WorldSeed
-	m.influenceSource = worldgen.NewInfluenceSampler(v.WorldSeed)
+	m.influenceSource = nil
 	m.calendarCfg = v.Calendar
 }
 

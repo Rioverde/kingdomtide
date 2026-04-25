@@ -28,28 +28,14 @@ const (
 	AnchorJitterMax = SuperChunkSize - 8
 )
 
-// Salts that mix the seed with the super-chunk coordinate when deriving an
-// anchor. The two constants are taken from the golden-ratio / splitmix64
-// literature and are chosen specifically to decorrelate the X and Y hash
-// streams. The literal values 0x9E3779B97F4A7C15 and 0xBF58476D1CE4E5B9 do
-// not fit in a signed int64 as positive integers, so we express them via
-// their equivalent two's-complement form using int64(uint64(x)).
 // seedSaltAnchorX and seedSaltAnchorY are the signed-int64 views of the
-// splitmix64/golden-ratio constants. Both literal values exceed
-// math.MaxInt64 in their unsigned form, so we cannot spell them as untyped
-// int64 constants. Routing through a uint64 variable lets Go perform the
-// conversion at runtime with the usual two's-complement wraparound, which
-// preserves the full 64-bit pattern.
+// exported SeedSaltX/Y constants. Both literal values exceed math.MaxInt64 in
+// their unsigned form, so we cannot spell them as untyped int64 constants.
+// Routing through ToInt64 preserves the full 64-bit two's-complement pattern.
 var (
-	seedSaltAnchorX = toInt64(0x9e3779b97f4a7c15)
-	seedSaltAnchorY = toInt64(0xbf58476d1ce4e5b9)
+	seedSaltAnchorX = ToInt64(SeedSaltX)
+	seedSaltAnchorY = ToInt64(SeedSaltY)
 )
-
-// toInt64 reinterprets a uint64 bit pattern as int64. Passing the literal
-// as an argument turns constant checking off for the conversion — the
-// function call adds a runtime step that Go does not optimize into a
-// constant overflow error.
-func toInt64(u uint64) int64 { return int64(u) }
 
 // WorldToSuperChunk returns the super-chunk whose cell contains the tile at
 // world coord (x, y). Uses floor division so negative coordinates map to

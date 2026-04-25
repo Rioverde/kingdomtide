@@ -50,7 +50,7 @@ func (m *Model) detectLandmarkApproach() {
 		// Reconstruct world coord from tile index using the viewport origin.
 		tx := m.origin.X + (idx % m.width)
 		ty := m.origin.Y + (idx / m.width)
-		d := chebyshev(self.Pos, geom.Position{X: tx, Y: ty})
+		d := geom.ChebyshevDist(self.Pos, geom.Position{X: tx, Y: ty})
 		if d < nearestDist {
 			nearestDist = d
 			nearest = lm
@@ -95,19 +95,3 @@ func (m *Model) emitApproachLog(lm *pb.Landmark) {
 	m.appendLogDefault(fmt.Sprintf("%s %s", LogBullet, msg))
 }
 
-// chebyshev returns the Chebyshev distance between two positions, which is
-// max(|dx|, |dy|). This matches movement in all 8 directions equally.
-func chebyshev(a, b geom.Position) int {
-	dx := a.X - b.X
-	if dx < 0 {
-		dx = -dx
-	}
-	dy := a.Y - b.Y
-	if dy < 0 {
-		dy = -dy
-	}
-	if dx > dy {
-		return dx
-	}
-	return dy
-}
