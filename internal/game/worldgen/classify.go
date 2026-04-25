@@ -33,12 +33,12 @@ func classifyWater(w *World, seed int64) []bool {
 	isWater := make([]bool, len(cells))
 	noise := opensimplex.New(seed ^ saltClass)
 	halfH := float64(w.Height) / 2
-	continentRadius := halfH * 0.75
+	continentRadius := halfH * continentRadiusFraction
 	centres := placeContinentCentres(
 		rand.New(rand.NewPCG(uint64(seed), uint64(seed)^uint64(saltCenter))),
 		w.Width, w.Height,
 		w.Size.ContinentCount(),
-		continentRadius*2.2,
+		continentRadius*continentSpacingFactor,
 	)
 	halfW := float64(w.Width) / 2
 
@@ -80,7 +80,7 @@ func classifyWater(w *World, seed int64) []bool {
 				amp := 1.0
 				freq := 1.0
 				norm := 0.0
-				for j := 0; j < 8; j++ {
+				for j := 0; j < classifyOctaves; j++ {
 					v += amp * noise.Eval2(nx*2*freq, ny*2*freq)
 					norm += amp
 					amp *= 0.5
@@ -88,7 +88,7 @@ func classifyWater(w *World, seed int64) []bool {
 				}
 				v = (v/norm + 1) * 0.5
 
-				threshold := 0.3 + 0.3*length*length
+				threshold := classifyBaseThreshold + classifySlopeThreshold*length*length
 				isWater[i] = v <= threshold
 			}
 		}(lo, hi)

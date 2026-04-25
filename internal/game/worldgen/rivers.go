@@ -12,21 +12,6 @@ import (
 // different river layouts.
 const saltRiver int64 = 0x1c8ebc3a42cdd0e9
 
-// riverHeadElevMin / riverHeadElevMax bound the elevation band a
-// candidate river source must sit in. Per Patel's mapgen2: too low
-// and the chain barely runs before hitting the coast; too high and
-// the source sits on a bare peak with no useful descent. The [0.3,
-// 0.9] window matches the guide.
-const (
-	riverHeadElevMin = 0.30
-	riverHeadElevMax = 0.90
-)
-
-// riverHeadFraction is the fraction of corners considered as river
-// heads. 1.5% on a Standard world gives a few dozen rivers — enough
-// to feel populated, sparse enough to read at a glance.
-const riverHeadFraction = 0.015
-
 // corner is one Voronoi vertex enriched with the data the river
 // pipeline needs.
 type corner struct {

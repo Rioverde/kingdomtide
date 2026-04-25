@@ -128,9 +128,9 @@ func computeMoisture(w *World, isWater []bool, seed int64) {
 		}
 	}
 
-	// Noise perturbation — shifts each cell by up to ±0.18 so the
-	// BFS distribution spreads across the Whittaker bands instead
-	// of bunching all cells at similar moisture.
+	// Noise perturbation — shifts each cell by up to ±moistureJitter
+	// so the BFS distribution spreads across the Whittaker bands
+	// instead of bunching all cells at similar moisture.
 	noise := opensimplex.New(seed ^ saltMoistNoise)
 	halfH := float64(w.Height) / 2
 	for i, d := range dist {
@@ -141,7 +141,7 @@ func computeMoisture(w *World, isWater []bool, seed int64) {
 		cell := w.Voronoi.Cells[i]
 		nx := (cell.CenterX - float64(w.Width)/2) / halfH
 		ny := (cell.CenterY - halfH) / halfH
-		jitter := float32(noise.Eval2(nx*3, ny*3)) * 0.18
+		jitter := float32(noise.Eval2(nx*moistureNoiseFreq, ny*moistureNoiseFreq)) * moistureJitter
 		v += jitter
 		if v < 0 {
 			v = 0
@@ -165,12 +165,12 @@ func computeTemperature(w *World) {
 		lat := 1 - math.Abs(cell.CenterY-halfH)/halfH
 
 		// Elevation cooling — high peaks are cold even on the equator.
-		cooling := float64(w.Elevation[i]) * 0.55
+		cooling := float64(w.Elevation[i]) * temperatureElevCooling
 
 		// Small noise jitter so latitude bands are not razor-straight.
 		nx := (cell.CenterX - float64(w.Width)/2) / halfH
 		ny := cell.CenterY / halfH
-		jitter := noise.Eval2(nx*2, ny*2) * 0.07
+		jitter := noise.Eval2(nx*temperatureNoiseFreq, ny*temperatureNoiseFreq) * temperatureJitter
 
 		t := lat - cooling + jitter
 		if t < 0 {
@@ -217,29 +217,32 @@ func assignTerrains(w *World, isOcean, isLake []bool) {
 // relief ladders (peak / hill / lowland), temperature splits climate
 // zones (polar / temperate / tropical), moisture picks vegetation
 // density within each band. Covers all 16 non-volcanic terrains.
+//
+// All thresholds are named constants (see the const block above) —
+// edit them there to rebalance distribution, not the body.
 func whittakerTerrain(elev, moist, temp float32) gworld.Terrain {
 	// Beach — very low elevation everywhere (coastal sand / tundra
 	// shoreline reads the same regardless of temperature).
-	if elev < 0.08 {
+	if elev < biomeBeachElev {
 		return gworld.TerrainBeach
 	}
 
 	// High peaks — temperature decides snow-capped vs bare rock.
-	if elev > 0.85 {
-		if temp < 0.45 {
+	if elev > biomePeakElev {
+		if temp < biomePeakSnowTemp {
 			return gworld.TerrainSnowyPeak
 		}
 		return gworld.TerrainMountain
 	}
 
 	// Upper highlands.
-	if elev > 0.70 {
+	if elev > biomeHighElev {
 		switch {
-		case temp < 0.28:
+		case temp < biomeHighSnowTemp:
 			return gworld.TerrainSnow
-		case temp > 0.70:
+		case temp > biomeHighHotTemp:
 			return gworld.TerrainMountain // tropical bare mountains
-		case moist > 0.65:
+		case moist > biomeHighTaigaMoist:
 			return gworld.TerrainTaiga
 		default:
 			return gworld.TerrainHills
@@ -247,19 +250,19 @@ func whittakerTerrain(elev, moist, temp float32) gworld.Terrain {
 	}
 
 	// Polar zone (cold climate) — dominates irrespective of elev.
-	if temp < 0.25 {
-		if moist > 0.50 {
+	if temp < biomePolarTemp {
+		if moist > biomePolarTaigaMoist {
 			return gworld.TerrainTaiga
 		}
 		return gworld.TerrainTundra
 	}
 
 	// Tropical zone (hot climate).
-	if temp > 0.70 {
+	if temp > biomeTropicTemp {
 		switch {
-		case moist > 0.65:
+		case moist > biomeTropicJungleMoist:
 			return gworld.TerrainJungle
-		case moist > 0.35:
+		case moist > biomeTropicSavannaMoist:
 			return gworld.TerrainSavanna
 		default:
 			return gworld.TerrainDesert
@@ -267,8 +270,8 @@ func whittakerTerrain(elev, moist, temp float32) gworld.Terrain {
 	}
 
 	// Temperate highlands (above lowland, below peaks).
-	if elev > 0.55 {
-		if moist > 0.60 {
+	if elev > biomeHighlandElev {
+		if moist > biomeHighlandMeadowMoist {
 			return gworld.TerrainMeadow
 		}
 		return gworld.TerrainHills
@@ -276,11 +279,11 @@ func whittakerTerrain(elev, moist, temp float32) gworld.Terrain {
 
 	// Temperate lowlands.
 	switch {
-	case moist > 0.75:
+	case moist > biomeForestMoist:
 		return gworld.TerrainForest
-	case moist > 0.50:
+	case moist > biomeGrasslandMoist:
 		return gworld.TerrainGrassland
-	case moist > 0.28:
+	case moist > biomePlainsMoist:
 		return gworld.TerrainPlains
 	default:
 		return gworld.TerrainDesert

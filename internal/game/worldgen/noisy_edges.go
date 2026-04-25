@@ -15,18 +15,6 @@ const (
 	saltNoisyEdgesY int64 = 0x1b2a3c5e7d8f1062
 )
 
-// noisyEdgesFreq is the spatial frequency of the displacement field
-// in tile units. A period of ~25 tiles produces gentle large-scale
-// curves rather than fractal jitter.
-const noisyEdgesFreq = 0.04
-
-// noisyEdgesAmplitude caps the per-axis tile displacement. ±5 tiles
-// is wide enough to be visibly organic, narrow enough that the warp
-// stays inside neighbouring-cell territory on a Lloyd-relaxed Voronoi
-// (mean cell width ~40 tiles on Standard) — so we don't accidentally
-// pull a non-adjacent cell's tile across a boundary.
-const noisyEdgesAmplitude = 5.0
-
 // applyNoisyEdges rebakes the per-tile CellID array with a low-
 // frequency noise warp applied to the lookup. Patel's mapgen2 makes
 // boundaries organic via recursive midpoint displacement — a vector

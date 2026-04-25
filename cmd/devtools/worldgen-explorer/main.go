@@ -50,7 +50,10 @@ func main() {
 		initial = modelStartingBuild(sz, seed)
 	}
 
-	p := tea.NewProgram(initial, tea.WithAltScreen(), tea.WithMouseCellMotion())
+	// No WithMouseCellMotion — mouse motion would fire an Update for
+	// every cursor move over the terminal window, triggering a full
+	// renderViewport rebuild. The explorer is keyboard-only.
+	p := tea.NewProgram(initial, tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintln(os.Stderr, "explorer:", err)
 		os.Exit(1)

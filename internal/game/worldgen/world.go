@@ -183,16 +183,13 @@ func (w *World) IsCoast(cellID uint16) bool {
 var _ gworld.TileSource = (*World)(nil)
 
 // cellCountFor scales the Voronoi cell count with world area. The
-// 10.0 multiplier on √area lands at ~13-tile cells on Standard —
-// fine-grained enough that biome transitions feel hand-painted on a
-// roguelike tile grid. Cell COUNT scales with √area so smaller
-// worlds stay light. The pipeline relies on three optimisations to
-// keep generation under each size's budget at this density: a
-// spatial-hash for nearest-site rasterisation, parallel per-cell
-// noise classification, and Bridson's Poisson-disc seed placement.
+// cellsPerSqrtArea constant (see tuning.go) lands at ~13-tile cells
+// on Standard — fine-grained enough that biome transitions feel
+// hand-painted on a roguelike tile grid. Cell COUNT scales with
+// √area so smaller worlds stay light.
 func cellCountFor(size WorldSize) int {
 	w, h := size.Dimensions()
-	per := math.Sqrt(float64(w*h)) * 10.0
+	per := math.Sqrt(float64(w*h)) * cellsPerSqrtArea
 	count := int(per)
 	if count < 200 {
 		count = 200

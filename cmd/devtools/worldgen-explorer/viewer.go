@@ -85,18 +85,29 @@ func (m Model) arrowStep() int {
 	return s
 }
 
+// viewBuf is the assembly buffer for viewViewer's final string.
+// Reused across frames since bubbletea is single-threaded.
+var viewBuf strings.Builder
+
 func (m Model) viewViewer() string {
 	if m.world == nil {
 		return "no world generated"
 	}
 	visCols, visRows := m.viewportSize()
 	body := renderViewport(m.world, m.layer, m.zoom, m.vpX, m.vpY, visCols, visRows)
-	status := m.renderStatusBar()
-	hints := m.renderHints()
+
+	viewBuf.Reset()
+	viewBuf.Grow(len(body) + 256)
+	viewBuf.WriteString(body)
+	viewBuf.WriteByte('\n')
+	viewBuf.WriteString(m.renderStatusBar())
 	if m.showInfo {
-		return body + "\n" + status + "\n" + m.renderInfo() + "\n" + hints
+		viewBuf.WriteByte('\n')
+		viewBuf.WriteString(m.renderInfo())
 	}
-	return body + "\n" + status + "\n" + hints
+	viewBuf.WriteByte('\n')
+	viewBuf.WriteString(hintsCached)
+	return viewBuf.String()
 }
 
 func (m Model) viewportSize() (int, int) {
@@ -147,10 +158,10 @@ func (m Model) renderStatusBar() string {
 	return statusBarStyle.Render(left)
 }
 
-func (m Model) renderHints() string {
-	s := "arrows: scroll  ·  shift+arrows: fast  ·  l: layer  ·  1-6: direct  ·  +/-: zoom  ·  i: info  ·  n: new  ·  q: quit"
-	return hintsStyle.Render(s)
-}
+// hintsCached — the hints line never changes, so render it once and
+// reuse. Saves a lipgloss.Render call per frame.
+var hintsCached = hintsStyle.Render(
+	"arrows: scroll  ·  shift+arrows: fast  ·  l: layer  ·  1-6: direct  ·  +/-: zoom  ·  i: info  ·  n: new  ·  q: quit")
 
 func (m Model) renderInfo() string {
 	visCols, visRows := m.viewportSize()

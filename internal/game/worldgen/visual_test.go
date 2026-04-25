@@ -218,11 +218,11 @@ func dumpAscii(t *testing.T, w *World, stepX, stepY int, landOcean bool) {
 					sb.WriteByte('#')
 				}
 			} else {
-				if hasRiver && !w.IsOcean(cellID) {
-					sb.WriteByte('=')
-				} else {
-					sb.WriteByte(terrainGlyph(w.Terrain[cellID]))
-				}
+				// Biome dump: pure terrain, no river overlay — at
+				// step=32 the river bitmap covers any block with a
+				// river anywhere, which would mask the underlying
+				// biome distribution we're trying to inspect.
+				sb.WriteByte(terrainGlyph(w.Terrain[cellID]))
 			}
 		}
 		sb.WriteByte('\n')
