@@ -22,7 +22,7 @@ func TestE2E_FullWorld_500yr(t *testing.T) {
 
 	// Build two rival kingdoms, 4 cities each, 2 villages per city.
 	buildKingdom := func(id string, cityCount int, founderSeed int64, culture polity.Culture) (*polity.Kingdom, []*polity.City) {
-		founder := polity.NewRuler(dice.New(founderSeed, dice.SaltKingdomYear), startYear-30)
+		founder := polity.NewRuler(dice.New(founderSeed, dice.SaltKingdomYear), startYear-30, "")
 		var cs []*polity.City
 		for i := 0; i < cityCount; i++ {
 			c := polity.NewCity(
@@ -56,15 +56,15 @@ func TestE2E_FullWorld_500yr(t *testing.T) {
 		cityMap[c.Name] = c
 	}
 
-	var villages []*polity.Village
+	var demesnes []*polity.Demesne
 	for _, c := range allCities {
 		for i := 0; i < 2; i++ {
-			v := polity.NewVillage(
+			d := polity.NewDemesne(
 				c.Name+"-v"+string(rune('A'+i)),
 				geom.Position{}, startYear-50, c.Name,
 			)
-			v.Population = 100 + i*20
-			villages = append(villages, v)
+			d.Population = 100 + i*20
+			demesnes = append(demesnes, d)
 		}
 	}
 
@@ -77,9 +77,9 @@ func TestE2E_FullWorld_500yr(t *testing.T) {
 	for i := range allCities {
 		cityStreams[i] = dice.New(seed^int64(i+1)*0xabc, dice.SaltKingdomYear)
 	}
-	villageStreams := make([]*dice.Stream, len(villages))
-	for i := range villages {
-		villageStreams[i] = dice.New(seed^int64(i+1)*0xdef, dice.SaltKingdomYear)
+	demesneStreams := make([]*dice.Stream, len(demesnes))
+	for i := range demesnes {
+		demesneStreams[i] = dice.New(seed^int64(i+1)*0xdef, dice.SaltKingdomYear)
 	}
 	k1Stream := dice.New(seed^0x1111, dice.SaltKingdomYear)
 	k2Stream := dice.New(seed^0x2222, dice.SaltKingdomYear)
@@ -88,11 +88,11 @@ func TestE2E_FullWorld_500yr(t *testing.T) {
 	mulkStream := dice.New(seed^0x5555, dice.SaltKingdomYear)
 
 	for year := startYear; year < startYear+years; year++ {
-		// Villages feed cities.
-		for i, v := range villages {
-			ApplyVillageYear(v, villageStreams[i])
+		// Demesnes feed cities.
+		for i, d := range demesnes {
+			ApplyDemesneYear(d, demesneStreams[i])
 		}
-		ResolveVillageToCity(villages, cityMap)
+		ResolveDemesneToCity(demesnes, cityMap)
 
 		// Cities tick.
 		TickCitiesYear(allCities, cityStreams, year)
@@ -152,9 +152,9 @@ func TestE2E_FullWorld_500yr(t *testing.T) {
 			t.Errorf("%s faith sum broken: %v", c.Name, sum)
 		}
 	}
-	for _, v := range villages {
-		if v.Population < 20 || v.Population > 400 {
-			t.Errorf("%s village pop out of range: %d", v.Name, v.Population)
+	for _, d := range demesnes {
+		if d.Population < 20 || d.Population > 400 {
+			t.Errorf("%s demesne pop out of range: %d", d.Name, d.Population)
 		}
 	}
 

@@ -158,86 +158,86 @@ func TestTradeIncome_HundredYearAccumulation(t *testing.T) {
 	}
 }
 
-// --- Village -------------------------------------------------------------
+// --- Demesne -------------------------------------------------------------
 
-// TestApplyVillageYear_StressTest1000Years walks one village through
+// TestApplyDemesneYear_StressTest1000Years walks one demesne through
 // a millennium. Checks the clamp invariants hold across long runs.
-func TestApplyVillageYear_StressTest1000Years(t *testing.T) {
+func TestApplyDemesneYear_StressTest1000Years(t *testing.T) {
 	if testing.Short() {
 		t.Skip("short — 1000-yr stress sweep")
 	}
-	v := polity.NewVillage("durable", geom.Position{}, 1000, "parent")
-	v.Population = 100
+	d := polity.NewDemesne("durable", geom.Position{}, 1000, "parent")
+	d.Population = 100
 	stream := dice.New(42, dice.SaltKingdomYear)
 	for i := 0; i < 1000; i++ {
-		ApplyVillageYear(v, stream)
-		if v.Population < villagePopMin || v.Population > villagePopMaxCap {
+		ApplyDemesneYear(d, stream)
+		if d.Population < demesnePopMin || d.Population > demesnePopMaxCap {
 			t.Fatalf("year %d: pop=%d out of [%d, %d]",
-				i, v.Population, villagePopMin, villagePopMaxCap)
+				i, d.Population, demesnePopMin, demesnePopMaxCap)
 		}
 	}
 }
 
-// TestApplyVillageYear_StartsAtMin — a village seeded under the floor
-// clamps back to villagePopMin after a single tick.
-func TestApplyVillageYear_StartsAtMin(t *testing.T) {
-	v := polity.NewVillage("tiny", geom.Position{}, 1200, "parent")
-	v.Population = 5
+// TestApplyDemesneYear_StartsAtMin — a demesne seeded under the floor
+// clamps back to demesnePopMin after a single tick.
+func TestApplyDemesneYear_StartsAtMin(t *testing.T) {
+	d := polity.NewDemesne("tiny", geom.Position{}, 1200, "parent")
+	d.Population = 5
 	stream := dice.New(42, dice.SaltKingdomYear)
-	ApplyVillageYear(v, stream)
-	if v.Population != villagePopMin {
-		t.Errorf("pop=%d, want %d (clamped to floor)", v.Population, villagePopMin)
+	ApplyDemesneYear(d, stream)
+	if d.Population != demesnePopMin {
+		t.Errorf("pop=%d, want %d (clamped to floor)", d.Population, demesnePopMin)
 	}
 }
 
-// TestResolveVillageToCity_NoPanicEmptyMap — resolve on zero cities
-// must be a clean no-op: every village is orphaned, nothing flows.
-func TestResolveVillageToCity_NoPanicEmptyMap(t *testing.T) {
-	villages := []*polity.Village{
-		mkVillage("a", 100, "nowhere"),
-		mkVillage("b", 200, "nowhere"),
+// TestResolveDemesneToCity_NoPanicEmptyMap — resolve on zero cities
+// must be a clean no-op: every demesne is orphaned, nothing flows.
+func TestResolveDemesneToCity_NoPanicEmptyMap(t *testing.T) {
+	demesnes := []*polity.Demesne{
+		mkDemesne("a", 100, "nowhere"),
+		mkDemesne("b", 200, "nowhere"),
 	}
 	cities := map[string]*polity.City{}
 	// Should not panic.
-	ResolveVillageToCity(villages, cities)
+	ResolveDemesneToCity(demesnes, cities)
 }
 
-// TestResolveVillageToCity_MultipleVillagesOneCity pins the summation
-// behaviour — five villages feeding one city stack additively.
-func TestResolveVillageToCity_MultipleVillagesOneCity(t *testing.T) {
+// TestResolveDemesneToCity_MultipleVillagesOneCity pins the summation
+// behaviour — five demesnes feeding one city stack additively.
+func TestResolveDemesneToCity_MultipleVillagesOneCity(t *testing.T) {
 	city := polity.NewCity("Hub", geom.Position{}, 1200, polity.Ruler{})
 	city.FoodBalance = 0
-	villages := []*polity.Village{
-		mkVillage("v1", 100, "Hub"),
-		mkVillage("v2", 100, "Hub"),
-		mkVillage("v3", 100, "Hub"),
-		mkVillage("v4", 100, "Hub"),
-		mkVillage("v5", 100, "Hub"),
+	demesnes := []*polity.Demesne{
+		mkDemesne("d1", 100, "Hub"),
+		mkDemesne("d2", 100, "Hub"),
+		mkDemesne("d3", 100, "Hub"),
+		mkDemesne("d4", 100, "Hub"),
+		mkDemesne("d5", 100, "Hub"),
 	}
 	cities := map[string]*polity.City{"Hub": city}
-	ResolveVillageToCity(villages, cities)
+	ResolveDemesneToCity(demesnes, cities)
 	// 5 × 100 × 0.1 = 50
 	if city.FoodBalance != 50 {
-		t.Errorf("FoodBalance = %d, want 50 (5 villages × 10 each)", city.FoodBalance)
+		t.Errorf("FoodBalance = %d, want 50 (5 demesnes × 10 each)", city.FoodBalance)
 	}
 }
 
-// TestApplyVillageYear_DeterministicStream pins reproducibility — an
+// TestApplyDemesneYear_DeterministicStream pins reproducibility — an
 // explicit seed produces an identical population trajectory between runs.
-func TestApplyVillageYear_DeterministicStream(t *testing.T) {
+func TestApplyDemesneYear_DeterministicStream(t *testing.T) {
 	const seed int64 = 1234
 	var pops [20]int
 	for rep := 0; rep < 2; rep++ {
-		v := polity.NewVillage("det", geom.Position{}, 1200, "parent")
-		v.Population = 100
+		d := polity.NewDemesne("det", geom.Position{}, 1200, "parent")
+		d.Population = 100
 		stream := dice.New(seed, dice.SaltKingdomYear)
 		for i := 0; i < 20; i++ {
-			ApplyVillageYear(v, stream)
+			ApplyDemesneYear(d, stream)
 			if rep == 0 {
-				pops[i] = v.Population
-			} else if pops[i] != v.Population {
+				pops[i] = d.Population
+			} else if pops[i] != d.Population {
 				t.Errorf("step %d: run 1 pop %d != run 2 pop %d",
-					i, pops[i], v.Population)
+					i, pops[i], d.Population)
 			}
 		}
 	}

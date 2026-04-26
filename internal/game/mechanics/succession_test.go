@@ -31,7 +31,7 @@ func TestSuccession_ElectiveBoostsCharisma(t *testing.T) {
 	}
 	stream := dice.New(42, dice.SaltKingdomYear)
 	heir := newHeirFor(k, stream, 1500)
-	baseline := polity.NewRuler(dice.New(42, dice.SaltKingdomYear), 1500)
+	baseline := polity.NewRuler(dice.New(42, dice.SaltKingdomYear), 1500, "")
 	if heir.Stats.Charisma <= baseline.Stats.Charisma {
 		t.Errorf("elective should raise CHA: heir=%d baseline=%d",
 			heir.Stats.Charisma, baseline.Stats.Charisma)

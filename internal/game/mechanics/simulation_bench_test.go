@@ -12,7 +12,7 @@ import (
 // Normal tax, a handful of deposits. Avoids random drift from
 // different starting conditions across benchmark calls.
 func benchCity(seed int64) *polity.City {
-	ruler := polity.NewRuler(dice.New(seed, dice.SaltKingdomYear), 1270)
+	ruler := polity.NewRuler(dice.New(seed, dice.SaltKingdomYear), 1270, "")
 	c := polity.NewCity("Bench", geom.Position{}, 1200, ruler)
 	c.Population = 5000
 	c.Wealth = 5000

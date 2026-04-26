@@ -53,35 +53,35 @@ func BenchmarkApplyEconomicYear_WithTrade(b *testing.B) {
 	}
 }
 
-// BenchmarkApplyVillageYear measures one village's tick cost. The
+// BenchmarkApplyDemesneYear measures one demesne's tick cost. The
 // D20 draw dominates — this is the baseline Stream-sensitive loop.
-func BenchmarkApplyVillageYear(b *testing.B) {
-	v := polity.NewVillage("bench", geom.Position{}, 1200, "parent")
-	v.Population = 100
+func BenchmarkApplyDemesneYear(b *testing.B) {
+	d := polity.NewDemesne("bench", geom.Position{}, 1200, "parent")
+	d.Population = 100
 	stream := dice.New(42, dice.SaltKingdomYear)
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		ApplyVillageYear(v, stream)
+		ApplyDemesneYear(d, stream)
 	}
 }
 
-// BenchmarkResolveVillageToCity_10villages measures the O(N) scan
-// cost of pushing village food contributions to their parents.
-func BenchmarkResolveVillageToCity_10villages(b *testing.B) {
+// BenchmarkResolveDemesneToCity_10demesnes measures the O(N) scan
+// cost of pushing demesne food contributions to their parents.
+func BenchmarkResolveDemesneToCity_10demesnes(b *testing.B) {
 	city := polity.NewCity("Hub", geom.Position{}, 1200, polity.Ruler{})
-	villages := make([]*polity.Village, 10)
-	for i := range villages {
-		v := polity.NewVillage("v", geom.Position{}, 1200, "Hub")
-		v.Population = 100
-		villages[i] = v
+	demesnes := make([]*polity.Demesne, 10)
+	for i := range demesnes {
+		d := polity.NewDemesne("d", geom.Position{}, 1200, "Hub")
+		d.Population = 100
+		demesnes[i] = d
 	}
 	cities := map[string]*polity.City{"Hub": city}
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		city.FoodBalance = 0
-		ResolveVillageToCity(villages, cities)
+		ResolveDemesneToCity(demesnes, cities)
 	}
 }
 

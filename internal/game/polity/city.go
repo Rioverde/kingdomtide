@@ -11,8 +11,6 @@ import "github.com/Rioverde/gongeons/internal/game/geom"
 type City struct {
 	Settlement
 
-	Ruler Ruler `json:"ruler"`
-
 	Wealth int `json:"wealth"`
 	Army   int `json:"army"`
 
@@ -106,12 +104,6 @@ type City struct {
 	// differs from the city's.
 	Culture Culture `json:"culture"`
 
-	// Faiths is the religion-distribution map. Sum of values equals
-	// 1.0 within floating tolerance. Majority drives UI display and
-	// interacts with the schism four-gate model. Evolves via
-	// mechanics.ApplyReligionDiffusionYear.
-	Faiths FaithDistribution `json:"faiths"`
-
 	// FaithHistory lists every schism event that has altered the
 	// city's faith distribution. Append-only; used by UI for historical
 	// flavour and by future variant-faith creation.
@@ -149,12 +141,12 @@ const historicalModsInitialCap = 32
 func NewCity(name string, pos geom.Position, founded int, ruler Ruler) *City {
 	return &City{
 		Settlement: Settlement{
-			Name:     name,
+			Name:   name,
 			Position: pos,
 			Founded:  founded,
+			Faiths:   NewFaithDistribution(),
+			Ruler:    ruler,
 		},
-		Ruler:          ruler,
-		Faiths:         NewFaithDistribution(),
 		HistoricalMods: make([]HistoricalMod, 0, historicalModsInitialCap),
 	}
 }

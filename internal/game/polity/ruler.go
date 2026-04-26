@@ -11,6 +11,7 @@ import (
 // BirthYear and DeathYear track lifespan against the simulation's year
 // counter; a Ruler with DeathYear == 0 is alive.
 type Ruler struct {
+	Name      string `json:"name"`
 	Stats     stats.CoreStats
 	BirthYear int
 	// 0 if still alive
@@ -28,8 +29,9 @@ type Ruler struct {
 // flows through the Stream — same (seed, salt) yields an identical Ruler.
 // The ruler defaults to FaithOldGods so legacy call-sites keep the
 // previous zero-value alignment with the default city majority.
-func NewRuler(s *dice.Stream, birthYear int) Ruler {
+func NewRuler(s *dice.Stream, birthYear int, name string) Ruler {
 	return Ruler{
+		Name: name,
 		Stats: stats.CoreStats{
 			Strength:     s.Stat4D6DropLowest(),
 			Dexterity:    s.Stat4D6DropLowest(),

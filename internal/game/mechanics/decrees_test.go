@@ -104,7 +104,7 @@ func TestApplyDecreeYear_Determinism(t *testing.T) {
 // post-effect distribution — ruler's faith must hold at least the
 // state-religion majority floor regardless of prior shares.
 func TestDecree_DeclareStateReligion_PromotesRulerFaith(t *testing.T) {
-	c := polity.City{Faiths: polity.NewFaithDistribution()}
+	c := polity.City{Settlement: polity.Settlement{Faiths: polity.NewFaithDistribution()}}
 	c.Ruler.Faith = polity.FaithSunCovenant
 	stream := dice.New(42, dice.SaltKingdomYear)
 	applyDecreeEffect(&c, polity.DecreeDeclareStateReligion, stream, 1500)

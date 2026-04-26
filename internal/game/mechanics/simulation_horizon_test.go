@@ -203,7 +203,7 @@ func TestSimulation_TaxPolicyOutcomes(t *testing.T) {
 	var outcomes []policyOutcome
 
 	for _, rate := range rates {
-		ruler := polity.NewRuler(dice.New(seed, dice.SaltKingdomYear), startYear-30)
+		ruler := polity.NewRuler(dice.New(seed, dice.SaltKingdomYear), startYear-30, "")
 		city := polity.NewCity("TestBurg", geom.Position{}, startYear-50, ruler)
 		city.Population = 5000
 		city.Wealth = 5000
@@ -351,7 +351,7 @@ func TestSimulation_MillenniumStability(t *testing.T) {
 	const startYear = 1000
 	const years = 2000
 
-	ruler := polity.NewRuler(dice.New(seed, dice.SaltKingdomYear), startYear-30)
+	ruler := polity.NewRuler(dice.New(seed, dice.SaltKingdomYear), startYear-30, "")
 	c := polity.NewCity("Eternalis", geom.Position{}, startYear-100, ruler)
 	c.Population = 5000
 	c.Wealth = 5000
@@ -433,7 +433,7 @@ func BenchmarkSimulation_2000YearsSingleCity(b *testing.B) {
 	const seed int64 = 42
 	const startYear = 1000
 	for i := 0; i < b.N; i++ {
-		ruler := polity.NewRuler(dice.New(seed, dice.SaltKingdomYear), startYear-30)
+		ruler := polity.NewRuler(dice.New(seed, dice.SaltKingdomYear), startYear-30, "")
 		c := polity.NewCity("Bench", geom.Position{}, startYear-100, ruler)
 		c.Population = 5000
 		c.Wealth = 5000

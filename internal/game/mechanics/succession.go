@@ -30,7 +30,7 @@ const (
 // the full model would also resolve kin group, faction vote, and
 // legitimacy, but those need data we do not yet track.
 func newHeirFor(k *polity.Kingdom, stream *dice.Stream, currentYear int) polity.Ruler {
-	base := polity.NewRuler(stream, currentYear)
+	base := polity.NewRuler(stream, currentYear, "")
 	switch k.SuccessionLaw {
 	case polity.SuccessionPrimogeniture:
 		return biasTowardParent(base, k.CurrentRuler, primogenitureParentBias)

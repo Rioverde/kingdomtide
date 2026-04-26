@@ -1,35 +1,17 @@
 package polity
 
-import "github.com/Rioverde/gongeons/internal/game/geom"
-
-// Village is a minor agricultural / production node feeding food and
-// taxes into its parent City. Has no independent political mechanics
-// — no Ruler, no Army, no rank system. When the parent City falls,
-// the Village is absorbed by whichever polity inherits the
-// territory; the ParentCityID field tracks the current owner so
-// re-parenting is a single write.
+// Village is a mature settlement promoted from a hamlet once population
+// and neighbourhood conditions are met. Retains the list of absorbed
+// hamlet IDs for simulation log provenance.
 type Village struct {
 	Settlement
 
-	// ParentCityID is the ID of the City this Village feeds. Stored as
-	// a string rather than a pointer to avoid ownership cycles and keep
-	// JSON / ledger serialization trivial.
-	ParentCityID string `json:"parent_city_id"`
+	// AbsorbedHamletIDs lists every hamlet that was merged into this village,
+	// in the order they were absorbed. Used by the simulation log for
+	// provenance tracing and by the dev tool timeline scrubber.
+	AbsorbedHamletIDs []SettlementID `json:"absorbed_hamlet_ids,omitempty"`
 }
 
-// NewVillage constructs a Village anchored at pos, feeding the given
-// parent City. Returns a pointer because Village mutates over time —
-// Population shifts with harvests, ParentCityID flips when an owning
-// City falls — and value semantics would drop those updates. Population
-// defaults to zero; the mechanics layer seeds it from surrounding tile
-// fertility at worldgen time.
-func NewVillage(name string, pos geom.Position, founded int, parentCityID string) *Village {
-	return &Village{
-		Settlement: Settlement{
-			Name:     name,
-			Position: pos,
-			Founded:  founded,
-		},
-		ParentCityID: parentCityID,
-	}
-}
+// Base returns a pointer to the embedded Settlement, satisfying the Place
+// interface.
+func (v *Village) Base() *Settlement { return &v.Settlement }

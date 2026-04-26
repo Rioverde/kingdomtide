@@ -79,7 +79,7 @@ func TestGreatPersonEffect_General_BoostsArmyBaseline(t *testing.T) {
 // Priest doubles the diffusion pulse — majority faith grows faster.
 func TestGreatPersonEffect_Priest_BoostsReligionPulse(t *testing.T) {
 	mk := func(withPriest bool) *polity.City {
-		c := &polity.City{Faiths: polity.NewFaithDistribution()}
+		c := &polity.City{Settlement: polity.Settlement{Faiths: polity.NewFaithDistribution()}}
 		c.Faiths[polity.FaithOldGods] = 0.55
 		c.Faiths[polity.FaithSunCovenant] = 0.45
 		c.Faiths[polity.FaithGreenSage] = 0
@@ -121,7 +121,7 @@ func TestGreatPersonEffect_Priest_BoostsReligionPulse(t *testing.T) {
 // otherwise fire.
 func TestGreatPersonEffect_Priest_SchismHarder(t *testing.T) {
 	mk := func(withPriest bool) *polity.City {
-		c := &polity.City{Faiths: polity.NewFaithDistribution()}
+		c := &polity.City{Settlement: polity.Settlement{Faiths: polity.NewFaithDistribution()}}
 		c.Faiths[polity.FaithOldGods] = 0.55
 		c.Faiths[polity.FaithSunCovenant] = 0.45
 		c.Faiths[polity.FaithGreenSage] = 0

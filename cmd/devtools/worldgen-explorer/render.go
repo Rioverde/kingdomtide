@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/Rioverde/gongeons/internal/game/geom"
+	"github.com/Rioverde/gongeons/internal/game/polity"
 	gworld "github.com/Rioverde/gongeons/internal/game/world"
 	"github.com/Rioverde/gongeons/internal/ui/tilestyle"
 )
@@ -656,7 +657,7 @@ func renderCampCell(m *Model, wx, wy, zoom int) string {
 
 	// At zoom=1 use the exact-tile fast path; at zoom>1 scan the block.
 	var found bool
-	var camp gworld.Camp
+	var camp polity.Camp
 	if zoom == 1 {
 		key := geom.PackPos(geom.Position{X: wx, Y: wy})
 		camp, found = m.campIndex[key]
@@ -680,9 +681,9 @@ func renderCampCell(m *Model, wx, wy, zoom int) string {
 		regionIdx = 0
 	}
 
-	isAnchor := (zoom == 1 && geom.PackPos(geom.Position{X: wx, Y: wy}) == geom.PackPos(camp.Anchor)) ||
-		(zoom > 1 && wx <= camp.Anchor.X && camp.Anchor.X < wx+zoom &&
-			wy <= camp.Anchor.Y && camp.Anchor.Y < wy+zoom)
+	isAnchor := (zoom == 1 && geom.PackPos(geom.Position{X: wx, Y: wy}) == geom.PackPos(camp.Position)) ||
+		(zoom > 1 && wx <= camp.Position.X && camp.Position.X < wx+zoom &&
+			wy <= camp.Position.Y && camp.Position.Y < wy+zoom)
 
 	if !m.showCampFaithBg {
 		if isAnchor {
@@ -693,7 +694,7 @@ func renderCampCell(m *Model, wx, wy, zoom int) string {
 
 	// Faith background overlay: look up the pre-rendered cell (built once at
 	// init) to avoid per-frame style construction.
-	faithIdx := int(camp.Faith)
+	faithIdx := int(camp.Faiths.Majority())
 	if faithIdx < 0 || faithIdx >= len(campFaithBg) {
 		faithIdx = 0
 	}

@@ -32,7 +32,7 @@ func runSingleCity(c *polity.City, seed int64, startYear, years int) (*polity.Ci
 // freshCity mints a default-shape test city with the given tax rate
 // and mid-range starting conditions.
 func freshCity(name string, rate polity.TaxRate, seed int64) *polity.City {
-	ruler := polity.NewRuler(dice.New(seed, dice.SaltKingdomYear), 1270)
+	ruler := polity.NewRuler(dice.New(seed, dice.SaltKingdomYear), 1270, "")
 	c := polity.NewCity(name, geom.Position{}, 1200, ruler)
 	c.Population = 3000
 	c.Wealth = 3000

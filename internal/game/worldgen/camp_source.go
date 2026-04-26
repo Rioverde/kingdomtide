@@ -1,14 +1,14 @@
 package worldgen
 
-// CampSource is the production world.CampSource implementation. Camps
+// CampSource is the production polity.CampSource implementation. Camps
 // are pre-historic settler clusters scattered across all super-chunks
 // of the world via Bridson Poisson-disk sampling weighted by per-cell
 // habitability. Construction rolls a per-SC settlement-willingness
 // affinity, draws Bridson Poisson-disk candidates per SC, runs each
 // candidate through a 6-gate acceptance chain (water, volcano, landmark,
 // impassable peak, habitability+affinity floor, weighted roll), and
-// derives Faith/Pop/Footprint for each survivor. Footprint random-walk
-// grows a connected 2-3 tile cluster from each anchor.
+// derives Faiths/Population/Footprint for each survivor. Footprint
+// random-walk grows a connected 2-3 tile cluster from each anchor.
 //
 // All maps are allocated once during NewCampSource and never mutated
 // thereafter. CampSource is safe for concurrent read.
@@ -18,23 +18,34 @@ import (
 	"math/rand/v2"
 	"sort"
 
+	"github.com/Rioverde/gongeons/internal/game/dice"
 	"github.com/Rioverde/gongeons/internal/game/geom"
+	"github.com/Rioverde/gongeons/internal/game/naming"
 	"github.com/Rioverde/gongeons/internal/game/polity"
 	gworld "github.com/Rioverde/gongeons/internal/game/world"
 )
+
+// campSettlementID derives a deterministic SettlementID from the world seed
+// and the camp's anchor position. The same (seed, position) pair always
+// produces the same ID, making NewCampSource fully deterministic regardless
+// of call order or concurrency.
+func campSettlementID(seed int64, anchor geom.Position) polity.SettlementID {
+	h := geom.Splitmix64(uint64(seed) ^ geom.PackPos(anchor) ^ 0xDEADBEEFCAFEBABE)
+	return polity.SettlementID(int64(h))
+}
 
 // CampSource indexes camps by super-chunk for O(1) CampsIn lookup and
 // keeps a globally sorted slice for deterministic All() output.
 type CampSource struct {
 	// bySC indexes camps by their anchor's home super-chunk for O(1)
 	// CampsIn lookup. Camps that span an SC boundary via Footprint
-	// appear under their Anchor's SC only — Footprint is a render-tier
+	// appear under their Position's SC only — Footprint is a render-tier
 	// concern, not a query key.
-	bySC map[geom.SuperChunkCoord][]gworld.Camp
+	bySC map[geom.SuperChunkCoord][]polity.Camp
 
-	// sorted holds every camp in (Y, X) lex order on Anchor for
+	// sorted holds every camp in (Y, X) lex order on Position for
 	// deterministic All() output.
-	sorted []gworld.Camp
+	sorted []polity.Camp
 }
 
 // CampSourceConfig holds the upstream sources required to place camps.
@@ -53,8 +64,9 @@ type CampSourceConfig struct {
 // Construction visits every super-chunk in the map's bounds, rolls a
 // per-SC settlement-willingness multiplier, draws Bridson Poisson-disk
 // candidates inside each SC's bounds, runs the 6-gate acceptance chain,
-// and derives Faith/Pop/Footprint for each accepted candidate. Footprint
-// is a connected 2-3 tile cluster grown via random-walk from each anchor.
+// and derives Faiths/Population/Footprint for each accepted candidate.
+// Footprint is a connected 2-3 tile cluster grown via random-walk from
+// each anchor.
 func NewCampSource(w *Map, seed int64, cfg CampSourceConfig) *CampSource {
 	if cfg.Regions == nil {
 		// Regions are required — without them every camp's Region
@@ -64,8 +76,8 @@ func NewCampSource(w *Map, seed int64, cfg CampSourceConfig) *CampSource {
 		panic("newCampSource: cfg.Regions must not be nil")
 	}
 
-	bySC := make(map[geom.SuperChunkCoord][]gworld.Camp)
-	var all []gworld.Camp
+	bySC := make(map[geom.SuperChunkCoord][]polity.Camp)
+	var all []polity.Camp
 
 	// Iterate every super-chunk inside the world bounds. The map
 	// dimensions are tile-aligned to the SC grid by worldgen
@@ -86,7 +98,7 @@ func NewCampSource(w *Map, seed int64, cfg CampSourceConfig) *CampSource {
 	}
 
 	sort.Slice(all, func(i, j int) bool {
-		a, b := all[i].Anchor, all[j].Anchor
+		a, b := all[i].Position, all[j].Position
 		if a.Y != b.Y {
 			return a.Y < b.Y
 		}
@@ -102,14 +114,14 @@ func NewCampSource(w *Map, seed int64, cfg CampSourceConfig) *CampSource {
 // buildSCCamps performs camp placement for one super-chunk: rolls the
 // per-SC settlement-willingness multiplier, draws Bridson candidates
 // inside the SC bounds, runs the gate chain + habitability acceptance
-// per candidate, and derives Faith/Pop/Footprint for each accepted camp.
-// Result is sorted by Anchor (Y, X) lex order.
+// per candidate, and derives Faiths/Population/Footprint for each
+// accepted camp. Result is sorted by Position (Y, X) lex order.
 func buildSCCamps(
 	w *Map,
 	seed int64,
 	sc geom.SuperChunkCoord,
 	cfg CampSourceConfig,
-) []gworld.Camp {
+) []polity.Camp {
 	region := cfg.Regions.RegionAt(sc).Character
 
 	// Per-SC settlement-willingness roll. Salt distinct from the Bridson
@@ -152,7 +164,7 @@ func buildSCCamps(
 	claimedTiles := make(map[geom.Position]struct{}, len(candidates)*3)
 
 	acceptRng := campAcceptRNG(seed, sc)
-	out := make([]gworld.Camp, 0, len(candidates))
+	out := make([]polity.Camp, 0, len(candidates))
 	for _, p := range candidates {
 		cellID := w.Voronoi.CellIDAt(p.X, p.Y)
 		if !acceptCamp(p, w, cellID, cfg.Deposits, cfg.Volcanoes, landmarkTiles, claimedTiles, affinity, acceptRng) {
@@ -164,13 +176,23 @@ func buildSCCamps(
 		for _, fp := range footprint {
 			claimedTiles[fp] = struct{}{}
 		}
-		out = append(out, gworld.Camp{
-			Anchor:    p,
-			Footprint: footprint,
-			Region:    region,
-			Faith:     campFaith(seed, p, region),
-			Pop:       pop,
-			BornYear:  0,
+		faiths := campFaiths(seed, p, region)
+		rulerName := naming.GenerateRulerName(seed, p, region.Key())
+		campName := naming.GenerateSettlementName(seed, p, region.Key())
+		rulerStream := dice.New(seed^int64(geom.PackPos(p)), dice.Salt(seedSaltCampRuler))
+		out = append(out, polity.Camp{
+			Settlement: polity.Settlement{
+				ID:         campSettlementID(seed, p),
+				Tier:       polity.TierCamp,
+				Name:       campName,
+				Position:   p,
+				Footprint:  footprint,
+				Region:     region,
+				Faiths:     faiths,
+				Population: int(pop),
+				Founded:    0,
+				Ruler:      polity.NewRuler(rulerStream, 0, rulerName),
+			},
 		})
 	}
 
@@ -178,9 +200,9 @@ func buildSCCamps(
 		return nil
 	}
 
-	// Stable Anchor (Y, X) lex order for deterministic CampsIn output.
+	// Stable Position (Y, X) lex order for deterministic CampsIn output.
 	sort.Slice(out, func(i, j int) bool {
-		a, b := out[i].Anchor, out[j].Anchor
+		a, b := out[i].Position, out[j].Position
 		if a.Y != b.Y {
 			return a.Y < b.Y
 		}
@@ -484,20 +506,20 @@ func scHash(sc geom.SuperChunkCoord) uint64 {
 	return geom.Splitmix64(uint64(int64(sc.X))*0x9E3779B97F4A7C15 ^ uint64(int64(sc.Y))*0xBF58476D1CE4E5B9)
 }
 
-// CampsIn returns every camp whose Anchor is inside super-chunk sc,
+// CampsIn returns every camp whose Position is inside super-chunk sc,
 // in stable (Y, X) lex order. Returns nil if no camps land in sc.
-func (s *CampSource) CampsIn(sc geom.SuperChunkCoord) []gworld.Camp {
+func (s *CampSource) CampsIn(sc geom.SuperChunkCoord) []polity.Camp {
 	return s.bySC[sc]
 }
 
 // All returns every camp in the world in stable (Y, X) lex order.
 // Used by diagnostics, dev tools, and determinism tests.
-func (s *CampSource) All() []gworld.Camp {
+func (s *CampSource) All() []polity.Camp {
 	return s.sorted
 }
 
-// Compile-time guarantee CampSource implements world.CampSource.
-var _ gworld.CampSource = (*CampSource)(nil)
+// Compile-time guarantee CampSource implements polity.CampSource.
+var _ polity.CampSource = (*CampSource)(nil)
 
 // campFaithByRegion holds the per-RegionCharacter faith weight tables
 // from .omc/plans/camps.md §6. Each row defines relative weights;
@@ -505,52 +527,52 @@ var _ gworld.CampSource = (*CampSource)(nil)
 // percentages. Heretic minorities (the small entries) emerge naturally
 // from the roll and feed religion-diffusion mechanics from year 1.
 //
-// Row order matches the world.RegionCharacter enum so the row can be
+// Row order matches the polity.RegionCharacter enum so the row can be
 // indexed by camp.Region directly without a map lookup.
 var campFaithByRegion = [...][]weighted[polity.Faith]{
-	gworld.RegionNormal: {
+	polity.RegionNormal: {
 		{polity.FaithOldGods, 65},
 		{polity.FaithSunCovenant, 15},
 		{polity.FaithGreenSage, 10},
 		{polity.FaithOneOath, 7},
 		{polity.FaithStormPact, 3},
 	},
-	gworld.RegionBlighted: {
+	polity.RegionBlighted: {
 		{polity.FaithOldGods, 85},
 		{polity.FaithSunCovenant, 2},
 		{polity.FaithGreenSage, 2},
 		{polity.FaithOneOath, 6},
 		{polity.FaithStormPact, 5},
 	},
-	gworld.RegionFey: {
+	polity.RegionFey: {
 		{polity.FaithOldGods, 30},
 		{polity.FaithSunCovenant, 5},
 		{polity.FaithGreenSage, 55},
 		{polity.FaithOneOath, 5},
 		{polity.FaithStormPact, 5},
 	},
-	gworld.RegionAncient: {
+	polity.RegionAncient: {
 		{polity.FaithOldGods, 55},
 		{polity.FaithSunCovenant, 20},
 		{polity.FaithGreenSage, 10},
 		{polity.FaithOneOath, 10},
 		{polity.FaithStormPact, 5},
 	},
-	gworld.RegionSavage: {
+	polity.RegionSavage: {
 		{polity.FaithOldGods, 30},
 		{polity.FaithSunCovenant, 5},
 		{polity.FaithGreenSage, 5},
 		{polity.FaithOneOath, 45},
 		{polity.FaithStormPact, 15},
 	},
-	gworld.RegionHoly: {
+	polity.RegionHoly: {
 		{polity.FaithOldGods, 40},
 		{polity.FaithSunCovenant, 45},
 		{polity.FaithGreenSage, 5},
 		{polity.FaithOneOath, 8},
 		{polity.FaithStormPact, 2},
 	},
-	gworld.RegionWild: {
+	polity.RegionWild: {
 		{polity.FaithOldGods, 40},
 		{polity.FaithSunCovenant, 5},
 		{polity.FaithGreenSage, 40},
@@ -559,12 +581,31 @@ var campFaithByRegion = [...][]weighted[polity.Faith]{
 	},
 }
 
-// campFaith rolls a Faith for a camp at anchor inside region. Uses
-// seedSaltCampFaith — a per-camp PCG stream decorrelated from every
-// other camp-subsystem stream.
-func campFaith(seed int64, anchor geom.Position, region gworld.RegionCharacter) polity.Faith {
+// campFaiths builds a FaithDistribution for a camp at anchor inside region.
+// The dominant faith is determined by a weighted roll (campFaithByRegion),
+// then seeded at 0.92 majority with the other four faiths at 0.02 each —
+// matching the NewFaithDistribution default shares so the diffusion and
+// schism mechanics have a live secondary pool from year 1.
+func campFaiths(seed int64, anchor geom.Position, region polity.RegionCharacter) polity.FaithDistribution {
 	rng := newPCG(uint64(seed) ^ uint64(seedSaltCampFaith) ^ geom.PackPos(anchor))
-	return pickWeighted(rng, campFaithByRegion[region], polity.FaithOldGods)
+	dominant := pickWeighted(rng, campFaithByRegion[region], polity.FaithOldGods)
+
+	fd := polity.NewFaithDistribution()
+	// Swap dominant faith to majority share; set all others to minority share.
+	// NewFaithDistribution seeds OldGods as majority, so only rearrange if a
+	// different faith won the roll.
+	if dominant != polity.FaithOldGods {
+		const maj = 0.92
+		const min = 0.02
+		for f := polity.Faith(0); f < polity.FaithCount; f++ {
+			if f == dominant {
+				fd[f] = maj
+			} else {
+				fd[f] = min
+			}
+		}
+	}
+	return fd
 }
 
 // campPop draws an initial population from the camp Pareto:

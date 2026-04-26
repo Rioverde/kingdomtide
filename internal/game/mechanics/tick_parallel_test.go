@@ -16,7 +16,7 @@ func seededWorld(n int) ([]*polity.City, []*dice.Stream) {
 	cities := make([]*polity.City, n)
 	streams := make([]*dice.Stream, n)
 	for i := 0; i < n; i++ {
-		ruler := polity.NewRuler(dice.New(int64(i+1), dice.SaltKingdomYear), 1270)
+		ruler := polity.NewRuler(dice.New(int64(i+1), dice.SaltKingdomYear), 1270, "")
 		c := polity.NewCity("City", geom.Position{X: i, Y: 0}, 1200, ruler)
 		c.Population = 5000
 		c.Wealth = 5000

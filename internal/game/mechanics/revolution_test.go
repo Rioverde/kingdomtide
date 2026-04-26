@@ -13,10 +13,12 @@ import (
 func happyCity() *polity.City {
 	return &polity.City{
 		Happiness: 80,
-		Ruler: polity.Ruler{Stats: stats.CoreStats{
-			Strength: 10, Dexterity: 10, Constitution: 10,
-			Intelligence: 10, Wisdom: 10, Charisma: 10,
-		}},
+		Settlement: polity.Settlement{
+			Ruler: polity.Ruler{Stats: stats.CoreStats{
+				Strength: 10, Dexterity: 10, Constitution: 10,
+				Intelligence: 10, Wisdom: 10, Charisma: 10,
+			}},
+		},
 	}
 }
 

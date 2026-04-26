@@ -20,7 +20,7 @@ const diagBenchSeed int64 = 0xdeadbeef
 // ruler with full stats, two deposits, and non-trivial wealth/pop.
 func diagCity() *polity.City {
 	stream := dice.New(diagBenchSeed, dice.SaltKingdomYear)
-	ruler := polity.NewRuler(stream, 1250)
+	ruler := polity.NewRuler(stream, 1250, "")
 	ruler.Stats = stats.CoreStats{
 		Strength:     14,
 		Dexterity:    12,
@@ -275,7 +275,7 @@ func BenchmarkTickYearPhases_MemStats_1000Cities(b *testing.B) {
 	}
 
 	// Two kingdoms sharing the cities for kingdom/mulk phases.
-	founder := polity.NewRuler(dice.New(diagBenchSeed, dice.SaltKingdomYear), 1250)
+	founder := polity.NewRuler(dice.New(diagBenchSeed, dice.SaltKingdomYear), 1250, "")
 	founder.Stats = stats.CoreStats{Constitution: 14, Charisma: 13}
 
 	k1 := polity.NewKingdom("K1", "Bench Alpha", founder, cities[0].Name,

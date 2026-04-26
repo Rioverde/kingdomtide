@@ -22,6 +22,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/Rioverde/gongeons/internal/game/calendar"
+	"github.com/Rioverde/gongeons/internal/game/simulation"
 	"github.com/Rioverde/gongeons/internal/game/world"
 	"github.com/Rioverde/gongeons/internal/game/worldgen"
 	pb "github.com/Rioverde/gongeons/internal/proto"
@@ -187,6 +188,9 @@ func buildWorld(seed int64, size worldgen.WorldSize, logger *slog.Logger) *world
 		Deposits:  depositSrc,
 	})
 
+	simResult := simulation.Run(seed, campSrc, simulation.WithSnapshotEvery(0))
+	settlementSrc := simResult.SettlementSource()
+
 	cal := calendar.NewCalendar(
 		calendar.DefaultCalendarConfig.TicksPerDay,
 		calendar.DefaultCalendarConfig.DaysPerMonth,
@@ -201,6 +205,7 @@ func buildWorld(seed int64, size worldgen.WorldSize, logger *slog.Logger) *world
 		world.WithVolcanoSource(volcanoSrc),
 		world.WithDepositSource(depositSrc),
 		world.WithCampSource(campSrc),
+		world.WithSettlementSource(settlementSrc),
 		world.WithCalendar(cal),
 	)
 }

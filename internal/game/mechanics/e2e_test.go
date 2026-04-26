@@ -10,12 +10,12 @@ import (
 	"github.com/Rioverde/gongeons/internal/game/stats"
 )
 
-// simWorld is the test-local aggregate of every city and village used
+// simWorld is the test-local aggregate of every city and demesne used
 // by the end-to-end simulation. The real codebase will grow a proper
 // Kingdom/World type; for now the test owns the collection.
 type simWorld struct {
 	cities   []*polity.City
-	villages []*polity.Village
+	demesnes []*polity.Demesne
 	seed     int64
 }
 
@@ -74,7 +74,7 @@ func seedWorld(seed int64, startYear int) *simWorld {
 
 	w := &simWorld{seed: seed}
 	for i, a := range archetypes {
-		ruler := polity.NewRuler(rulerStream, startYear-30)
+		ruler := polity.NewRuler(rulerStream, startYear-30, "")
 		city := polity.NewCity(
 			a.name,
 			geom.Position{X: i * 100, Y: i * 100},
@@ -101,20 +101,20 @@ func seedWorld(seed int64, startYear int) *simWorld {
 		w.cities = append(w.cities, city)
 	}
 
-	// Three villages per city, attached as parents. Villages do not
+	// Three demesnes per city, attached as parents. Demesnes do not
 	// tick yet but the aggregate tracks them for density and future
 	// food-import contribution.
 	for i, city := range w.cities {
 		for j := 0; j < 3; j++ {
-			vname := city.Name + "-Hamlet-" + string(rune('A'+j))
-			village := polity.NewVillage(
-				vname,
+			dname := city.Name + "-Hamlet-" + string(rune('A'+j))
+			demesne := polity.NewDemesne(
+				dname,
 				geom.Position{X: city.Position.X + j*10, Y: city.Position.Y + j*10},
 				startYear-30,
 				city.Name,
 			)
-			village.Population = 80 + (i*j)*10
-			w.villages = append(w.villages, village)
+			demesne.Population = 80 + (i*j)*10
+			w.demesnes = append(w.demesnes, demesne)
 		}
 	}
 
@@ -282,7 +282,7 @@ func TestSimulation_200YearWorld(t *testing.T) {
 	t.Logf("--- 200-year simulation summary ---")
 	t.Logf("Years simulated:      %d", s.years)
 	t.Logf("Cities:               %d", len(w.cities))
-	t.Logf("Villages:             %d", len(w.villages))
+	t.Logf("Demesnes:             %d", len(w.demesnes))
 	t.Logf("Revolutions:          %d", s.revolutions)
 	t.Logf("Great people born:    %d", s.greatPeopleBorn)
 	t.Logf("Ruler deaths:         %d", s.rulerDeaths)

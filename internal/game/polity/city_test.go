@@ -11,7 +11,7 @@ import (
 // explicit arguments into their destinations and leaves derived
 // attributes at zero (awaiting Pass-1 derivation in the mechanics layer).
 func TestNewCity_FieldsSet(t *testing.T) {
-	ruler := NewRuler(dice.New(42, dice.SaltKingdomYear), 1500)
+	ruler := NewRuler(dice.New(42, dice.SaltKingdomYear), 1500, "")
 	c := NewCity("Anglaria", geom.Position{X: 10, Y: 20}, 1500, ruler)
 
 	if c.Name != "Anglaria" {

@@ -7,6 +7,7 @@ import (
 	"github.com/Rioverde/gongeons/internal/game/calendar"
 	"github.com/Rioverde/gongeons/internal/game/entity"
 	"github.com/Rioverde/gongeons/internal/game/geom"
+	"github.com/Rioverde/gongeons/internal/game/polity"
 )
 
 // TileSource is the read-only pluggable backend that tells a World what
@@ -61,7 +62,11 @@ type World struct {
 	// campSource produces the canonical camp list per super-chunk and
 	// the full sorted world list. May be nil; CampSource() returns nil
 	// so callers need not special-case the missing source.
-	campSource CampSource
+	campSource polity.CampSource
+	// settlementSource is the post-simulation settlement layer produced by
+	// simulation.Run. May be nil; SettlementSource() returns nil so callers
+	// need not special-case the missing source.
+	settlementSource polity.SettlementSource
 	// currentTick is the monotonic tick counter — advances by exactly 1
 	// per Tick() call. Zero on a freshly constructed world. Calendar-
 	// derived GameTime reads from this counter through w.cal.
@@ -145,10 +150,21 @@ func WithDepositSource(source DepositSource) WorldOption {
 // WithCampSource attaches a CampSource. If nil is passed, the option is a
 // no-op so callers can pass an optional source built behind a feature
 // flag without conditioning the option list.
-func WithCampSource(source CampSource) WorldOption {
+func WithCampSource(source polity.CampSource) WorldOption {
 	return func(w *World) {
 		if source != nil {
 			w.campSource = source
+		}
+	}
+}
+
+// WithSettlementSource attaches the post-simulation SettlementSource. If nil
+// is passed, the option is a no-op and SettlementSource() returns nil so
+// callers need not special-case the missing source. Mirrors WithCampSource.
+func WithSettlementSource(source polity.SettlementSource) WorldOption {
+	return func(w *World) {
+		if source != nil {
+			w.settlementSource = source
 		}
 	}
 }
@@ -234,8 +250,15 @@ func (w *World) DepositSource() DepositSource {
 // CampSource returns the configured camp source, or nil when the world
 // was built without one. Mirrors DepositSource so the optional backends
 // follow the same accessor shape.
-func (w *World) CampSource() CampSource {
+func (w *World) CampSource() polity.CampSource {
 	return w.campSource
+}
+
+// SettlementSource returns the post-simulation settlement source, or nil when
+// the world was built without one. Mirrors CampSource so both optional polity
+// backends follow the same accessor shape.
+func (w *World) SettlementSource() polity.SettlementSource {
+	return w.settlementSource
 }
 
 // CurrentTick returns the monotonic tick counter. Zero on a freshly

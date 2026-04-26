@@ -14,9 +14,11 @@ import (
 // filters selectively by zeroing relevant fields.
 func newLifeEventCity() *polity.City {
 	return &polity.City{
-		Ruler: polity.Ruler{
-			Stats:     stats.DefaultCoreStats(),
-			BirthYear: 1500,
+		Settlement: polity.Settlement{
+			Ruler: polity.Ruler{
+				Stats:     stats.DefaultCoreStats(),
+				BirthYear: 1500,
+			},
 		},
 		Wealth:    500,
 		Army:      100,

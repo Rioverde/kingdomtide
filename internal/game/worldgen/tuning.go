@@ -340,4 +340,9 @@ const (
 	// two PCG streams are decorrelated — identical seed+SC combos hit
 	// different PRNG states. Value: fractional hex of √83.
 	seedSaltCampAccept int64 = 0x1d4a8c3e9f2b5071
+	// seedSaltCampRuler seeds the dice.Stream used to roll the founding
+	// ruler's ability scores. Distinct from every other camp salt so
+	// ruler rolls are decorrelated from placement, pop, and faith draws.
+	// Value: fractional hex of √89.
+	seedSaltCampRuler int64 = 0x4f6b8c2e1a3d7059
 )

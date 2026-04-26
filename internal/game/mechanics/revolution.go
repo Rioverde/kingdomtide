@@ -71,7 +71,7 @@ func ApplyRevolutionCheckYear(city *polity.City, stream *dice.Stream, currentYea
 		return
 	}
 
-	city.Ruler = polity.NewRuler(stream, currentYear)
+	city.Ruler = polity.NewRuler(stream, currentYear, "")
 	city.Happiness = revolutionHappinessReset
 	city.RevolutionThisYear = true
 }

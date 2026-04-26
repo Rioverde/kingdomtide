@@ -60,7 +60,7 @@ func TestCampSource_Report(t *testing.T) {
 		r := int(c.Region)
 		if r < 7 {
 			regionCounts[r]++
-			faithByRegion[r][c.Faith]++
+			faithByRegion[r][c.Faiths.Majority()]++
 		}
 	}
 	regionNames := [7]string{"Normal", "Blighted", "Fey", "Ancient", "Savage", "Holy", "Wild"}
@@ -95,13 +95,13 @@ func TestCampSource_Report(t *testing.T) {
 	popBuckets := [4]int{} // [10-19], [20-29], [30-39], [40-50]
 	for _, c := range camps {
 		switch {
-		case c.Pop >= 10 && c.Pop <= 19:
+		case c.Population >= 10 && c.Population <= 19:
 			popBuckets[0]++
-		case c.Pop >= 20 && c.Pop <= 29:
+		case c.Population >= 20 && c.Population <= 29:
 			popBuckets[1]++
-		case c.Pop >= 30 && c.Pop <= 39:
+		case c.Population >= 30 && c.Population <= 39:
 			popBuckets[2]++
-		case c.Pop >= 40 && c.Pop <= 50:
+		case c.Population >= 40 && c.Population <= 50:
 			popBuckets[3]++
 		}
 	}
@@ -116,13 +116,13 @@ func TestCampSource_Report(t *testing.T) {
 	bornBuckets := [4]int{} // [-200,-150), [-150,-100), [-100,-50), [-50,0)
 	for _, c := range camps {
 		switch {
-		case c.BornYear >= -200 && c.BornYear < -150:
+		case c.Founded >= -200 && c.Founded < -150:
 			bornBuckets[0]++
-		case c.BornYear >= -150 && c.BornYear < -100:
+		case c.Founded >= -150 && c.Founded < -100:
 			bornBuckets[1]++
-		case c.BornYear >= -100 && c.BornYear < -50:
+		case c.Founded >= -100 && c.Founded < -50:
 			bornBuckets[2]++
-		case c.BornYear >= -50 && c.BornYear < 0:
+		case c.Founded >= -50 && c.Founded < 0:
 			bornBuckets[3]++
 		}
 	}

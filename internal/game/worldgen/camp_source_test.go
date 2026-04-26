@@ -60,7 +60,8 @@ func TestCampSourceConstructs(t *testing.T) {
 	if src == nil {
 		t.Fatal("NewCampSource returned nil")
 	}
-	n := len(src.All())
+	camps := src.All()
+	n := len(camps)
 	if n < 1 {
 		t.Fatalf("expected ≥1 camp, got 0")
 	}
@@ -68,6 +69,12 @@ func TestCampSourceConstructs(t *testing.T) {
 		t.Fatalf("expected ≤5000 camps on Tiny world, got %d", n)
 	}
 	t.Logf("Tiny world seed=%d: %d camps", testSeed, n)
+
+	// Ruler names must be non-empty — every founding camp gets a name.
+	if camps[0].Ruler.Name == "" {
+		t.Errorf("camps[0].Ruler.Name is empty; expected a generated name")
+	}
+	t.Logf("camps[0] ruler name: %q", camps[0].Ruler.Name)
 }
 
 // TestCampSourceDeterminism confirms that two independent NewCampSource
@@ -97,10 +104,10 @@ func TestCampSourceRegionInheritance(t *testing.T) {
 	src := NewCampSource(w, testSeed, CampSourceConfig{Regions: regions})
 
 	for _, c := range src.All() {
-		sc := geom.WorldToSuperChunk(c.Anchor.X, c.Anchor.Y)
+		sc := geom.WorldToSuperChunk(c.Position.X, c.Position.Y)
 		want := regions.RegionAt(sc).Character
 		if c.Region != want {
-			t.Errorf("camp at %v: Region=%v, want %v (SC %v)", c.Anchor, c.Region, want, sc)
+			t.Errorf("camp at %v: Region=%v, want %v (SC %v)", c.Position, c.Region, want, sc)
 		}
 	}
 }
@@ -118,7 +125,7 @@ func TestCampSourceCampsInMatchesAll(t *testing.T) {
 	// Build expected counts from All().
 	wantBySC := make(map[geom.SuperChunkCoord]int)
 	for _, c := range src.All() {
-		sc := geom.WorldToSuperChunk(c.Anchor.X, c.Anchor.Y)
+		sc := geom.WorldToSuperChunk(c.Position.X, c.Position.Y)
 		wantBySC[sc]++
 	}
 
@@ -395,7 +402,7 @@ func TestCampFaithDistribution(t *testing.T) {
 			if r >= 7 {
 				continue
 			}
-			counts[r][c.Faith]++
+			counts[r][c.Faiths.Majority()]++
 			totals[r]++
 		}
 	}
@@ -437,11 +444,11 @@ func TestCampPopRange(t *testing.T) {
 	w, regions := buildCampTestWorld(t)
 	src := NewCampSource(w, testSeed, CampSourceConfig{Regions: regions})
 
-	minPop := int32(campZipfMin)
-	maxPop := int32(campMaxPop)
+	minPop := int(campZipfMin)
+	maxPop := int(campMaxPop)
 	for _, c := range src.All() {
-		if c.Pop < minPop || c.Pop > maxPop {
-			t.Errorf("camp at %v: Pop=%d outside [%d, %d]", c.Anchor, c.Pop, minPop, maxPop)
+		if c.Population < minPop || c.Population > maxPop {
+			t.Errorf("camp at %v: Population=%d outside [%d, %d]", c.Position, c.Population, minPop, maxPop)
 		}
 	}
 }
@@ -459,10 +466,10 @@ func TestCampPopMostTiny(t *testing.T) {
 	if len(camps) == 0 {
 		t.Skip("no camps generated")
 	}
-	threshold := int32(campZipfMin * 2)
+	threshold := int(campZipfMin * 2)
 	tiny := 0
 	for _, c := range camps {
-		if c.Pop <= threshold {
+		if c.Population <= threshold {
 			tiny++
 		}
 	}
@@ -481,8 +488,8 @@ func TestCampBornYearRange(t *testing.T) {
 	src := NewCampSource(w, testSeed, CampSourceConfig{Regions: regions})
 
 	for _, c := range src.All() {
-		if c.BornYear != 0 {
-			t.Errorf("camp at %v: BornYear=%d, want 0", c.Anchor, c.BornYear)
+		if c.Founded != 0 {
+			t.Errorf("camp at %v: BornYear=%d, want 0", c.Position, c.Founded)
 		}
 	}
 }
@@ -509,12 +516,12 @@ func TestCampDerivationDeterminism(t *testing.T) {
 		}
 		for i, c1 := range camps1 {
 			c2 := camps2[i]
-			if c1.Faith != c2.Faith || c1.Pop != c2.Pop || c1.BornYear != c2.BornYear {
-				t.Errorf("seed %d camp[%d] at %v: Faith=%v/%v Pop=%d/%d BornYear=%d/%d",
-					seed, i, c1.Anchor,
-					c1.Faith, c2.Faith,
-					c1.Pop, c2.Pop,
-					c1.BornYear, c2.BornYear)
+			if c1.Faiths != c2.Faiths || c1.Population != c2.Population || c1.Founded != c2.Founded {
+				t.Errorf("seed %d camp[%d] at %v: Faiths=%v/%v Population=%d/%d Founded=%d/%d",
+					seed, i, c1.Position,
+					c1.Faiths, c2.Faiths,
+					c1.Population, c2.Population,
+					c1.Founded, c2.Founded)
 			}
 		}
 		t.Logf("seed %d: %d camps all deterministic", seed, len(camps1))
@@ -536,7 +543,7 @@ func TestCampFootprintSize(t *testing.T) {
 	for _, c := range src.All() {
 		n := len(c.Footprint)
 		if n < 1 || n > 3 {
-			t.Errorf("camp at %v: footprint size %d outside [1,3]", c.Anchor, n)
+			t.Errorf("camp at %v: footprint size %d outside [1,3]", c.Position, n)
 			continue
 		}
 		counts[n]++
@@ -544,13 +551,13 @@ func TestCampFootprintSize(t *testing.T) {
 		// Verify pop-to-budget mapping: pop > threshold must have ≥ 2 tiles
 		// (never 1, unless the frontier was truly exhausted). Pop ≤ threshold
 		// must have ≤ 2 tiles.
-		if c.Pop > campFootprintSmallPopThreshold && n < 2 {
-			t.Errorf("camp at %v: Pop=%d > threshold=%d but footprint=%d (want ≥2)",
-				c.Anchor, c.Pop, campFootprintSmallPopThreshold, n)
+		if int32(c.Population) > campFootprintSmallPopThreshold && n < 2 {
+			t.Errorf("camp at %v: Population=%d > threshold=%d but footprint=%d (want ≥2)",
+				c.Position, c.Population, campFootprintSmallPopThreshold, n)
 		}
-		if c.Pop <= campFootprintSmallPopThreshold && n > 2 {
-			t.Errorf("camp at %v: Pop=%d ≤ threshold=%d but footprint=%d (want ≤2)",
-				c.Anchor, c.Pop, campFootprintSmallPopThreshold, n)
+		if int32(c.Population) <= campFootprintSmallPopThreshold && n > 2 {
+			t.Errorf("camp at %v: Population=%d ≤ threshold=%d but footprint=%d (want ≤2)",
+				c.Position, c.Population, campFootprintSmallPopThreshold, n)
 		}
 	}
 	t.Logf("footprint size distribution: 1=%d  2=%d  3=%d", counts[1], counts[2], counts[3])
@@ -590,7 +597,7 @@ func TestCampFootprintConnected(t *testing.T) {
 			}
 			if !hasAdj {
 				t.Errorf("camp at %v: footprint tile %v has no 4-neighbour in footprint %v",
-					c.Anchor, fp, c.Footprint)
+					c.Position, fp, c.Footprint)
 			}
 		}
 	}
@@ -610,9 +617,9 @@ func TestCampFootprintNoOverlap(t *testing.T) {
 		for _, fp := range c.Footprint {
 			if prev, exists := seen[fp]; exists {
 				t.Errorf("footprint overlap: tile %v claimed by camp %v and camp %v",
-					fp, prev, c.Anchor)
+					fp, prev, c.Position)
 			} else {
-				seen[fp] = c.Anchor
+				seen[fp] = c.Position
 			}
 		}
 	}
@@ -644,7 +651,7 @@ func TestCampFootprintNoIllegalTiles(t *testing.T) {
 		for _, fp := range c.Footprint {
 			cellID := w.Voronoi.CellIDAt(fp.X, fp.Y)
 			if w.IsOcean(cellID) {
-				t.Errorf("camp %v: footprint tile %v is ocean", c.Anchor, fp)
+				t.Errorf("camp %v: footprint tile %v is ocean", c.Position, fp)
 				continue
 			}
 			terrain := w.Terrain[cellID]
@@ -653,7 +660,7 @@ func TestCampFootprintNoIllegalTiles(t *testing.T) {
 				gworld.TerrainVolcanoCore,
 				gworld.TerrainVolcanoCoreDormant,
 				gworld.TerrainCraterLake:
-				t.Errorf("camp %v: footprint tile %v has illegal terrain %s", c.Anchor, fp, terrain)
+				t.Errorf("camp %v: footprint tile %v has illegal terrain %s", c.Position, fp, terrain)
 			}
 			// Check volcano override.
 			if override, ok := volcanoes.TerrainOverrideAt(fp); ok {
@@ -664,7 +671,7 @@ func TestCampFootprintNoIllegalTiles(t *testing.T) {
 					gworld.TerrainAshland,
 					gworld.TerrainCraterLake:
 					t.Errorf("camp %v: footprint tile %v has illegal volcano override %s",
-						c.Anchor, fp, override)
+						c.Position, fp, override)
 				}
 			}
 		}
@@ -692,7 +699,7 @@ func TestCampFootprintDeterminism(t *testing.T) {
 		c2 := camps2[i]
 		if !reflect.DeepEqual(c1.Footprint, c2.Footprint) {
 			t.Errorf("camp[%d] at %v: footprint mismatch\n  run1: %v\n  run2: %v",
-				i, c1.Anchor, c1.Footprint, c2.Footprint)
+				i, c1.Position, c1.Footprint, c2.Footprint)
 		}
 	}
 }
@@ -708,7 +715,7 @@ func TestCampFootprintSorted(t *testing.T) {
 			a, b := c.Footprint[i-1], c.Footprint[i]
 			if a.Y > b.Y || (a.Y == b.Y && a.X >= b.X) {
 				t.Errorf("camp at %v: footprint not sorted at [%d,%d]: %v then %v (full: %v)",
-					c.Anchor, i-1, i, a, b, c.Footprint)
+					c.Position, i-1, i, a, b, c.Footprint)
 			}
 		}
 	}
@@ -753,7 +760,7 @@ func TestCampPlacementDeterminism(t *testing.T) {
 				c2 := camps2[i]
 				if !reflect.DeepEqual(c1, c2) {
 					t.Errorf("seed %d camp[%d] at %v differs: run1=%+v run2=%+v",
-						seed, i, c1.Anchor, c1, c2)
+						seed, i, c1.Position, c1, c2)
 				}
 			}
 		}
@@ -781,7 +788,7 @@ func TestCampPopDistribution(t *testing.T) {
 		regions := NewRegionSource(w, seed)
 		src := NewCampSource(w, seed, CampSourceConfig{Regions: regions})
 		for _, c := range src.All() {
-			totalPop += int64(c.Pop)
+			totalPop += int64(c.Population)
 			count++
 		}
 	}
@@ -812,8 +819,8 @@ func TestCampBornYearDistribution(t *testing.T) {
 		regions := NewRegionSource(w, seed)
 		src := NewCampSource(w, seed, CampSourceConfig{Regions: regions})
 		for _, c := range src.All() {
-			if c.BornYear != 0 {
-				t.Errorf("seed %d camp at %v: BornYear=%d, want 0", seed, c.Anchor, c.BornYear)
+			if c.Founded != 0 {
+				t.Errorf("seed %d camp at %v: BornYear=%d, want 0", seed, c.Position, c.Founded)
 			}
 		}
 		t.Logf("seed %d: %d camps all have BornYear=0", seed, len(src.All()))
@@ -856,17 +863,17 @@ func TestCampNoOverlap(t *testing.T) {
 		for _, fp := range c.Footprint {
 			if prev, exists := footprintOwner[fp]; exists {
 				t.Errorf("footprint overlap: tile %v claimed by camps %v and %v",
-					fp, prev, c.Anchor)
+					fp, prev, c.Position)
 			} else {
-				footprintOwner[fp] = c.Anchor
+				footprintOwner[fp] = c.Position
 			}
 		}
 	}
 
 	// No anchor may sit inside a different camp's footprint.
 	for _, c := range camps {
-		if owner, exists := footprintOwner[c.Anchor]; exists && owner != c.Anchor {
-			t.Errorf("anchor %v sits inside footprint of camp %v", c.Anchor, owner)
+		if owner, exists := footprintOwner[c.Position]; exists && owner != c.Position {
+			t.Errorf("anchor %v sits inside footprint of camp %v", c.Position, owner)
 		}
 	}
 
@@ -891,16 +898,16 @@ func TestCampNoOverlap(t *testing.T) {
 		for _, fp := range c.Footprint {
 			cellID := w.Voronoi.CellIDAt(fp.X, fp.Y)
 			if w.IsOcean(cellID) {
-				t.Errorf("camp %v: footprint tile %v is ocean", c.Anchor, fp)
+				t.Errorf("camp %v: footprint tile %v is ocean", c.Position, fp)
 				continue
 			}
 			if illegalBase[w.Terrain[cellID]] {
 				t.Errorf("camp %v: footprint tile %v has illegal terrain %s",
-					c.Anchor, fp, w.Terrain[cellID])
+					c.Position, fp, w.Terrain[cellID])
 			}
 			if override, ok := volcanoes.TerrainOverrideAt(fp); ok && illegalOverride[override] {
 				t.Errorf("camp %v: footprint tile %v has illegal volcano override %s",
-					c.Anchor, fp, override)
+					c.Position, fp, override)
 			}
 		}
 	}
@@ -1070,7 +1077,7 @@ func TestCampGoldenMetrics_Standard_Seed42(t *testing.T) {
 		r := int(c.Region)
 		if r < 7 {
 			regionCounts[r]++
-			faithByRegion[r][c.Faith]++
+			faithByRegion[r][c.Faiths.Majority()]++
 		}
 	}
 
@@ -1099,7 +1106,7 @@ func TestCampGoldenMetrics_Standard_Seed42(t *testing.T) {
 	// Baseline: 19.82. Range: [17, 23] (±15%).
 	var totalPop int64
 	for _, c := range camps {
-		totalPop += int64(c.Pop)
+		totalPop += int64(c.Population)
 	}
 	meanPop := float64(totalPop) / float64(total)
 	t.Logf("mean pop: %.2f", meanPop)
@@ -1120,4 +1127,19 @@ func TestCampGoldenMetrics_Standard_Seed42(t *testing.T) {
 	}
 
 	t.Logf("golden snapshot PASS — all metrics within committed baselines (wall=%v)", elapsed)
+}
+
+// TestCampRulerNameSamples prints 5 sample ruler names for seed=42 (Tiny world).
+// Not a correctness test — informational only.
+func TestCampRulerNameSamples(t *testing.T) {
+	w, regions := buildCampTestWorld(t)
+	src := NewCampSource(w, testSeed, CampSourceConfig{Regions: regions})
+	camps := src.All()
+	for i, c := range camps {
+		if i >= 5 {
+			break
+		}
+		t.Logf("camp %d pos=(%d,%d) region=%s ruler=%q",
+			i, c.Position.X, c.Position.Y, c.Region, c.Ruler.Name)
+	}
 }

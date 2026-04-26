@@ -223,7 +223,7 @@ func (m Model) renderInfo() string {
 		key := geom.PackPos(geom.Position{X: cx, Y: cy})
 		if camp, ok := m.campIndex[key]; ok {
 			line2 = fmt.Sprintf(" region=%s  faith=%s  pop=%d  born=%d  footprint=%d tile(s) ",
-				camp.Region.Key(), camp.Faith, camp.Pop, camp.BornYear, len(camp.Footprint))
+				camp.Region.Key(), camp.Faiths.Majority(), camp.Population, camp.Founded, len(camp.Footprint))
 		} else {
 			line2 = " (no camp at cursor) "
 		}

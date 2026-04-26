@@ -13,8 +13,10 @@ import (
 // majority so GreenSage bonus does not fire by accident.
 func newTechCity() *polity.City {
 	return &polity.City{
-		Ruler:  polity.Ruler{Stats: stats.DefaultCoreStats()},
-		Faiths: polity.NewFaithDistribution(),
+		Settlement: polity.Settlement{
+			Faiths: polity.NewFaithDistribution(),
+			Ruler:  polity.Ruler{Stats: stats.DefaultCoreStats()},
+		},
 	}
 }
 

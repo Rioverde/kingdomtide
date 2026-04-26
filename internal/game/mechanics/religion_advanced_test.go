@@ -17,14 +17,16 @@ import (
 func mismatchCity() *polity.City {
 	c := &polity.City{
 		Happiness: 80,
-		Ruler: polity.Ruler{
-			Stats: stats.CoreStats{
-				Strength: 10, Dexterity: 10, Constitution: 10,
-				Intelligence: 10, Wisdom: 10, Charisma: 10,
+		Settlement: polity.Settlement{
+			Faiths: polity.NewFaithDistribution(),
+			Ruler: polity.Ruler{
+				Stats: stats.CoreStats{
+					Strength: 10, Dexterity: 10, Constitution: 10,
+					Intelligence: 10, Wisdom: 10, Charisma: 10,
+				},
+				Faith: polity.FaithOneOath,
 			},
-			Faith: polity.FaithOneOath,
 		},
-		Faiths: polity.NewFaithDistribution(),
 	}
 	// Crowd the ruler's faith to zero; SunCovenant becomes majority.
 	c.Faiths[polity.FaithOldGods] = 0
@@ -60,11 +62,13 @@ func TestRevolution_RulerSameFaithNoBypass(t *testing.T) {
 	for year := 0; year < 200; year++ {
 		c := &polity.City{
 			Happiness: 80,
-			Ruler: polity.Ruler{
-				Stats: stats.CoreStats{Charisma: 10},
-				Faith: polity.FaithOldGods,
+			Settlement: polity.Settlement{
+				Faiths: polity.NewFaithDistribution(),
+				Ruler: polity.Ruler{
+					Stats: stats.CoreStats{Charisma: 10},
+					Faith: polity.FaithOldGods,
+				},
 			},
-			Faiths: polity.NewFaithDistribution(),
 		}
 		ApplyRevolutionCheckYear(c, stream, year)
 		if c.RevolutionThisYear {
@@ -106,8 +110,10 @@ func TestReligionGrievance_ScalesWithMinorityStatus(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			c := &polity.City{
-				Ruler:  polity.Ruler{Faith: polity.FaithOneOath},
-				Faiths: polity.NewFaithDistribution(),
+				Settlement: polity.Settlement{
+					Faiths: polity.NewFaithDistribution(),
+					Ruler:  polity.Ruler{Faith: polity.FaithOneOath},
+				},
 			}
 			for _, f := range polity.AllFaiths() {
 				c.Faiths[f] = 0
@@ -128,7 +134,7 @@ func TestReligionGrievance_ScalesWithMinorityStatus(t *testing.T) {
 // original majority / new secondary captured. Re-uses the four-gate
 // setup from religion_test.go's SchismFires case.
 func TestSchism_RecordsInHistory(t *testing.T) {
-	c := &polity.City{Faiths: polity.NewFaithDistribution()}
+	c := &polity.City{Settlement: polity.Settlement{Faiths: polity.NewFaithDistribution()}}
 	c.Faiths[polity.FaithOldGods] = 0.55
 	c.Faiths[polity.FaithSunCovenant] = 0.45
 	c.Faiths[polity.FaithGreenSage] = 0

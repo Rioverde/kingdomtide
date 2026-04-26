@@ -14,7 +14,7 @@ import (
 // faiths so the default seed's 0.02 minority shares don't dilute
 // the majority's pulse growth past the assertion threshold.
 func TestApplyReligionDiffusionYear_MajorityGrows(t *testing.T) {
-	c := &polity.City{Faiths: polity.NewFaithDistribution()}
+	c := &polity.City{Settlement: polity.Settlement{Faiths: polity.NewFaithDistribution()}}
 	c.Faiths[polity.FaithOldGods] = 0.6
 	c.Faiths[polity.FaithSunCovenant] = 0.4
 	c.Faiths[polity.FaithGreenSage] = 0
@@ -31,7 +31,7 @@ func TestApplyReligionDiffusionYear_MajorityGrows(t *testing.T) {
 // TestApplyReligionDiffusionYear_NormalizedSum verifies that after a
 // diffusion tick the distribution sums to 1.0 within floating tol.
 func TestApplyReligionDiffusionYear_NormalizedSum(t *testing.T) {
-	c := &polity.City{Faiths: polity.NewFaithDistribution()}
+	c := &polity.City{Settlement: polity.Settlement{Faiths: polity.NewFaithDistribution()}}
 	c.Faiths[polity.FaithOldGods] = 0.5
 	c.Faiths[polity.FaithSunCovenant] = 0.3
 	c.Faiths[polity.FaithGreenSage] = 0.2
@@ -52,7 +52,7 @@ func TestApplyReligionDiffusionYear_NormalizedSum(t *testing.T) {
 // four-gate schism condition triggers the 60/40 split when gates
 // open (secondary ≥ 0.4, gap ≤ 0.2, Innovation ≥ 45).
 func TestApplyReligionDiffusionYear_SchismFires(t *testing.T) {
-	c := &polity.City{Faiths: polity.NewFaithDistribution()}
+	c := &polity.City{Settlement: polity.Settlement{Faiths: polity.NewFaithDistribution()}}
 	c.Faiths[polity.FaithOldGods] = 0.55
 	c.Faiths[polity.FaithSunCovenant] = 0.45
 	c.Innovation = 50 // above the DC 45 gate
@@ -72,7 +72,7 @@ func TestApplyReligionDiffusionYear_SchismFires(t *testing.T) {
 // verifies Innovation < 45 prevents the schism from firing even
 // when the other three gates open.
 func TestApplyReligionDiffusionYear_SchismBlockedByLowInnovation(t *testing.T) {
-	c := &polity.City{Faiths: polity.NewFaithDistribution()}
+	c := &polity.City{Settlement: polity.Settlement{Faiths: polity.NewFaithDistribution()}}
 	c.Faiths[polity.FaithOldGods] = 0.55
 	c.Faiths[polity.FaithSunCovenant] = 0.45
 	c.Innovation = 30 // below the DC 45 gate
@@ -90,7 +90,7 @@ func TestApplyReligionDiffusionYear_SchismBlockedByLowInnovation(t *testing.T) {
 // cities on identical streams produce identical distributions.
 func TestApplyReligionDiffusionYear_Determinism(t *testing.T) {
 	mk := func() *polity.City {
-		c := &polity.City{Faiths: polity.NewFaithDistribution()}
+		c := &polity.City{Settlement: polity.Settlement{Faiths: polity.NewFaithDistribution()}}
 		c.Faiths[polity.FaithOldGods] = 0.6
 		c.Faiths[polity.FaithSunCovenant] = 0.4
 		return c

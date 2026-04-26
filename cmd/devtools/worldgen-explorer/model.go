@@ -7,6 +7,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/Rioverde/gongeons/internal/game/geom"
+	"github.com/Rioverde/gongeons/internal/game/polity"
 	gworld "github.com/Rioverde/gongeons/internal/game/world"
 	"github.com/Rioverde/gongeons/internal/game/worldgen"
 )
@@ -111,8 +112,8 @@ type Model struct {
 	landmarkList  []gworld.Landmark
 	depositSrc    gworld.DepositSource
 	depositIndex  map[uint64]gworld.Deposit
-	campSrc       gworld.CampSource
-	campIndex     map[uint64]gworld.Camp // packed anchor/footprint pos → Camp
+	campSrc       polity.CampSource
+	campIndex     map[uint64]polity.Camp // packed position/footprint pos → Camp
 	showCampFaithBg bool
 	layer         layer
 	zoom          int
@@ -272,12 +273,12 @@ func buildDepositIndex(src gworld.DepositSource) map[uint64]gworld.Deposit {
 // buildCampIndex flattens a CampSource into a packed-XY map keyed by every
 // footprint position (including anchor) for O(1) per-tile lookups during
 // rendering. Built once at world load.
-func buildCampIndex(src gworld.CampSource) map[uint64]gworld.Camp {
+func buildCampIndex(src polity.CampSource) map[uint64]polity.Camp {
 	if src == nil {
 		return nil
 	}
 	camps := src.All()
-	idx := make(map[uint64]gworld.Camp, len(camps)*3)
+	idx := make(map[uint64]polity.Camp, len(camps)*3)
 	for _, c := range camps {
 		for _, fp := range c.Footprint {
 			idx[geom.PackPos(fp)] = c

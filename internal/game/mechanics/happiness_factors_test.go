@@ -9,7 +9,10 @@ import (
 // TestHappinessReligion_MatchGivesBonus verifies that a ruler whose
 // faith matches the city majority earns the religion-alignment bonus.
 func TestHappinessReligion_MatchGivesBonus(t *testing.T) {
-	c := polity.City{TaxRate: polity.TaxNormal, Faiths: polity.NewFaithDistribution()}
+	c := polity.City{
+		Settlement: polity.Settlement{Faiths: polity.NewFaithDistribution()},
+		TaxRate:    polity.TaxNormal,
+	}
 	c.Ruler.Faith = polity.FaithOldGods // majority in default distribution
 	ApplyHappinessYear(&c, 1500)
 	// base 50 + 0 food + 0 tax + 0 cha + 8 religion = 58
@@ -21,7 +24,10 @@ func TestHappinessReligion_MatchGivesBonus(t *testing.T) {
 // TestHappinessReligion_MismatchGivesPenalty verifies that a ruler
 // whose faith is a minority earns the mismatch penalty.
 func TestHappinessReligion_MismatchGivesPenalty(t *testing.T) {
-	c := polity.City{TaxRate: polity.TaxNormal, Faiths: polity.NewFaithDistribution()}
+	c := polity.City{
+		Settlement: polity.Settlement{Faiths: polity.NewFaithDistribution()},
+		TaxRate:    polity.TaxNormal,
+	}
 	c.Ruler.Faith = polity.FaithSunCovenant // minority in default distribution
 	ApplyHappinessYear(&c, 1500)
 	// base 50 - 8 religion = 42
@@ -79,8 +85,7 @@ func TestHappinessAllFactors_Stacking(t *testing.T) {
 	c := polity.City{
 		FoodBalance: 20,
 		TaxRate:     polity.TaxLow,
-		Faiths:      polity.NewFaithDistribution(),
-		Settlement:  polity.Settlement{Population: 1000},
+		Settlement:  polity.Settlement{Population: 1000, Faiths: polity.NewFaithDistribution()},
 	}
 	c.Ruler.Stats.Charisma = 18
 	c.Ruler.Faith = polity.FaithOldGods // matches majority

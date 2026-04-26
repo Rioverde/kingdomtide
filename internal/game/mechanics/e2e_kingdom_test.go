@@ -8,11 +8,11 @@ import (
 	"github.com/Rioverde/gongeons/internal/game/polity"
 )
 
-// TestE2E_KingdomWithVillages_500yr exercises the full stack —
-// cities + villages + kingdom + all new mechanics in one 500-year
+// TestE2E_KingdomWithDemesnes_500yr exercises the full stack —
+// cities + demesnes + kingdom + all new mechanics in one 500-year
 // simulation. Verifies the tick pipeline integrates correctly under
 // every subsystem firing at real rates.
-func TestE2E_KingdomWithVillages_500yr(t *testing.T) {
+func TestE2E_KingdomWithDemesnes_500yr(t *testing.T) {
 	if testing.Short() {
 		t.Skip("short — 500-yr kingdom+villages integration sim")
 	}
@@ -52,18 +52,18 @@ func TestE2E_KingdomWithVillages_500yr(t *testing.T) {
 		allCities = append(allCities, v)
 	}
 
-	// Build villages — 5 per city, all feeding their parent's food.
-	var villages []*polity.Village
+	// Build demesnes — 5 per city, all feeding their parent's food.
+	var demesnes []*polity.Demesne
 	for _, city := range allCities {
 		for j := 0; j < 5; j++ {
-			v := polity.NewVillage(
+			d := polity.NewDemesne(
 				city.Name+"-V"+string(rune('A'+j)),
 				geom.Position{},
 				startYear-30,
 				city.Name,
 			)
-			v.Population = 100
-			villages = append(villages, v)
+			d.Population = 100
+			demesnes = append(demesnes, d)
 		}
 	}
 
@@ -76,24 +76,24 @@ func TestE2E_KingdomWithVillages_500yr(t *testing.T) {
 
 	// Run 500 years.
 	cityStreams := make([]*dice.Stream, len(allCities))
-	villageStreams := make([]*dice.Stream, len(villages))
+	demesneStreams := make([]*dice.Stream, len(demesnes))
 	for i := range allCities {
 		cityStreams[i] = dice.New(seed^int64(i+1)*0xcafe, dice.SaltKingdomYear)
 	}
-	for i := range villages {
-		villageStreams[i] = dice.New(seed^int64(i+1)*0xbeef, dice.SaltKingdomYear)
+	for i := range demesnes {
+		demesneStreams[i] = dice.New(seed^int64(i+1)*0xbeef, dice.SaltKingdomYear)
 	}
 	kingdomStream := dice.New(seed, dice.SaltKingdomYear)
 
-	var decreeCount, modPeakCount, villageResolvePhase int
+	var decreeCount, modPeakCount, demesneResolvePhase int
 
 	for year := startYear; year < startYear+years; year++ {
-		// Tick villages first (they feed food upstream).
-		for i, v := range villages {
-			ApplyVillageYear(v, villageStreams[i])
+		// Tick demesnes first (they feed food upstream).
+		for i, d := range demesnes {
+			ApplyDemesneYear(d, demesneStreams[i])
 		}
-		ResolveVillageToCity(villages, cities)
-		villageResolvePhase++
+		ResolveDemesneToCity(demesnes, cities)
+		demesneResolvePhase++
 
 		// Tick cities.
 		for i, c := range allCities {
@@ -113,7 +113,7 @@ func TestE2E_KingdomWithVillages_500yr(t *testing.T) {
 
 	// Log summary.
 	t.Logf("--- 500yr E2E integration ---")
-	t.Logf("Villages resolved: %d", villageResolvePhase)
+	t.Logf("Demesnes resolved: %d", demesneResolvePhase)
 	t.Logf("Historical-mod peak queue: %d", modPeakCount)
 	t.Logf("Kingdom alive: %v, rulers through: %d, asabiya %.3f",
 		k.Alive(), len(k.Rulers), k.Asabiya)
@@ -132,9 +132,9 @@ func TestE2E_KingdomWithVillages_500yr(t *testing.T) {
 			t.Errorf("%s prosperity out of range: %v", c.Name, c.Prosperity)
 		}
 	}
-	for _, v := range villages {
-		if v.Population < 20 || v.Population > 400 {
-			t.Errorf("%s village pop out of range: %d", v.Name, v.Population)
+	for _, d := range demesnes {
+		if d.Population < 20 || d.Population > 400 {
+			t.Errorf("%s demesne pop out of range: %d", d.Name, d.Population)
 		}
 	}
 

@@ -14,8 +14,8 @@ func TestNewRuler_Determinism(t *testing.T) {
 	const seed int64 = 42
 	a := dice.New(seed, dice.SaltKingdomYear)
 	b := dice.New(seed, dice.SaltKingdomYear)
-	ra := NewRuler(a, 100)
-	rb := NewRuler(b, 100)
+	ra := NewRuler(a, 100, "")
+	rb := NewRuler(b, 100, "")
 	if ra != rb {
 		t.Errorf("rulers diverged despite identical (seed, salt)\n  a=%+v\n  b=%+v", ra, rb)
 	}
@@ -27,7 +27,7 @@ func TestNewRuler_Determinism(t *testing.T) {
 func TestNewRuler_StatsInRange(t *testing.T) {
 	s := dice.New(42, dice.SaltKingdomYear)
 	for i := 0; i < 1000; i++ {
-		r := NewRuler(s, 100)
+		r := NewRuler(s, 100, "")
 		scores := []int{
 			r.Stats.Strength, r.Stats.Dexterity, r.Stats.Constitution,
 			r.Stats.Intelligence, r.Stats.Wisdom, r.Stats.Charisma,
