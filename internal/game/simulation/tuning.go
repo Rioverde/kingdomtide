@@ -4,7 +4,7 @@
 // implementation constants live closer to their consumers.
 package simulation
 
-import "github.com/Rioverde/gongeons/internal/game/polity"
+import "github.com/Rioverde/kingdomtide/internal/game/polity"
 
 const (
 	// === Time horizon =====================================

@@ -6,12 +6,12 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/Rioverde/gongeons/internal/game/world"
-	"github.com/Rioverde/gongeons/internal/game/calendar"
-	"github.com/Rioverde/gongeons/internal/game/event"
-	"github.com/Rioverde/gongeons/internal/game/geom"
-	"github.com/Rioverde/gongeons/internal/game/stats"
-	pb "github.com/Rioverde/gongeons/internal/proto"
+	"github.com/Rioverde/kingdomtide/internal/game/world"
+	"github.com/Rioverde/kingdomtide/internal/game/calendar"
+	"github.com/Rioverde/kingdomtide/internal/game/event"
+	"github.com/Rioverde/kingdomtide/internal/game/geom"
+	"github.com/Rioverde/kingdomtide/internal/game/stats"
+	pb "github.com/Rioverde/kingdomtide/internal/proto"
 )
 
 // SessionJoinResult is the bundle a fresh SSH-mode subscriber needs

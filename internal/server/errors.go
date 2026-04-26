@@ -4,7 +4,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	pb "github.com/Rioverde/gongeons/internal/proto"
+	pb "github.com/Rioverde/kingdomtide/internal/proto"
 )
 
 // localizedStatus builds a gRPC Status with a LocalizedMessage detail

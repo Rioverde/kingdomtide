@@ -3,8 +3,8 @@ package mechanics
 import (
 	"testing"
 
-	"github.com/Rioverde/gongeons/internal/game/dice"
-	"github.com/Rioverde/gongeons/internal/game/polity"
+	"github.com/Rioverde/kingdomtide/internal/game/dice"
+	"github.com/Rioverde/kingdomtide/internal/game/polity"
 )
 
 // TestApplyGreatPeopleYear_NoBirthMostYears verifies the 1%/year

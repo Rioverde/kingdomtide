@@ -6,10 +6,10 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/Rioverde/gongeons/internal/game/geom"
-	"github.com/Rioverde/gongeons/internal/game/polity"
-	gworld "github.com/Rioverde/gongeons/internal/game/world"
-	"github.com/Rioverde/gongeons/internal/ui/tilestyle"
+	"github.com/Rioverde/kingdomtide/internal/game/geom"
+	"github.com/Rioverde/kingdomtide/internal/game/polity"
+	gworld "github.com/Rioverde/kingdomtide/internal/game/world"
+	"github.com/Rioverde/kingdomtide/internal/ui/tilestyle"
 )
 
 // regionTintBg maps RegionCharacter index to the background colour used

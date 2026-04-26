@@ -1,6 +1,6 @@
 package mechanics
 
-import "github.com/Rioverde/gongeons/internal/game/polity"
+import "github.com/Rioverde/kingdomtide/internal/game/polity"
 
 // Tech-effect multipliers and offsets. Applied by the ApplyYear steps
 // that consume them — kept centralised so balance tuning has one

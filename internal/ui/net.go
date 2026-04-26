@@ -10,7 +10,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 
-	pb "github.com/Rioverde/gongeons/internal/proto"
+	pb "github.com/Rioverde/kingdomtide/internal/proto"
 )
 
 // outboxCap is the buffer size of the outbound-message channel. A single

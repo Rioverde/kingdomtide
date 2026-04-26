@@ -1,9 +1,9 @@
 package mechanics
 
 import (
-	"github.com/Rioverde/gongeons/internal/game/dice"
-	"github.com/Rioverde/gongeons/internal/game/polity"
-	"github.com/Rioverde/gongeons/internal/game/stats"
+	"github.com/Rioverde/kingdomtide/internal/game/dice"
+	"github.com/Rioverde/kingdomtide/internal/game/polity"
+	"github.com/Rioverde/kingdomtide/internal/game/stats"
 )
 
 // DCs for each inter-polity event. Tuned so raids / missionary

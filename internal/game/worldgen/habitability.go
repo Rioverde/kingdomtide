@@ -5,8 +5,8 @@ package worldgen
 // must be allocation-light because it runs O(candidates) ≈ O(map area).
 
 import (
-	"github.com/Rioverde/gongeons/internal/game/geom"
-	gworld "github.com/Rioverde/gongeons/internal/game/world"
+	"github.com/Rioverde/kingdomtide/internal/game/geom"
+	gworld "github.com/Rioverde/kingdomtide/internal/game/world"
 )
 
 // biomeBaseScore is the per-terrain habitability prior. Zero means hard

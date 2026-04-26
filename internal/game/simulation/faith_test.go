@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/Rioverde/gongeons/internal/game/polity"
+	"github.com/Rioverde/kingdomtide/internal/game/polity"
 )
 
 func TestBlendFaiths_PopulationWeighted(t *testing.T) {

@@ -6,8 +6,8 @@ import (
 
 	opensimplex "github.com/ojrac/opensimplex-go"
 
-	"github.com/Rioverde/gongeons/internal/game/geom"
-	gworld "github.com/Rioverde/gongeons/internal/game/world"
+	"github.com/Rioverde/kingdomtide/internal/game/geom"
+	gworld "github.com/Rioverde/kingdomtide/internal/game/world"
 )
 
 // saltMoistNoise / saltTempNoise / saltElevNoise / saltBiomeSmooth

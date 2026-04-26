@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/Rioverde/gongeons/internal/game/geom"
-	"github.com/Rioverde/gongeons/internal/game/polity"
+	"github.com/Rioverde/kingdomtide/internal/game/geom"
+	"github.com/Rioverde/kingdomtide/internal/game/polity"
 )
 
 // stubCampSource implements polity.CampSource for tests.

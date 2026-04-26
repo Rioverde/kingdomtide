@@ -6,7 +6,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
 
-	pb "github.com/Rioverde/gongeons/internal/proto"
+	pb "github.com/Rioverde/kingdomtide/internal/proto"
 )
 
 // regionAccentsTruecolor holds the per-character tint palette used on

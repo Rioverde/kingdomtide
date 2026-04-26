@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Rioverde/gongeons/internal/game/naming"
-	pb "github.com/Rioverde/gongeons/internal/proto"
+	"github.com/Rioverde/kingdomtide/internal/game/naming"
+	pb "github.com/Rioverde/kingdomtide/internal/proto"
 )
 
 // partsFixture builds a NameParts record with the fields composeName

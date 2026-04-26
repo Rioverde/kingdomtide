@@ -8,8 +8,8 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	pb "github.com/Rioverde/gongeons/internal/proto"
-	"github.com/Rioverde/gongeons/internal/ui/locale"
+	pb "github.com/Rioverde/kingdomtide/internal/proto"
+	"github.com/Rioverde/kingdomtide/internal/ui/locale"
 )
 
 // localizedErr builds a gRPC Status with a LocalizedMessage detail attached,

@@ -3,7 +3,7 @@ package polity
 import (
 	"testing"
 
-	"github.com/Rioverde/gongeons/internal/game/geom"
+	"github.com/Rioverde/kingdomtide/internal/game/geom"
 )
 
 // TestNewDemesne_FieldsSet verifies the constructor fills every field

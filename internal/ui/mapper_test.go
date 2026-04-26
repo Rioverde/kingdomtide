@@ -4,11 +4,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Rioverde/gongeons/internal/game/calendar"
-	"github.com/Rioverde/gongeons/internal/game/geom"
-	"github.com/Rioverde/gongeons/internal/game/naming"
-	pb "github.com/Rioverde/gongeons/internal/proto"
-	"github.com/Rioverde/gongeons/internal/ui/tilestyle"
+	"github.com/Rioverde/kingdomtide/internal/game/calendar"
+	"github.com/Rioverde/kingdomtide/internal/game/geom"
+	"github.com/Rioverde/kingdomtide/internal/game/naming"
+	pb "github.com/Rioverde/kingdomtide/internal/proto"
+	"github.com/Rioverde/kingdomtide/internal/ui/tilestyle"
 )
 
 func TestPositionFromPB(t *testing.T) {

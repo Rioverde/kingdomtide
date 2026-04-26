@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"math/rand/v2"
 
-	"github.com/Rioverde/gongeons/internal/game/dice"
-	"github.com/Rioverde/gongeons/internal/game/geom"
-	"github.com/Rioverde/gongeons/internal/game/polity"
+	"github.com/Rioverde/kingdomtide/internal/game/dice"
+	"github.com/Rioverde/kingdomtide/internal/game/geom"
+	"github.com/Rioverde/kingdomtide/internal/game/polity"
 )
 
 // tickSatellites spawns a satellite Camp when a settlement exceeds its

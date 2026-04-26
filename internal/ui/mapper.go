@@ -3,12 +3,12 @@ package ui
 import (
 	"fmt"
 
-	"github.com/Rioverde/gongeons/internal/game/calendar"
-	"github.com/Rioverde/gongeons/internal/game/geom"
-	"github.com/Rioverde/gongeons/internal/game/naming"
-	"github.com/Rioverde/gongeons/internal/game/world"
-	pb "github.com/Rioverde/gongeons/internal/proto"
-	"github.com/Rioverde/gongeons/internal/ui/locale"
+	"github.com/Rioverde/kingdomtide/internal/game/calendar"
+	"github.com/Rioverde/kingdomtide/internal/game/geom"
+	"github.com/Rioverde/kingdomtide/internal/game/naming"
+	"github.com/Rioverde/kingdomtide/internal/game/world"
+	pb "github.com/Rioverde/kingdomtide/internal/proto"
+	"github.com/Rioverde/kingdomtide/internal/ui/locale"
 )
 
 // positionFromPB converts a proto Position to the domain value type. A nil

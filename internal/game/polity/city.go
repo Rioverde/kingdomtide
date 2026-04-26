@@ -1,6 +1,6 @@
 package polity
 
-import "github.com/Rioverde/gongeons/internal/game/geom"
+import "github.com/Rioverde/kingdomtide/internal/game/geom"
 
 // City is a named urban centre — the primary simulation unit of the
 // political tier. Embeds Settlement for identity and demographics, adds

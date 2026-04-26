@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Rioverde/gongeons/internal/game/polity"
-	"github.com/Rioverde/gongeons/internal/game/worldgen"
+	"github.com/Rioverde/kingdomtide/internal/game/polity"
+	"github.com/Rioverde/kingdomtide/internal/game/worldgen"
 )
 
 // TestE2EChronicle runs a full 200-year simulation on Tiny seed=42

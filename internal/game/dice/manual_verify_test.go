@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Rioverde/gongeons/internal/game/dice"
+	"github.com/Rioverde/kingdomtide/internal/game/dice"
 )
 
 // TestExitGateErrors pins two parse-rejection scenarios: "1d1!" fails

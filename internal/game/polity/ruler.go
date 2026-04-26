@@ -1,8 +1,8 @@
 package polity
 
 import (
-	"github.com/Rioverde/gongeons/internal/game/dice"
-	"github.com/Rioverde/gongeons/internal/game/stats"
+	"github.com/Rioverde/kingdomtide/internal/game/dice"
+	"github.com/Rioverde/kingdomtide/internal/game/stats"
 )
 
 // Ruler is a single named sovereign — king, lord, or village elder — who

@@ -1,6 +1,6 @@
 package polity
 
-import "github.com/Rioverde/gongeons/internal/game/geom"
+import "github.com/Rioverde/kingdomtide/internal/game/geom"
 
 // Camp is a pre-historic settler cluster — the seed input to the 200-year
 // fold-forward simulation. Each camp occupies 2-3 connected tiles (footprint)

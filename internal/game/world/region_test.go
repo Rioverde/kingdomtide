@@ -3,7 +3,7 @@ package world
 import (
 	"testing"
 
-	"github.com/Rioverde/gongeons/internal/game/geom"
+	"github.com/Rioverde/kingdomtide/internal/game/geom"
 )
 
 func TestRegionCharacterString(t *testing.T) {

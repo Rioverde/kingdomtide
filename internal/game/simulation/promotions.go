@@ -3,8 +3,8 @@ package simulation
 import (
 	"fmt"
 
-	"github.com/Rioverde/gongeons/internal/game/geom"
-	"github.com/Rioverde/gongeons/internal/game/polity"
+	"github.com/Rioverde/kingdomtide/internal/game/geom"
+	"github.com/Rioverde/kingdomtide/internal/game/polity"
 )
 
 // tickPromotions advances every settlement's promotion eligibility

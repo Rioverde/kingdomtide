@@ -3,9 +3,9 @@ package ui
 import (
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/Rioverde/gongeons/internal/game/calendar"
-	pb "github.com/Rioverde/gongeons/internal/proto"
-	"github.com/Rioverde/gongeons/internal/ui/tilestyle"
+	"github.com/Rioverde/kingdomtide/internal/game/calendar"
+	pb "github.com/Rioverde/kingdomtide/internal/proto"
+	"github.com/Rioverde/kingdomtide/internal/ui/tilestyle"
 )
 
 // Styles are the lipgloss decorations (colour, bold, reverse…) applied to

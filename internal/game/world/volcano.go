@@ -1,6 +1,6 @@
 package world
 
-import "github.com/Rioverde/gongeons/internal/game/geom"
+import "github.com/Rioverde/kingdomtide/internal/game/geom"
 
 // VolcanoState is the lifecycle state of a volcano. It governs the core
 // terrain variant (active vs dormant vs extinct) and, later, whether the

@@ -1,6 +1,6 @@
 package world
 
-import "github.com/Rioverde/gongeons/internal/game/entity"
+import "github.com/Rioverde/kingdomtide/internal/game/entity"
 
 // Tile is the atomic map cell. Terrain is the base biome; Overlays is a
 // bitmask of binary features that can coexist (river + road + bridge);

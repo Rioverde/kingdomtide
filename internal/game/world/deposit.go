@@ -1,6 +1,6 @@
 package world
 
-import "github.com/Rioverde/gongeons/internal/game/geom"
+import "github.com/Rioverde/kingdomtide/internal/game/geom"
 
 // DepositKind enumerates every resource deposit type the game recognizes.
 // Order is stable — the iota value participates in any future persistence

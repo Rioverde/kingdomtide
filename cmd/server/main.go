@@ -1,4 +1,4 @@
-// Command gongeonsd is the authoritative multiplayer server for gongeons.
+// Command kingdomtided is the authoritative multiplayer server for kingdomtide.
 package main
 
 import (
@@ -21,13 +21,13 @@ import (
 	wishlog "github.com/charmbracelet/wish/logging"
 	"google.golang.org/grpc"
 
-	"github.com/Rioverde/gongeons/internal/game/calendar"
-	"github.com/Rioverde/gongeons/internal/game/simulation"
-	"github.com/Rioverde/gongeons/internal/game/world"
-	"github.com/Rioverde/gongeons/internal/game/worldgen"
-	pb "github.com/Rioverde/gongeons/internal/proto"
-	"github.com/Rioverde/gongeons/internal/server"
-	"github.com/Rioverde/gongeons/internal/session"
+	"github.com/Rioverde/kingdomtide/internal/game/calendar"
+	"github.com/Rioverde/kingdomtide/internal/game/simulation"
+	"github.com/Rioverde/kingdomtide/internal/game/world"
+	"github.com/Rioverde/kingdomtide/internal/game/worldgen"
+	pb "github.com/Rioverde/kingdomtide/internal/proto"
+	"github.com/Rioverde/kingdomtide/internal/server"
+	"github.com/Rioverde/kingdomtide/internal/session"
 )
 
 // sshShutdownTimeout caps how long the main loop waits for in-flight
@@ -55,7 +55,7 @@ func run() error {
 	)
 	flag.StringVar(&addr, "addr", ":50051", "gRPC listen address")
 	flag.StringVar(&sshAddr, "ssh-addr", ":2222", "SSH listen address")
-	flag.StringVar(&hostKey, "ssh-host-key", ".ssh/gongeons_host_ed25519",
+	flag.StringVar(&hostKey, "ssh-host-key", ".ssh/kingdomtide_host_ed25519",
 		"SSH host key path (auto-generated on first run)")
 	flag.StringVar(&logLevel, "log-level", "info", "log level: debug | info | warn | error")
 	flag.Int64Var(&seed, "seed", 0, "world seed; 0 = random from wall clock")
@@ -93,7 +93,7 @@ func run() error {
 
 	serveErr := make(chan error, 1)
 	go func() {
-		logger.Info("gongeonsd listening", "addr", lis.Addr().String(), "seed", seed)
+		logger.Info("kingdomtided listening", "addr", lis.Addr().String(), "seed", seed)
 		if err := grpcSrv.Serve(lis); err != nil {
 			serveErr <- err
 			return

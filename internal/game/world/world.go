@@ -4,10 +4,10 @@ import (
 	"math/rand/v2"
 	"sort"
 
-	"github.com/Rioverde/gongeons/internal/game/calendar"
-	"github.com/Rioverde/gongeons/internal/game/entity"
-	"github.com/Rioverde/gongeons/internal/game/geom"
-	"github.com/Rioverde/gongeons/internal/game/polity"
+	"github.com/Rioverde/kingdomtide/internal/game/calendar"
+	"github.com/Rioverde/kingdomtide/internal/game/entity"
+	"github.com/Rioverde/kingdomtide/internal/game/geom"
+	"github.com/Rioverde/kingdomtide/internal/game/polity"
 )
 
 // TileSource is the read-only pluggable backend that tells a World what

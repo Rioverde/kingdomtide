@@ -3,7 +3,7 @@ package simulation
 import (
 	"fmt"
 
-	"github.com/Rioverde/gongeons/internal/game/polity"
+	"github.com/Rioverde/kingdomtide/internal/game/polity"
 )
 
 // simFaithEmergePct is the minimum share (as a fraction, not percent) a faith

@@ -18,11 +18,11 @@ import (
 	"math/rand/v2"
 	"sort"
 
-	"github.com/Rioverde/gongeons/internal/game/dice"
-	"github.com/Rioverde/gongeons/internal/game/geom"
-	"github.com/Rioverde/gongeons/internal/game/naming"
-	"github.com/Rioverde/gongeons/internal/game/polity"
-	gworld "github.com/Rioverde/gongeons/internal/game/world"
+	"github.com/Rioverde/kingdomtide/internal/game/dice"
+	"github.com/Rioverde/kingdomtide/internal/game/geom"
+	"github.com/Rioverde/kingdomtide/internal/game/naming"
+	"github.com/Rioverde/kingdomtide/internal/game/polity"
+	gworld "github.com/Rioverde/kingdomtide/internal/game/world"
 )
 
 // campSettlementID derives a deterministic SettlementID from the world seed

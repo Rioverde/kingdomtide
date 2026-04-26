@@ -3,7 +3,7 @@ package simulation
 import (
 	"testing"
 
-	"github.com/Rioverde/gongeons/internal/game/polity"
+	"github.com/Rioverde/kingdomtide/internal/game/polity"
 )
 
 func TestPromote_CampToHamlet_AfterSustainedHigh(t *testing.T) {

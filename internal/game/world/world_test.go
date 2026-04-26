@@ -4,9 +4,9 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/Rioverde/gongeons/internal/game/calendar"
-	"github.com/Rioverde/gongeons/internal/game/event"
-	"github.com/Rioverde/gongeons/internal/game/geom"
+	"github.com/Rioverde/kingdomtide/internal/game/calendar"
+	"github.com/Rioverde/kingdomtide/internal/game/event"
+	"github.com/Rioverde/kingdomtide/internal/game/geom"
 )
 
 // stubLandmarkSource is a minimal LandmarkSource used to verify the

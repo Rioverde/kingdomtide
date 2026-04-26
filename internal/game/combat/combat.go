@@ -1,6 +1,6 @@
 package combat
 
-import "github.com/Rioverde/gongeons/internal/game/entity"
+import "github.com/Rioverde/kingdomtide/internal/game/entity"
 
 // Combatant is the interface satisfied by any entity that can participate
 // in combat: it can take damage, report liveness (via entity.Occupant),

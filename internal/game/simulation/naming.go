@@ -1,9 +1,9 @@
 package simulation
 
 import (
-	"github.com/Rioverde/gongeons/internal/game/geom"
-	"github.com/Rioverde/gongeons/internal/game/naming"
-	"github.com/Rioverde/gongeons/internal/game/polity"
+	"github.com/Rioverde/kingdomtide/internal/game/geom"
+	"github.com/Rioverde/kingdomtide/internal/game/naming"
+	"github.com/Rioverde/kingdomtide/internal/game/polity"
 )
 
 // generateRulerName returns a procedural personal name for a ruler.

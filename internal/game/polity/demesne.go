@@ -1,6 +1,6 @@
 package polity
 
-import "github.com/Rioverde/gongeons/internal/game/geom"
+import "github.com/Rioverde/kingdomtide/internal/game/geom"
 
 // Demesne is a minor agricultural / production node feeding food and
 // taxes into its parent City. Has no independent political mechanics

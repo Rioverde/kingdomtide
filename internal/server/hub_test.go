@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	pb "github.com/Rioverde/gongeons/internal/proto"
+	pb "github.com/Rioverde/kingdomtide/internal/proto"
 )
 
 // silentLog is a noop slog.Logger for tests so log output does not pollute `go test`.

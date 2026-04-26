@@ -3,8 +3,8 @@ package worldgen
 import (
 	"testing"
 
-	"github.com/Rioverde/gongeons/internal/game/geom"
-	gworld "github.com/Rioverde/gongeons/internal/game/world"
+	"github.com/Rioverde/kingdomtide/internal/game/geom"
+	gworld "github.com/Rioverde/kingdomtide/internal/game/world"
 )
 
 // standardWorld builds a Standard world with seed 42 for tests that need a

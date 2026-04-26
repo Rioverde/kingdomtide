@@ -6,10 +6,10 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/Rioverde/gongeons/internal/game/geom"
-	"github.com/Rioverde/gongeons/internal/game/polity"
-	gworld "github.com/Rioverde/gongeons/internal/game/world"
-	"github.com/Rioverde/gongeons/internal/game/worldgen"
+	"github.com/Rioverde/kingdomtide/internal/game/geom"
+	"github.com/Rioverde/kingdomtide/internal/game/polity"
+	gworld "github.com/Rioverde/kingdomtide/internal/game/world"
+	"github.com/Rioverde/kingdomtide/internal/game/worldgen"
 )
 
 // phase is the top-level state-machine slot the TUI lives in.

@@ -4,8 +4,8 @@ import (
 	"math"
 	"math/rand/v2"
 
-	"github.com/Rioverde/gongeons/internal/game/geom"
-	"github.com/Rioverde/gongeons/internal/game/polity"
+	"github.com/Rioverde/kingdomtide/internal/game/geom"
+	"github.com/Rioverde/kingdomtide/internal/game/polity"
 )
 
 // settlementFootprintBudget returns the target footprint tile count for a

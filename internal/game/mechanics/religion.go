@@ -1,8 +1,8 @@
 package mechanics
 
 import (
-	"github.com/Rioverde/gongeons/internal/game/dice"
-	"github.com/Rioverde/gongeons/internal/game/polity"
+	"github.com/Rioverde/kingdomtide/internal/game/dice"
+	"github.com/Rioverde/kingdomtide/internal/game/polity"
 )
 
 // Diffusion pulse band: 0.01–0.03 of population shifted per year.

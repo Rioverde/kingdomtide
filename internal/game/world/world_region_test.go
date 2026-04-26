@@ -3,8 +3,8 @@ package world
 import (
 	"testing"
 
-	"github.com/Rioverde/gongeons/internal/game/geom"
-	"github.com/Rioverde/gongeons/internal/game/naming/parts"
+	"github.com/Rioverde/kingdomtide/internal/game/geom"
+	"github.com/Rioverde/kingdomtide/internal/game/naming/parts"
 )
 
 // TestWorldRegionAtPlaceholder lives in the game package (not world/) because

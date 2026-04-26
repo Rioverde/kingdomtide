@@ -3,9 +3,9 @@ package world
 import (
 	"testing"
 
-	"github.com/Rioverde/gongeons/internal/game/entity"
-	"github.com/Rioverde/gongeons/internal/game/geom"
-	"github.com/Rioverde/gongeons/internal/game/stats"
+	"github.com/Rioverde/kingdomtide/internal/game/entity"
+	"github.com/Rioverde/kingdomtide/internal/game/geom"
+	"github.com/Rioverde/kingdomtide/internal/game/stats"
 )
 
 // TestPlayerJoinWithStats verifies that NewPlayer hydrates every derived

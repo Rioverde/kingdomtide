@@ -3,7 +3,7 @@ package worldgen
 import (
 	"math/rand/v2"
 
-	"github.com/Rioverde/gongeons/internal/game/worldgen/voronoi"
+	"github.com/Rioverde/kingdomtide/internal/game/worldgen/voronoi"
 )
 
 // saltRiver decorrelates river-head selection from every other RNG

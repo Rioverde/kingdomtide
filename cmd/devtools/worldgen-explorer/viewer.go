@@ -9,10 +9,10 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	tea "github.com/charmbracelet/bubbletea"
 
-	gworld "github.com/Rioverde/gongeons/internal/game/world"
-	"github.com/Rioverde/gongeons/internal/game/naming/markov"
-	"github.com/Rioverde/gongeons/internal/game/naming/parts"
-	"github.com/Rioverde/gongeons/internal/game/geom"
+	gworld "github.com/Rioverde/kingdomtide/internal/game/world"
+	"github.com/Rioverde/kingdomtide/internal/game/naming/markov"
+	"github.com/Rioverde/kingdomtide/internal/game/naming/parts"
+	"github.com/Rioverde/kingdomtide/internal/game/geom"
 )
 
 var viewerZoomLevels = []int{1, 2, 4, 8, 16, 32, 64}

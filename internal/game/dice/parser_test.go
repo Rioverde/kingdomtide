@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Rioverde/gongeons/internal/game/dice"
+	"github.com/Rioverde/kingdomtide/internal/game/dice"
 )
 
 func TestParseRejects(t *testing.T) {

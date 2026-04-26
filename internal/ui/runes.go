@@ -1,6 +1,6 @@
 package ui
 
-import pb "github.com/Rioverde/gongeons/internal/proto"
+import pb "github.com/Rioverde/kingdomtide/internal/proto"
 
 // This file is the single source of truth for every glyph that reaches the
 // screen. Colours live in styles.go; rune choice lives here so you can

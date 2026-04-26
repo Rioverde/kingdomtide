@@ -1,8 +1,8 @@
 package entity
 
 import (
-	"github.com/Rioverde/gongeons/internal/game/geom"
-	"github.com/Rioverde/gongeons/internal/game/stats"
+	"github.com/Rioverde/kingdomtide/internal/game/geom"
+	"github.com/Rioverde/kingdomtide/internal/game/stats"
 )
 
 // Character is the shared base of every combat-capable entity in the

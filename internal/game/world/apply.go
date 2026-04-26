@@ -13,10 +13,10 @@ package world
 import (
 	"fmt"
 
-	"github.com/Rioverde/gongeons/internal/game/entity"
-	"github.com/Rioverde/gongeons/internal/game/event"
-	"github.com/Rioverde/gongeons/internal/game/geom"
-	"github.com/Rioverde/gongeons/internal/game/stats"
+	"github.com/Rioverde/kingdomtide/internal/game/entity"
+	"github.com/Rioverde/kingdomtide/internal/game/event"
+	"github.com/Rioverde/kingdomtide/internal/game/geom"
+	"github.com/Rioverde/kingdomtide/internal/game/stats"
 )
 
 // spawnSearchRadius caps how far from the origin the spawn scanner looks

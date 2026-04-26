@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	gworld "github.com/Rioverde/gongeons/internal/game/world"
-	"github.com/Rioverde/gongeons/internal/game/worldgen/voronoi"
+	gworld "github.com/Rioverde/kingdomtide/internal/game/world"
+	"github.com/Rioverde/kingdomtide/internal/game/worldgen/voronoi"
 )
 
 // TestVisualGen generates a Standard world and dumps an ASCII

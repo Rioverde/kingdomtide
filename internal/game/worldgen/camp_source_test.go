@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Rioverde/gongeons/internal/game/geom"
-	"github.com/Rioverde/gongeons/internal/game/polity"
-	gworld "github.com/Rioverde/gongeons/internal/game/world"
+	"github.com/Rioverde/kingdomtide/internal/game/geom"
+	"github.com/Rioverde/kingdomtide/internal/game/polity"
+	gworld "github.com/Rioverde/kingdomtide/internal/game/world"
 )
 
 // --- stub sources for gate-chain tests -----------------------------------

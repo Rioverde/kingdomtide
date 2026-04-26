@@ -1,7 +1,7 @@
 package mechanics
 
 import (
-	"github.com/Rioverde/gongeons/internal/game/polity"
+	"github.com/Rioverde/kingdomtide/internal/game/polity"
 )
 
 const (

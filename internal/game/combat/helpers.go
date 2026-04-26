@@ -3,7 +3,7 @@ package combat
 import (
 	"math/rand"
 
-	"github.com/Rioverde/gongeons/internal/game/entity"
+	"github.com/Rioverde/kingdomtide/internal/game/entity"
 )
 
 // Slots for equipping armor pieces. Ordered so attackedSlot picks an

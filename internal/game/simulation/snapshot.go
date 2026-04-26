@@ -1,7 +1,7 @@
 package simulation
 
 import (
-	"github.com/Rioverde/gongeons/internal/game/polity"
+	"github.com/Rioverde/kingdomtide/internal/game/polity"
 )
 
 // Snapshot is a frozen copy of simulation state at one tick boundary.

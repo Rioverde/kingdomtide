@@ -16,8 +16,8 @@ package tilestyle
 import (
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/Rioverde/gongeons/internal/game/world"
-	pb "github.com/Rioverde/gongeons/internal/proto"
+	"github.com/Rioverde/kingdomtide/internal/game/world"
+	pb "github.com/Rioverde/kingdomtide/internal/proto"
 )
 
 // TerrainRunes maps every world.Terrain value to the rune shown for

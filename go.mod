@@ -1,4 +1,4 @@
-module github.com/Rioverde/gongeons
+module github.com/Rioverde/kingdomtide
 
 go 1.25.6
 

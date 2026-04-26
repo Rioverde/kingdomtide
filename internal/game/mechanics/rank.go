@@ -1,6 +1,6 @@
 package mechanics
 
-import "github.com/Rioverde/gongeons/internal/game/polity"
+import "github.com/Rioverde/kingdomtide/internal/game/polity"
 
 // BaseRank thresholds. A population below rankTownMin is a Hamlet;
 // above rankMetropolisMin is a Metropolis. Age acts as a one-rank

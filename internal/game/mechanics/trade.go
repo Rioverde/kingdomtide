@@ -3,7 +3,7 @@ package mechanics
 import (
 	"math"
 
-	"github.com/Rioverde/gongeons/internal/game/polity"
+	"github.com/Rioverde/kingdomtide/internal/game/polity"
 )
 
 // Trade constants. Weights sum to 100 so the resulting TradeScore

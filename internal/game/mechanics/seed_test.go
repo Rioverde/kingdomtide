@@ -3,7 +3,7 @@ package mechanics
 import (
 	"testing"
 
-	"github.com/Rioverde/gongeons/internal/game/dice"
+	"github.com/Rioverde/kingdomtide/internal/game/dice"
 )
 
 // TestSeedPopulationZipf_Determinism verifies two streams with the

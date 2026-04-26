@@ -1,6 +1,6 @@
 package worldgen
 
-import "github.com/Rioverde/gongeons/internal/game/geom"
+import "github.com/Rioverde/kingdomtide/internal/game/geom"
 
 // testSeed is the canonical seed shared across all worldgen test files.
 // Pinned to 42 so placement, distribution, and snapshot assertions stay

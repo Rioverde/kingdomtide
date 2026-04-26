@@ -3,10 +3,10 @@ package ui
 import (
 	"math/rand/v2"
 
-	"github.com/Rioverde/gongeons/internal/game/naming"
-	"github.com/Rioverde/gongeons/internal/game/naming/markov"
-	pb "github.com/Rioverde/gongeons/internal/proto"
-	"github.com/Rioverde/gongeons/internal/ui/locale"
+	"github.com/Rioverde/kingdomtide/internal/game/naming"
+	"github.com/Rioverde/kingdomtide/internal/game/naming/markov"
+	pb "github.com/Rioverde/kingdomtide/internal/proto"
+	"github.com/Rioverde/kingdomtide/internal/ui/locale"
 )
 
 // Markov walk target length for display bodies. Mirrors the bounds

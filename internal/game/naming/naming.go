@@ -18,7 +18,7 @@ import (
 	"math/rand/v2"
 	"sync"
 
-	"github.com/Rioverde/gongeons/internal/game/naming/parts"
+	"github.com/Rioverde/kingdomtide/internal/game/naming/parts"
 )
 
 // Domain is the namespace prefix for locale keys used by the client

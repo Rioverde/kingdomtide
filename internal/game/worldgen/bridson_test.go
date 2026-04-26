@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/Rioverde/gongeons/internal/game/geom"
+	"github.com/Rioverde/kingdomtide/internal/game/geom"
 )
 
 func TestBridsonDeterminism(t *testing.T) {

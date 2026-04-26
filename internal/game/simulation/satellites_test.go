@@ -3,8 +3,8 @@ package simulation
 import (
 	"testing"
 
-	"github.com/Rioverde/gongeons/internal/game/geom"
-	"github.com/Rioverde/gongeons/internal/game/polity"
+	"github.com/Rioverde/kingdomtide/internal/game/geom"
+	"github.com/Rioverde/kingdomtide/internal/game/polity"
 )
 
 func TestSatellites_NoSpawnUnderPopCap(t *testing.T) {

@@ -1,6 +1,6 @@
 package mechanics
 
-import "github.com/Rioverde/gongeons/internal/game/polity"
+import "github.com/Rioverde/kingdomtide/internal/game/polity"
 
 // Soil-fatigue constants. SoilFatigue is a [0, 1] scalar that
 // accumulates when a city chronically over-works its cropland and

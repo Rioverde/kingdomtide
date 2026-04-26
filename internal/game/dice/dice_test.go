@@ -4,7 +4,7 @@ import (
 	"math/rand/v2"
 	"testing"
 
-	"github.com/Rioverde/gongeons/internal/game/dice"
+	"github.com/Rioverde/kingdomtide/internal/game/dice"
 )
 
 func TestParseRoundTripBasic(t *testing.T) {

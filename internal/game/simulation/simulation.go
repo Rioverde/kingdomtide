@@ -3,7 +3,7 @@ package simulation
 import (
 	"fmt"
 
-	"github.com/Rioverde/gongeons/internal/game/polity"
+	"github.com/Rioverde/kingdomtide/internal/game/polity"
 )
 
 // Result is the output of Run. Contains the final state ready to be

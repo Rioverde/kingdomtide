@@ -5,8 +5,8 @@ import (
 	"github.com/charmbracelet/ssh"
 	bm "github.com/charmbracelet/wish/bubbletea"
 
-	"github.com/Rioverde/gongeons/internal/server"
-	"github.com/Rioverde/gongeons/internal/ui"
+	"github.com/Rioverde/kingdomtide/internal/server"
+	"github.com/Rioverde/kingdomtide/internal/ui"
 )
 
 // Handler returns the wish/bubbletea middleware handler bound to svc.

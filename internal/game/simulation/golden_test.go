@@ -4,8 +4,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/Rioverde/gongeons/internal/game/polity"
-	"github.com/Rioverde/gongeons/internal/game/worldgen"
+	"github.com/Rioverde/kingdomtide/internal/game/polity"
+	"github.com/Rioverde/kingdomtide/internal/game/worldgen"
 )
 
 // buildTinyCampSource generates a real Tiny world and constructs the

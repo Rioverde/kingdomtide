@@ -1,5 +1,5 @@
 // Package world holds the pure, in-memory, transport-free rules and state for
-// gongeons. It is deliberately transport-free: no I/O, no wall clock, no
+// kingdomtide. It is deliberately transport-free: no I/O, no wall clock, no
 // randomness beyond world generation.
 //
 // # Tick model

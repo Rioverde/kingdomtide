@@ -5,8 +5,8 @@ import (
 	"slices"
 	"sort"
 
-	"github.com/Rioverde/gongeons/internal/game/geom"
-	"github.com/Rioverde/gongeons/internal/game/world"
+	"github.com/Rioverde/kingdomtide/internal/game/geom"
+	"github.com/Rioverde/kingdomtide/internal/game/world"
 )
 
 // volcanoSeedSalt mixes the world seed into a dedicated PRNG stream

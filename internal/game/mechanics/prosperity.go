@@ -3,7 +3,7 @@ package mechanics
 import (
 	"math"
 
-	"github.com/Rioverde/gongeons/internal/game/polity"
+	"github.com/Rioverde/kingdomtide/internal/game/polity"
 )
 
 // Prosperity weighting. Weights sum to 1.0 so the resulting

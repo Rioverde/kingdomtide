@@ -1,8 +1,8 @@
 package world
 
 import (
-	"github.com/Rioverde/gongeons/internal/game/geom"
-	"github.com/Rioverde/gongeons/internal/game/naming/parts"
+	"github.com/Rioverde/kingdomtide/internal/game/geom"
+	"github.com/Rioverde/kingdomtide/internal/game/naming/parts"
 )
 
 // LandmarkKind identifies a natural or ancient landmark visible in the

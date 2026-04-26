@@ -7,8 +7,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/Rioverde/gongeons/internal/game/stats"
-	"github.com/Rioverde/gongeons/internal/ui/locale"
+	"github.com/Rioverde/kingdomtide/internal/game/stats"
+	"github.com/Rioverde/kingdomtide/internal/ui/locale"
 )
 
 // newCreationModel returns a Model parked in phaseCharacterCreation with

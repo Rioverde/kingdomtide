@@ -11,7 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	pb "github.com/Rioverde/gongeons/internal/proto"
+	pb "github.com/Rioverde/kingdomtide/internal/proto"
 )
 
 // renderPanel is the shared skeleton for bordered panels with a header

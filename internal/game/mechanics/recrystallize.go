@@ -1,6 +1,6 @@
 package mechanics
 
-import "github.com/Rioverde/gongeons/internal/game/polity"
+import "github.com/Rioverde/kingdomtide/internal/game/polity"
 
 // ApplyRecrystallizeYear prunes historical modifiers whose decay
 // windows have closed by currentYear. Writes a fresh, compacted

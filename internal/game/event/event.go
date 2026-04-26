@@ -1,8 +1,8 @@
 package event
 
 import (
-	"github.com/Rioverde/gongeons/internal/game/calendar"
-	"github.com/Rioverde/gongeons/internal/game/geom"
+	"github.com/Rioverde/kingdomtide/internal/game/calendar"
+	"github.com/Rioverde/kingdomtide/internal/game/geom"
 )
 
 // Event is the closed sum type of domain transitions produced by

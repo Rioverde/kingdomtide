@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Rioverde/gongeons/internal/game/dice"
+	"github.com/Rioverde/kingdomtide/internal/game/dice"
 )
 
 // TestParseCompoundRoundTrip covers every compound-expression shape —

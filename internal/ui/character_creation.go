@@ -6,8 +6,8 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/Rioverde/gongeons/internal/game/stats"
-	"github.com/Rioverde/gongeons/internal/ui/locale"
+	"github.com/Rioverde/kingdomtide/internal/game/stats"
+	"github.com/Rioverde/kingdomtide/internal/ui/locale"
 )
 
 // Layout constants for the character-creation screen. Named so future

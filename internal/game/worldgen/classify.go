@@ -8,7 +8,7 @@ import (
 
 	opensimplex "github.com/ojrac/opensimplex-go"
 
-	gworld "github.com/Rioverde/gongeons/internal/game/world"
+	gworld "github.com/Rioverde/kingdomtide/internal/game/world"
 )
 
 // Per-field salts for water / continent placement.

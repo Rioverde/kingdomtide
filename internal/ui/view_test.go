@@ -8,12 +8,12 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/Rioverde/gongeons/internal/game/calendar"
-	"github.com/Rioverde/gongeons/internal/game/naming"
-	"github.com/Rioverde/gongeons/internal/game/stats"
-	"github.com/Rioverde/gongeons/internal/game/world"
-	pb "github.com/Rioverde/gongeons/internal/proto"
-	"github.com/Rioverde/gongeons/internal/ui/tilestyle"
+	"github.com/Rioverde/kingdomtide/internal/game/calendar"
+	"github.com/Rioverde/kingdomtide/internal/game/naming"
+	"github.com/Rioverde/kingdomtide/internal/game/stats"
+	"github.com/Rioverde/kingdomtide/internal/game/world"
+	pb "github.com/Rioverde/kingdomtide/internal/proto"
+	"github.com/Rioverde/kingdomtide/internal/ui/tilestyle"
 )
 
 // playingModel returns a Model wired up for phasePlaying with the given

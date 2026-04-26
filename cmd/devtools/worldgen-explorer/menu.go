@@ -10,7 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/Rioverde/gongeons/internal/game/worldgen"
+	"github.com/Rioverde/kingdomtide/internal/game/worldgen"
 )
 
 // Menu styling.
@@ -116,7 +116,7 @@ func (m *Model) syncSeedFocus() {
 func (m Model) viewMenu() string {
 	var b strings.Builder
 
-	b.WriteString(menuTitleStyle.Render("Gongeons Worldgen Explorer"))
+	b.WriteString(menuTitleStyle.Render("Kingdomtide Worldgen Explorer"))
 	b.WriteString("\n\n")
 
 	b.WriteString(headingFor("World size", m.activeField == fieldSize))

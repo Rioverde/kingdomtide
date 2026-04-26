@@ -1,6 +1,6 @@
 package polity
 
-import "github.com/Rioverde/gongeons/internal/game/geom"
+import "github.com/Rioverde/kingdomtide/internal/game/geom"
 
 // Place is implemented by every concrete settlement tier (Camp, Hamlet,
 // Village). It provides a uniform handle for heterogeneous queries — callers

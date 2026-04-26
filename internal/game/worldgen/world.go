@@ -7,8 +7,8 @@ import (
 	"math"
 	"time"
 
-	gworld "github.com/Rioverde/gongeons/internal/game/world"
-	"github.com/Rioverde/gongeons/internal/game/worldgen/voronoi"
+	gworld "github.com/Rioverde/kingdomtide/internal/game/world"
+	"github.com/Rioverde/kingdomtide/internal/game/worldgen/voronoi"
 )
 
 // GenStageHook is called after each Generate pipeline stage when

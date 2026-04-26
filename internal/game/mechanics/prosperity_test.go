@@ -3,8 +3,8 @@ package mechanics
 import (
 	"testing"
 
-	"github.com/Rioverde/gongeons/internal/game/geom"
-	"github.com/Rioverde/gongeons/internal/game/polity"
+	"github.com/Rioverde/kingdomtide/internal/game/geom"
+	"github.com/Rioverde/kingdomtide/internal/game/polity"
 )
 
 // TestApplyProsperityYear_InUnitRange is the property-check: no matter

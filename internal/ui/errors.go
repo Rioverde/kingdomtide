@@ -5,8 +5,8 @@ import (
 
 	"google.golang.org/grpc/status"
 
-	pb "github.com/Rioverde/gongeons/internal/proto"
-	"github.com/Rioverde/gongeons/internal/ui/locale"
+	pb "github.com/Rioverde/kingdomtide/internal/proto"
+	"github.com/Rioverde/kingdomtide/internal/ui/locale"
 )
 
 // renderServerError converts an error from the Play stream into a localized,

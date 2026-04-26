@@ -7,8 +7,8 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/Rioverde/gongeons/internal/game/geom"
-	gworld "github.com/Rioverde/gongeons/internal/game/world"
+	"github.com/Rioverde/kingdomtide/internal/game/geom"
+	gworld "github.com/Rioverde/kingdomtide/internal/game/world"
 )
 
 // TestReportLandmarks logs the Standard seed=42 distribution. Useful

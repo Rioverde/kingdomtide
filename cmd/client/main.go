@@ -1,5 +1,5 @@
-// Command gongeons is the Bubble Tea terminal client. It dials a
-// Gongeons gRPC server, joins as a named player, and renders the shared
+// Command kingdomtide is the Bubble Tea terminal client. It dials a
+// Kingdomtide gRPC server, joins as a named player, and renders the shared
 // world as key presses are translated into movement commands.
 package main
 
@@ -13,7 +13,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/Rioverde/gongeons/internal/ui"
+	"github.com/Rioverde/kingdomtide/internal/ui"
 )
 
 const defaultServerAddr = "localhost:50051"
@@ -28,7 +28,7 @@ func main() {
 // run owns the program lifecycle: flag parsing, signal plumbing,
 // Bubble Tea program construction and graceful shutdown.
 func run() error {
-	addr := flag.String("server", defaultServerAddr, "gongeons server address")
+	addr := flag.String("server", defaultServerAddr, "kingdomtide server address")
 	flag.Parse()
 
 	// Root context cancelled by Ctrl-C or SIGTERM. Propagated into the

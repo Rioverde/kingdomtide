@@ -5,8 +5,8 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/Rioverde/gongeons/internal/game/dice"
-	"github.com/Rioverde/gongeons/internal/game/polity"
+	"github.com/Rioverde/kingdomtide/internal/game/dice"
+	"github.com/Rioverde/kingdomtide/internal/game/polity"
 )
 
 // parallelTickThreshold below which TickCitiesYear falls back to a

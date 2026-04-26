@@ -6,7 +6,7 @@ import (
 	"math/rand/v2"
 	"sort"
 
-	"github.com/Rioverde/gongeons/internal/game/polity"
+	"github.com/Rioverde/kingdomtide/internal/game/polity"
 )
 
 // rollAnnualSchedules pre-rolls every per-region per-year random schedule

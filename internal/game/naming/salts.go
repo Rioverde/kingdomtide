@@ -1,6 +1,6 @@
 package naming
 
-import "github.com/Rioverde/gongeons/internal/game/geom"
+import "github.com/Rioverde/kingdomtide/internal/game/geom"
 
 // Per-domain PCG salts. Each value is a nothing-up-my-sleeve number — the
 // first sixteen hex digits of the fractional part of the square root of a

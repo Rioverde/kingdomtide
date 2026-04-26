@@ -4,8 +4,8 @@ import (
 	"math/rand/v2"
 	"testing"
 
-	"github.com/Rioverde/gongeons/internal/game/geom"
-	"github.com/Rioverde/gongeons/internal/game/polity"
+	"github.com/Rioverde/kingdomtide/internal/game/geom"
+	"github.com/Rioverde/kingdomtide/internal/game/polity"
 )
 
 // TestSettlementFootprintBudget checks the budget formula at tier boundaries.

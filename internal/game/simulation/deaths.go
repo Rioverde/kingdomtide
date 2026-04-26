@@ -3,7 +3,7 @@ package simulation
 import (
 	"fmt"
 
-	"github.com/Rioverde/gongeons/internal/game/polity"
+	"github.com/Rioverde/kingdomtide/internal/game/polity"
 )
 
 // tickDeaths abandons camps whose population stayed below

@@ -3,7 +3,7 @@ package mechanics
 import (
 	"testing"
 
-	"github.com/Rioverde/gongeons/internal/game/polity"
+	"github.com/Rioverde/kingdomtide/internal/game/polity"
 )
 
 // TestApplyTradeYear_InBounds verifies TradeScore never escapes [0, 100]

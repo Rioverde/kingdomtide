@@ -3,8 +3,8 @@ package polity
 import (
 	"testing"
 
-	"github.com/Rioverde/gongeons/internal/game/dice"
-	"github.com/Rioverde/gongeons/internal/game/stats"
+	"github.com/Rioverde/kingdomtide/internal/game/dice"
+	"github.com/Rioverde/kingdomtide/internal/game/stats"
 )
 
 // TestNewRuler_Determinism verifies that two Streams built from the same

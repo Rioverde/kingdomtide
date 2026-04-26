@@ -1,4 +1,4 @@
-# Gongeons
+# Kingdomtide
 
 Turn-based square-grid RPG. Terminal client ([Bubble Tea](https://github.com/charmbracelet/bubbletea))
 talks to an authoritative gRPC server over a bidirectional stream. Multiplayer,
@@ -15,15 +15,15 @@ one shared world per server process, localhost-only for now.
 
 ```
 cmd/
-  gongeons/        client binary (terminal UI)
-  gongeonsd/       server binary
+  kingdomtide/     client binary (terminal UI)
+  kingdomtided/    server binary
 internal/
   game/            pure domain: World, Command, Event, ApplyCommand, rules
   ui/              bubbletea Model/Update/View + gRPC client glue
   server/          gRPC service impl, subscriber hub
   proto/           generated protobuf Go (committed; do not hand-edit)
 proto/
-  gongeons.proto   hand-written schema, source of truth
+  kingdomtide.proto   hand-written schema, source of truth
 ```
 
 ## Quick start
@@ -73,8 +73,8 @@ shared map. See the plan doc for what comes next.
 | Target           | Description                                         |
 |------------------|-----------------------------------------------------|
 | `make build`     | Build both binaries into `bin/`                     |
-| `make run-server`| Run `gongeonsd` in foreground                       |
-| `make run-client`| Run `gongeons` against `localhost:50051`            |
+| `make run-server`| Run `kingdomtided` in foreground                    |
+| `make run-client`| Run `kingdomtide` against `localhost:50051`         |
 | `make test`      | `go test -race ./...`                               |
 | `make proto`     | Regenerate `internal/proto/*.pb.go`                 |
 | `make tools`     | Install `protoc-gen-go` + `protoc-gen-go-grpc`      |
@@ -83,5 +83,5 @@ shared map. See the plan doc for what comes next.
 
 ## Development plan
 
-See [`.omc/plans/gongeons-plan.md`](.omc/plans/gongeons-plan.md) for phased
+See [`.omc/plans/kingdomtide-plan.md`](.omc/plans/kingdomtide-plan.md) for phased
 milestones, design decisions, and ownership boundaries.

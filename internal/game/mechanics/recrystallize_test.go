@@ -3,7 +3,7 @@ package mechanics
 import (
 	"testing"
 
-	"github.com/Rioverde/gongeons/internal/game/polity"
+	"github.com/Rioverde/kingdomtide/internal/game/polity"
 )
 
 // TestApplyRecrystallizeYear_PrunesExpired verifies that mods whose

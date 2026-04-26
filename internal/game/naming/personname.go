@@ -3,8 +3,8 @@ package naming
 import (
 	"math/rand/v2"
 
-	"github.com/Rioverde/gongeons/internal/game/geom"
-	"github.com/Rioverde/gongeons/internal/game/naming/markov"
+	"github.com/Rioverde/kingdomtide/internal/game/geom"
+	"github.com/Rioverde/kingdomtide/internal/game/naming/markov"
 )
 
 // saltBodyRuler and saltBodySettlement are the per-role PCG salts applied

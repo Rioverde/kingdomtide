@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/Rioverde/gongeons/internal/game/geom"
-	"github.com/Rioverde/gongeons/internal/game/polity"
+	"github.com/Rioverde/kingdomtide/internal/game/geom"
+	"github.com/Rioverde/kingdomtide/internal/game/polity"
 )
 
 // shouldMerge runs the symmetric merge predicate from the plan §7.1.

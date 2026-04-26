@@ -1,7 +1,7 @@
 package calendar
 
 import (
-	"github.com/Rioverde/gongeons/internal/game/geom"
+	"github.com/Rioverde/kingdomtide/internal/game/geom"
 )
 
 // Month enumerates the twelve calendar months in real-world Gregorian

@@ -4,9 +4,9 @@ import (
 	"log/slog"
 	"sync"
 
-	"github.com/Rioverde/gongeons/internal/game/event"
-	"github.com/Rioverde/gongeons/internal/game/geom"
-	pb "github.com/Rioverde/gongeons/internal/proto"
+	"github.com/Rioverde/kingdomtide/internal/game/event"
+	"github.com/Rioverde/kingdomtide/internal/game/geom"
+	pb "github.com/Rioverde/kingdomtide/internal/proto"
 )
 
 // sessionChanCap is the per-subscriber outbox buffer. Sized to absorb a

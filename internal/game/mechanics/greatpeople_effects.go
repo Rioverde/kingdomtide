@@ -1,6 +1,6 @@
 package mechanics
 
-import "github.com/Rioverde/gongeons/internal/game/polity"
+import "github.com/Rioverde/kingdomtide/internal/game/polity"
 
 // Great-person effect constants. Each archetype grants a distinct
 // civic bonus while alive in the city. Values are kept in one file

@@ -2706,7 +2706,7 @@ const file_gongeons_proto_rawDesc = "" +
 	"\x16CALENDAR_SEASON_SUMMER\x10\x03\x12\x1a\n" +
 	"\x16CALENDAR_SEASON_AUTUMN\x10\x042Q\n" +
 	"\vGameService\x12B\n" +
-	"\x04Play\x12\x1a.gongeons.v1.ClientMessage\x1a\x1a.gongeons.v1.ServerMessage(\x010\x01B8Z6github.com/Rioverde/gongeons/internal/proto;gongeonspbb\x06proto3"
+	"\x04Play\x12\x1a.gongeons.v1.ClientMessage\x1a\x1a.gongeons.v1.ServerMessage(\x010\x01B\x3bZ\x39github.com/Rioverde/kingdomtide/internal/proto;gongeonspbb\x06proto3"
 
 var (
 	file_gongeons_proto_rawDescOnce sync.Once

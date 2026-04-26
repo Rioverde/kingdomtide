@@ -1,6 +1,6 @@
 package mechanics
 
-import "github.com/Rioverde/gongeons/internal/game/polity"
+import "github.com/Rioverde/kingdomtide/internal/game/polity"
 
 // Economic constants. Numbers are deliberately loose for the MVP —
 // once we have Trade, Tribute, and Decree-driven modifiers, the

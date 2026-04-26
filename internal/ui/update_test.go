@@ -6,8 +6,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/Rioverde/gongeons/internal/game/geom"
-	pb "github.com/Rioverde/gongeons/internal/proto"
+	"github.com/Rioverde/kingdomtide/internal/game/geom"
+	pb "github.com/Rioverde/kingdomtide/internal/proto"
 )
 
 // keyRunes synthesises a tea.KeyMsg as if the user typed one rune.

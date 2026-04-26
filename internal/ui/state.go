@@ -1,4 +1,4 @@
-// Package ui is the Bubble Tea terminal client for Gongeons.
+// Package ui is the Bubble Tea terminal client for Kingdomtide.
 //
 // The client is a thin renderer on top of a gRPC bidirectional stream:
 // it never mutates world state on its own. Every key press turns into a
@@ -15,13 +15,13 @@ import (
 	"github.com/charmbracelet/ssh"
 	"google.golang.org/grpc"
 
-	"github.com/Rioverde/gongeons/internal/game/calendar"
-	"github.com/Rioverde/gongeons/internal/game/geom"
-	"github.com/Rioverde/gongeons/internal/game/stats"
-	"github.com/Rioverde/gongeons/internal/game/worldgen"
-	pb "github.com/Rioverde/gongeons/internal/proto"
-	"github.com/Rioverde/gongeons/internal/server"
-	"github.com/Rioverde/gongeons/internal/ui/locale"
+	"github.com/Rioverde/kingdomtide/internal/game/calendar"
+	"github.com/Rioverde/kingdomtide/internal/game/geom"
+	"github.com/Rioverde/kingdomtide/internal/game/stats"
+	"github.com/Rioverde/kingdomtide/internal/game/worldgen"
+	pb "github.com/Rioverde/kingdomtide/internal/proto"
+	"github.com/Rioverde/kingdomtide/internal/server"
+	"github.com/Rioverde/kingdomtide/internal/ui/locale"
 )
 
 // UI sizing and formatting constants. Named so call sites stay expressive and

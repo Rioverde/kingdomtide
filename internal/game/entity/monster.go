@@ -3,7 +3,7 @@ package entity
 import (
 	"errors"
 
-	"github.com/Rioverde/gongeons/internal/game/stats"
+	"github.com/Rioverde/kingdomtide/internal/game/stats"
 )
 
 // Monster is an AI-controlled entity. It wraps the shared Character

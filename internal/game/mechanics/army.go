@@ -1,6 +1,6 @@
 package mechanics
 
-import "github.com/Rioverde/gongeons/internal/game/polity"
+import "github.com/Rioverde/kingdomtide/internal/game/polity"
 
 // Army constants. The baseline fraction is a hard-coded 2 % because
 // culture multipliers haven't shipped yet; when they do, culture

@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/Rioverde/gongeons/internal/game/geom"
-	"github.com/Rioverde/gongeons/internal/game/polity"
-	gworld "github.com/Rioverde/gongeons/internal/game/world"
+	"github.com/Rioverde/kingdomtide/internal/game/geom"
+	"github.com/Rioverde/kingdomtide/internal/game/polity"
+	gworld "github.com/Rioverde/kingdomtide/internal/game/world"
 )
 
 // TestCampSource_Report logs a human-readable tabular summary of the

@@ -140,4 +140,4 @@ formatters:
           replacement: "any"
     goimports:
       local-prefixes:
-        - github.com/Rioverde/gongeons
+        - github.com/Rioverde/kingdomtide

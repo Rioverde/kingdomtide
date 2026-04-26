@@ -8,9 +8,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/Rioverde/gongeons/internal/game/geom"
-	"github.com/Rioverde/gongeons/internal/game/polity"
-	"github.com/Rioverde/gongeons/internal/game/simulation"
+	"github.com/Rioverde/kingdomtide/internal/game/geom"
+	"github.com/Rioverde/kingdomtide/internal/game/polity"
+	"github.com/Rioverde/kingdomtide/internal/game/simulation"
 )
 
 // viewerZoomLevels is the ordered set of supported tile-sampling steps.

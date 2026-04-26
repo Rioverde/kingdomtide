@@ -3,7 +3,7 @@ package simulation
 import (
 	"math/rand/v2"
 
-	"github.com/Rioverde/gongeons/internal/game/geom"
+	"github.com/Rioverde/kingdomtide/internal/game/geom"
 )
 
 // newSimRng builds a deterministic PCG stream from

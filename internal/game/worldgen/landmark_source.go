@@ -5,9 +5,9 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/Rioverde/gongeons/internal/game/geom"
-	"github.com/Rioverde/gongeons/internal/game/naming"
-	gworld "github.com/Rioverde/gongeons/internal/game/world"
+	"github.com/Rioverde/kingdomtide/internal/game/geom"
+	"github.com/Rioverde/kingdomtide/internal/game/naming"
+	gworld "github.com/Rioverde/kingdomtide/internal/game/world"
 )
 
 // Per-super-chunk landmark count distribution. The four buckets sum to

@@ -1,9 +1,9 @@
 package world
 
 import (
-	"github.com/Rioverde/gongeons/internal/game/geom"
-	"github.com/Rioverde/gongeons/internal/game/naming/parts"
-	"github.com/Rioverde/gongeons/internal/game/polity"
+	"github.com/Rioverde/kingdomtide/internal/game/geom"
+	"github.com/Rioverde/kingdomtide/internal/game/naming/parts"
+	"github.com/Rioverde/kingdomtide/internal/game/polity"
 )
 
 // RegionCharacter is the dominant thematic identity of a super-chunk region.

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/Rioverde/gongeons/internal/game/polity"
+	"github.com/Rioverde/kingdomtide/internal/game/polity"
 )
 
 // logger writes structured event lines to an io.Writer in the format

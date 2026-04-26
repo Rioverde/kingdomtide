@@ -4,7 +4,7 @@ import (
 	"math/rand/v2"
 	"sync"
 
-	"github.com/Rioverde/gongeons/internal/game/geom"
+	"github.com/Rioverde/kingdomtide/internal/game/geom"
 )
 
 // newPCG constructs a deterministic seeded PCG from a pre-mixed state word.

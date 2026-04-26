@@ -1,6 +1,6 @@
 package mechanics
 
-import "github.com/Rioverde/gongeons/internal/game/polity"
+import "github.com/Rioverde/kingdomtide/internal/game/polity"
 
 // Happiness-composition constants. Composed of a base civic mood
 // plus bounded contributions; we model the subset that our current

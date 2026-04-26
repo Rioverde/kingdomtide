@@ -9,8 +9,8 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/Rioverde/gongeons/internal/game/stats"
-	"github.com/Rioverde/gongeons/internal/ui/locale"
+	"github.com/Rioverde/kingdomtide/internal/game/stats"
+	"github.com/Rioverde/kingdomtide/internal/ui/locale"
 )
 
 // Init is the Bubble Tea entry Cmd. The client does nothing until the

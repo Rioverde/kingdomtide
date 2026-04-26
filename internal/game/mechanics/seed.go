@@ -3,7 +3,7 @@ package mechanics
 import (
 	"math"
 
-	"github.com/Rioverde/gongeons/internal/game/dice"
+	"github.com/Rioverde/kingdomtide/internal/game/dice"
 )
 
 // Pass-1 seeding constants. These helpers produce the initial City

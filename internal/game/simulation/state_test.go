@@ -3,7 +3,7 @@ package simulation
 import (
 	"testing"
 
-	"github.com/Rioverde/gongeons/internal/game/polity"
+	"github.com/Rioverde/kingdomtide/internal/game/polity"
 )
 
 // TestPopulationDynamics_NetGrowth — net rate ~+0.2%/yr in good years.

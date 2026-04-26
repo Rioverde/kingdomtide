@@ -4,7 +4,7 @@ import (
 	"log/slog"
 	"sync"
 
-	pb "github.com/Rioverde/gongeons/internal/proto"
+	pb "github.com/Rioverde/kingdomtide/internal/proto"
 )
 
 // subscriberChanCap is the per-subscriber outbox buffer. Small enough that a

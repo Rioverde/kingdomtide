@@ -1,5 +1,5 @@
 // Command sim-explorer is a developer tool for stepping through the
-// Gongeons settlement simulation year by year. It presents a bubbletea
+// Kingdomtide settlement simulation year by year. It presents a bubbletea
 // TUI with three phases: a menu for picking world size and seed; a short
 // building screen while the world generates and the simulation runs; and
 // a scrollable viewer that lets the dev navigate the map, toggle layers,
@@ -27,7 +27,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/Rioverde/gongeons/internal/game/worldgen"
+	"github.com/Rioverde/kingdomtide/internal/game/worldgen"
 )
 
 func main() {

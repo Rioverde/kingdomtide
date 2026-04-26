@@ -1,6 +1,6 @@
 package world
 
-import "github.com/Rioverde/gongeons/internal/game/stats"
+import "github.com/Rioverde/kingdomtide/internal/game/stats"
 
 // Intent is the closed sum type of gameplay actions that resolve inside a
 // tick rather than immediately. Concrete intents implement the unexported

@@ -1,9 +1,9 @@
 package mechanics
 
 import (
-	"github.com/Rioverde/gongeons/internal/game/dice"
-	"github.com/Rioverde/gongeons/internal/game/polity"
-	"github.com/Rioverde/gongeons/internal/game/stats"
+	"github.com/Rioverde/kingdomtide/internal/game/dice"
+	"github.com/Rioverde/kingdomtide/internal/game/polity"
+	"github.com/Rioverde/kingdomtide/internal/game/stats"
 )
 
 // Event DCs — chosen to give roughly 10–15 % firing rate on a

@@ -3,8 +3,8 @@ package entity
 import (
 	"errors"
 
-	"github.com/Rioverde/gongeons/internal/game/geom"
-	"github.com/Rioverde/gongeons/internal/game/stats"
+	"github.com/Rioverde/kingdomtide/internal/game/geom"
+	"github.com/Rioverde/kingdomtide/internal/game/stats"
 )
 
 // Player is a human-controlled entity. It wraps the shared Character

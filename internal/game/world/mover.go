@@ -1,6 +1,6 @@
 package world
 
-import "github.com/Rioverde/gongeons/internal/game/entity"
+import "github.com/Rioverde/kingdomtide/internal/game/entity"
 
 // Mover is the tick-loop's view of any entity that takes turns — the minimum
 // shape the Tick scheduler needs to order entities, accumulate energy, and

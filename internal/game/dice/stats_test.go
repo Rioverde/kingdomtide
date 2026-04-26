@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Rioverde/gongeons/internal/game/dice"
+	"github.com/Rioverde/kingdomtide/internal/game/dice"
 )
 
 const (

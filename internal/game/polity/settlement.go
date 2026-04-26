@@ -1,6 +1,6 @@
 package polity
 
-import "github.com/Rioverde/gongeons/internal/game/geom"
+import "github.com/Rioverde/kingdomtide/internal/game/geom"
 
 // SettlementID is a stable identity assigned at settlement creation.
 // Used in the simulation log and dev tool to track a settlement across

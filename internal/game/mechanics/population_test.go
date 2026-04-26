@@ -3,7 +3,7 @@ package mechanics
 import (
 	"testing"
 
-	"github.com/Rioverde/gongeons/internal/game/polity"
+	"github.com/Rioverde/kingdomtide/internal/game/polity"
 )
 
 // TestApplyPopulationYear_GrowsOnGoodConditions verifies a healthy

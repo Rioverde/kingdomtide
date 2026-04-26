@@ -1,5 +1,5 @@
 // Command worldgen-explorer is a developer tool for iterating on the
-// Gongeons worldgen pipeline. It presents a bubbletea TUI with three
+// Kingdomtide worldgen pipeline. It presents a bubbletea TUI with three
 // phases: a menu for picking world size and seed; a short building
 // screen while the demo world generates; and a scrollable viewer that
 // lets the dev navigate the baked grids with arrow keys, toggle
@@ -28,7 +28,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/Rioverde/gongeons/internal/game/worldgen"
+	"github.com/Rioverde/kingdomtide/internal/game/worldgen"
 )
 
 func main() {

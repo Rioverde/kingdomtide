@@ -1,6 +1,6 @@
 package world
 
-import "github.com/Rioverde/gongeons/internal/game/stats"
+import "github.com/Rioverde/kingdomtide/internal/game/stats"
 
 // Command is the closed sum type of domain intents. Concrete command types
 // live in this file and implement the unexported isCommand marker so the set

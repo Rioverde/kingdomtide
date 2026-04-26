@@ -1,7 +1,7 @@
 package simulation
 
 import (
-	"github.com/Rioverde/gongeons/internal/game/polity"
+	"github.com/Rioverde/kingdomtide/internal/game/polity"
 )
 
 // state is the per-run simulation state, mutated through the tick

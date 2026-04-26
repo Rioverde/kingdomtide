@@ -3,8 +3,8 @@ package worldgen
 import (
 	"sort"
 
-	"github.com/Rioverde/gongeons/internal/game/geom"
-	gworld "github.com/Rioverde/gongeons/internal/game/world"
+	"github.com/Rioverde/kingdomtide/internal/game/geom"
+	gworld "github.com/Rioverde/kingdomtide/internal/game/world"
 )
 
 // depositSeedSalt decorrelates the deposit PRNG stream from every other
